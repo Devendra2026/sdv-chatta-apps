@@ -1,0 +1,31 @@
+---
+description: Better Auth authentication and permission-based RBAC
+globs: apps/api/**/*,apps/portal/**/*,apps/web/**/*,packages/**/*
+alwaysApply: false
+---
+
+# Auth & RBAC
+
+## Authentication
+
+Use **Better Auth** only. Do not invent a second auth/session system.
+
+```text
+Better Auth → Session → Authenticated User → RBAC
+```
+
+Never expose auth secrets to the browser or `NEXT_PUBLIC_*`.
+
+## Authorization
+
+Permission-based: `resource:action` (e.g. `survey:read`, `payment:refund`, `role:update`).
+
+Avoid `if (role === "ADMIN")` except rare system exceptions. Prefer `hasPermission(user, "survey:update")`.
+
+### Backend (security)
+
+Every protected endpoint enforces permissions server-side (AuthGuard / PermissionGuard / `@RequirePermission`). Unauthorized → **403**. Frontend checks are not security.
+
+### Frontend (UX only)
+
+Reuse `usePermission` / `hasPermission` / `can` to hide unauthorized nav/actions. Same permission must be enforced on the API.

@@ -1,0 +1,25 @@
+---
+description: Prisma schema, migrations, indexes, and large-dataset performance
+globs: "**/*.prisma,**/prisma/**/*,apps/api/**/*"
+alwaysApply: false
+---
+
+# Prisma & Database
+
+Prisma is the only ORM unless an explicit project decision says otherwise. Never call Prisma from portal/web client code.
+
+## Before new models
+
+Inspect schema → search equivalents → reuse relations → add indexes for query patterns → unique constraints where needed. Prefer `createdAt` / `updatedAt` / `createdBy` / `updatedBy`. Use enums for finite statuses — not arbitrary strings.
+
+## Performance (100K–1M+ rows)
+
+Pagination (cursor where useful), selective fields, efficient joins, batch ops, DB aggregation. Never load entire survey tables into memory. Avoid `SELECT *` on list APIs. Index composite filters (ward, date, status, etc.).
+
+## Integrity
+
+FKs, uniques, transactions, enums. Careful with cascading deletes. Prefer soft delete where justified. Never casually delete payments, financial rows, or audit logs — prefer immutable financial history.
+
+## Migrations
+
+Use Prisma migrations. Inspect impact before applying. No destructive production shortcuts without explicit approval. No random manual schema edits if migrations are the established path.

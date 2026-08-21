@@ -1,0 +1,25 @@
+---
+description: Payment gateway, idempotency, offline collection, financial audit
+globs: apps/api/**/*,**/payment*/**/*,**/refund*/**/*,**/settlement*/**/*
+alwaysApply: false
+---
+
+# Payments
+
+Financial data is sensitive and auditable. Never invent gateway request/response formats — read the supplied gateway docs first (request/response, signature, callback, requery, refund, settlement, timeouts, idempotency).
+
+## Security
+
+Gateway secrets stay server-side only. Never in `NEXT_PUBLIC_*`, client bundles, or unsanitized logs.
+
+## Idempotency
+
+Callbacks may repeat. Dedupe via transaction ID / gateway reference / payment reference / idempotency key. Status transitions must be deterministic.
+
+## History
+
+Do not hard-delete Payment, PaymentTransaction, PaymentCallback, Refund, Settlement unless legally required. Prefer status transitions + audit.
+
+## Offline collections
+
+Separately identifiable: Cash, Cheque, DD, Manual UPI, Other. Unique receipt numbers. Record collector, date, amount, mode, reference, property/survey, remarks. All modifications audited.

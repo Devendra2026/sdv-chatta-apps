@@ -1,0 +1,36 @@
+---
+description: Next.js App Router portal UI, design system, tables, forms
+globs: apps/portal/**/*,apps/web/**/*
+alwaysApply: false
+---
+
+# Next.js Portal
+
+## Components
+
+- Prefer Server Components by default.
+- Client Components only for interactivity.
+- Client code must never import Prisma, secrets, private keys, or Nest modules.
+- Use App Router. Consider `loading.tsx` / `error.tsx` / `not-found.tsx` on major routes.
+- Prefer server data loading; avoid unnecessary client fetching.
+- Large lists: backend pagination/filtering only.
+
+## Design system
+
+Enterprise SaaS look. Extend existing shadcn / `@workspace/ui` — do not invent competing primitives.
+
+Do: clean typography, consistent spacing, strong hierarchy, professional tables, responsive layouts, accessible forms, controlled empty/loading/error/success states.
+
+Avoid: excessive gradients, huge cards, random colors, clutter, basic HTML forms, animation noise.
+
+## Tables & search
+
+Server-side pagination, search, filter, sort. Debounced search. Index-backed fields (survey id, owner, mobile, parcel, property no, ward, locality). Never load 100K rows into the browser.
+
+## Forms
+
+Schema validation, field errors, preserve values, prevent double submit, loading + success feedback. Survey sections: Basic / Owner / Respondent / Property / Classification / Measurements / Utilities / Attachments.
+
+## A11y & i18n
+
+Keyboard, labels, focus, semantic HTML, contrast. Preserve Hindi/Unicode — never strip or auto-transliterate. Localization-ready (Hindi/English). Desktop-first; tablet/mobile usable.

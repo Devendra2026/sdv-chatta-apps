@@ -1,0 +1,46 @@
+---
+description: NestJS domain modules, thin controllers, API contracts and validation
+globs: apps/api/**/*
+alwaysApply: false
+---
+
+# NestJS API
+
+## Module layout
+
+Organize by domain (`auth`, `users`, `roles`, `wards`, `surveys`, `imports`, `exports`, `reports`, `payments`, `refunds`, `settlements`, `files`, `audit`). Prefer Controller → Service → Repository (when useful) → DTO → Guard → Mapper.
+
+Controllers stay thin. Business logic in services. No giant controllers/files.
+
+## API shape
+
+Versioned REST: `/api/v1/...`
+
+Success:
+
+```json
+{ "success": true, "data": {}, "meta": {} }
+```
+
+Error:
+
+```json
+{
+  "success": false,
+  "error": { "code": "ERROR_CODE", "message": "Human readable" }
+}
+```
+
+Never expose stack traces, raw DB errors, secrets, or internals in production responses.
+
+## Validation
+
+Validate body, query, params, files, headers. Backend validation is mandatory — never trust the frontend.
+
+## Jobs
+
+Long imports/exports/image work and reconciliation run asynchronously (`ImportJob` / `ExportJob` style). Do not block HTTP for huge workloads. Do not add a new queue framework without checking what already exists.
+
+## Errors
+
+Never swallow errors. Log appropriately; return safe messages. Frontend shows human-readable text only.

@@ -1,0 +1,29 @@
+---
+description: Survey domain, wards, Excel import/export safety and images
+globs: apps/api/**/*,apps/portal/**/*,packages/**/*
+alwaysApply: false
+---
+
+# Survey & Excel
+
+## Survey domain
+
+Support CRUD, search, filter, sort, pagination, bulk, import, export, attachments, audit. All **15 Chhata wards** via a Ward entity — never hard-code ward names.
+
+## Excel import flow
+
+Upload → validate → column detect/map → preview → row validate → duplicates → confirm → background job → Postgres → MinIO attachments → import report.
+
+Always report: total, success, failed, warnings, duplicates, inserted, updated, skipped. Never silently discard data.
+
+## Data safety
+
+Real business workbooks: do not overwrite source files, silently transform/drop columns, or silently overwrite existing records. Preserve originals; handle duplicate headers explicitly.
+
+## Embedded images
+
+Excel → extract → MinIO → `SurveyAttachment` (or equivalent) → associate with survey. If association is unsafe, **warn** — do not guess.
+
+## Reports
+
+Aggregate in the backend with the same filters as the UI. Do not pull full datasets into Next.js for totals.

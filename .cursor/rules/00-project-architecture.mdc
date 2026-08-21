@@ -1,0 +1,44 @@
+---
+description: Chhata municipal platform architecture — inspect, reuse, never rewrite
+alwaysApply: true
+---
+
+# Project Architecture (Chhata)
+
+Production municipal survey, property-data, reporting, RBAC, and payment platform for **Nagar Panchayat Chhata, Mathura**.
+
+## Stack
+
+```text
+Turborepo + pnpm
+├── apps/portal/     # Next.js citizen/admin portal (App Router)
+├── apps/api/        # NestJS HTTP API
+├── apps/web/        # Next.js app (if present — do not invent a second stack)
+├── packages/ui/     # Shared UI (extend; do not fork)
+├── PostgreSQL + Prisma
+├── MinIO
+├── Better Auth
+└── Docker
+```
+
+## Default behavior
+
+```text
+Inspect → Understand → Reuse → Extend → Test
+```
+
+**Do not rewrite the monorepo.** Never replace architecture without understanding existing code.
+
+## Core domains (keep modular)
+
+Survey, Ward, Excel import/export, MinIO files, RBAC, Users, Roles, Permissions, Reports, Payments, Offline collection, Gateway, Refunds, Settlements, Audit.
+
+## Boundaries
+
+- `apps/portal` / `apps/web` — UI only. No Prisma, Nest modules, secrets, or DB credentials.
+- `apps/api` — HTTP, business logic, Prisma, authz, jobs. No React/Next imports.
+- Shared packages — types, validation, UI, contracts. No browser secrets.
+
+## Quality bar
+
+Production-ready, secure, typed, testable, scalable (100K–1M+ rows), accessible, auditable. Optimize for reliable municipal use — not one-off demos.

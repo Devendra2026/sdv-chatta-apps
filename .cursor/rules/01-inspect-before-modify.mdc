@@ -1,0 +1,21 @@
+---
+description: Always inspect existing code before creating or changing anything
+alwaysApply: true
+---
+
+# Inspect Before Modifying
+
+Before any change:
+
+1. Read the target files and nearby modules.
+2. Search for existing services/components/hooks.
+3. Reuse abstractions — never duplicate auth, RBAC, storage, or API clients.
+4. Check Prisma schema before new models.
+5. Check Better Auth before auth changes.
+6. Check existing permission catalog before new authorization.
+7. Check `@workspace/ui` / shadcn before new UI primitives.
+8. Match existing Nest controller → service → DTO patterns.
+9. Reuse existing env vars; update `.env.example` only when adding new ones.
+10. Search references, API consumers, and tests before breaking changes.
+
+Never blindly overwrite files. Never create parallel implementations of the same concern.

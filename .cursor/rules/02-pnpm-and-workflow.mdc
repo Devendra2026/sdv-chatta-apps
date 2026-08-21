@@ -1,0 +1,30 @@
+---
+description: pnpm workspace commands, git safety, and finish checklist
+alwaysApply: true
+---
+
+# pnpm & Workflow
+
+## Package manager
+
+Use **pnpm** only. Do not introduce npm/yarn commands.
+
+Prefer: `pnpm install`, `pnpm add`, `pnpm remove`, `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test`.
+
+Do not upgrade dependencies without justification. Respect `pnpm-workspace.yaml` and Turbo.
+
+## Feature workflow
+
+1. Inspect → 2. Plan → 3. Implement → 4. Validate → 5. Test → 6. Lint → 7. Typecheck → 8. Review → 9. Fix → 10. Summarize
+
+## Before finishing
+
+Run relevant: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` (or project-equivalent scripts). Fix errors you introduced. Do not claim success if validation fails.
+
+## Git safety
+
+Do not `reset --hard`, force-push, delete branches/migrations, or overwrite unrelated changes without explicit approval. Keep diffs focused.
+
+## Response summary (after a task)
+
+What Changed · Files Created/Modified · Database · API · Frontend · Security/RBAC · Tests · Validation · Remaining Issues — factual only.

@@ -1,0 +1,30 @@
+---
+description: Security baseline, testing expectations, no production mocks
+alwaysApply: true
+---
+
+# Security & Testing
+
+## Security checklist
+
+Authn, authz, input validation, rate limits, CORS/CSRF, secure cookies, file/MIME validation, upload limits, injection/XSS defenses, secrets hygiene. Never trust user input, filenames, or client-side permissions.
+
+## Env
+
+No hard-coded secrets. Maintain `.env.example` without real credentials. Never commit `.env` with secrets.
+
+## Docker
+
+Use existing Docker for Postgres, MinIO, API, portal. Do not replace compose without need.
+
+## Testing (minimum for important features)
+
+Survey CRUD + authz, RBAC, Excel validation/duplicates/import, payment create/callback/idempotency/requery/refund, offline payment. Add E2E for critical journeys.
+
+## Type safety
+
+Avoid `any`. Prefer Zod/DTOs/enums/discriminated unions. Fix types — do not cast around errors.
+
+## No production mocks
+
+No fake APIs, fake payments, fake dashboards, hard-coded surveys, or fake auth in production paths. Mocks only in tests/dev.
