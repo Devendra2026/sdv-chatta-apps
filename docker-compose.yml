@@ -1,0 +1,73 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: chhata-postgres
+    restart: unless-stopped
+    ports:
+      # Host 5432 is often taken by other local stacks (e.g. api-survey-local).
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: chhata
+      POSTGRES_PASSWORD: chhata
+      POSTGRES_DB: chhata
+    volumes:
+      - chhata_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chhata -d chhata"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: chhata-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - chhata_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: chhata-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    ports:
+      - "9010:9000"
+      - "9011:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - chhata_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: chhata-minio-init
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint: >
+      /bin/sh -c "
+      sleep 3;
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb -p local/chhata-surveys || true;
+      mc anonymous set none local/chhata-surveys;
+      exit 0;
+      "
+
+volumes:
+  chhata_pg_data:
+  chhata_redis_data:
+  chhata_minio_data:

@@ -1,0 +1,35 @@
+UAT String Format
+
+{
+"payInstrument": {
+"headDetails": {
+"version": "OTSv1.1",
+"api": "AUTH",
+"platform": "FLASH"
+},
+"merchDetails": {
+"merchId": 317159,
+"userId": "",
+"password": "Test@123",
+"merchTxnId": "test000123",
+"merchTxnDate": "2021-10-29 20:46:00"
+},
+"payDetails": {
+"amount": '100',
+"product": "NSE",
+"custAccNo": "5464567453453435",
+"txnCurrency": "INR"
+},
+"custDetails": {
+"custEmail": "sagar.gopale@atomtech.in",
+"custMobile": "8976286911"
+},
+"extras": {
+"udf1": "udf1",
+"udf2": "udf2",
+"udf3": "udf3",
+"udf4": "udf4",
+"udf5": "udf5"
+}
+}
+}

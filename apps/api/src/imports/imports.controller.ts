@@ -1,0 +1,84 @@
+import {
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+  Body,
+} from "@nestjs/common"
+import { FileInterceptor } from "@nestjs/platform-express"
+import { DuplicateStrategy } from "@prisma/client"
+
+import {
+  CurrentUser,
+  RequirePermission,
+  type AuthUser,
+} from "../auth/auth.decorators"
+import { AuthGuard } from "../auth/auth.guard"
+import { PermissionGuard } from "../auth/permission.guard"
+import { ImportsService } from "./imports.service"
+
+@Controller("api/v1/imports")
+@UseGuards(AuthGuard, PermissionGuard)
+export class ImportsController {
+  constructor(private readonly importsService: ImportsService) {}
+
+  @Post("upload")
+  @RequirePermission("import:create")
+  @UseInterceptors(FileInterceptor("file"))
+  async upload(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthUser,
+    @Body("duplicateStrategy") duplicateStrategy?: DuplicateStrategy
+  ) {
+    const data = await this.importsService.createUpload(
+      file,
+      user,
+      duplicateStrategy ?? "SKIP"
+    )
+    return { success: true, data }
+  }
+
+  @Post(":id/start")
+  @RequirePermission("import:create")
+  async start(@Param("id") id: string) {
+    const data = await this.importsService.start(id)
+    return { success: true, data }
+  }
+
+  @Get()
+  @RequirePermission("import:read")
+  async list(@Query("page") page?: string, @Query("pageSize") pageSize?: string) {
+    const { items, meta } = await this.importsService.list(
+      Number(page ?? 1),
+      Number(pageSize ?? 20)
+    )
+    return { success: true, data: items, meta }
+  }
+
+  @Get(":id")
+  @RequirePermission("import:read")
+  async get(@Param("id") id: string) {
+    const data = await this.importsService.getJob(id)
+    return { success: true, data }
+  }
+}
+
+@Controller("api/v1/exports")
+@UseGuards(AuthGuard, PermissionGuard)
+export class ExportsController {
+  constructor(private readonly importsService: ImportsService) {}
+
+  @Post("surveys")
+  @RequirePermission("export:create")
+  async exportSurveys(
+    @Body() body: { wardId?: string; status?: string },
+    @CurrentUser() user: AuthUser
+  ) {
+    const data = await this.importsService.exportSurveys(body, user)
+    return { success: true, data }
+  }
+}

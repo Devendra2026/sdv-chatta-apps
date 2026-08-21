@@ -1,21 +1,48 @@
-# shadcn/ui monorepo template
+# Nagar Panchayat Chhata Platform
 
-This is a Next.js monorepo template with shadcn/ui.
+Municipal survey, property-data, reporting, RBAC, and payment platform for **Nagar Panchayat Chhata, Mathura**.
 
-## Adding components
+## Stack
 
-To add components to your app, run the following command at the root of your `web` app:
+- `apps/portal` — Next.js citizen/admin portal
+- `apps/api` — NestJS HTTP API (Prisma, Better Auth, BullMQ, MinIO, Atom NDPS)
+- `apps/web` — unused scaffold (do not use for product UI)
+- `packages/ui` — shared shadcn/Base UI components
+- `packages/types` / `packages/api-client` — shared types and fetch client
+
+## Quick start
 
 ```bash
-pnpm dlx shadcn@latest add button -c apps/web
+# 1. Infra
+docker compose up -d
+
+# 2. Env
+cp .env.example .env
+cp apps/api/.env.example apps/api/.env
+cp apps/portal/.env.example apps/portal/.env
+
+# 3. DB
+pnpm db:generate
+pnpm --filter api prisma:migrate
+pnpm db:seed
+
+# 4. Dev
+pnpm dev:api
+pnpm dev:portal
 ```
 
-This will place the ui components in the `packages/ui/src/components` directory.
+Local Docker ports (avoids clashes with other stacks like `api-survey-local`):
 
-## Using components
+| Service       | Host port |
+| ------------- | --------- |
+| Postgres      | `5433`    |
+| Redis         | `6380`    |
+| MinIO API     | `9010`    |
+| MinIO console | `9011`    |
 
-To use the components in your app, import them from the `ui` package.
+Default admin (seed): `sikarwar2010@gmail.com` / `tarun@0446`
 
-```tsx
-import { Button } from "@workspace/ui/components/button";
-```
+## Fixtures
+
+- Survey Excel: `fixtures/survey/` (copied from source; originals never modified)
+- Payment docs: `docs/payments/`
