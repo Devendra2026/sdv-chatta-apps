@@ -122,6 +122,7 @@ export class ReportsController {
         ...(wardId ? { wardId } : {}),
       },
       include: { ward: true },
+      orderBy: [{ ward: { number: "asc" } }, { parcelNo: "asc" }, { surveyId: "asc" }],
       take: 20000,
     })
 

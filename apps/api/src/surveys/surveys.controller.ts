@@ -59,13 +59,14 @@ export class SurveysController {
   @RequirePermission("survey:read")
   async findOne(@Param("id") id: string, @CurrentUser() user: AuthUser) {
     const survey = await this.surveysService.findOne(id)
+    const neighbors = await this.surveysService.findNeighbors(survey)
     const masked = this.surveysService.maskPii(
       survey,
       user.permissions.includes("survey:pii:read") ||
         user.roles.includes("SUPER_ADMIN")
     )
     const data = await this.surveysService.withAttachmentUrls(masked)
-    return { success: true, data }
+    return { success: true, data: { ...data, neighbors } }
   }
 
   @Post(":id/attachments")
@@ -103,9 +104,14 @@ export class SurveysController {
   @RequirePermission("survey:update")
   async removeAttachment(
     @Param("id") id: string,
-    @Param("attachmentId") attachmentId: string
+    @Param("attachmentId") attachmentId: string,
+    @CurrentUser() user: AuthUser
   ) {
-    const data = await this.surveysService.removeAttachment(id, attachmentId)
+    const data = await this.surveysService.removeAttachment(
+      id,
+      attachmentId,
+      user
+    )
     return { success: true, data }
   }
 

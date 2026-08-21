@@ -33,14 +33,9 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     title: "Survey",
+    href: "/surveys",
     icon: ClipboardList,
     permission: "survey:read",
-    children: [
-      { title: "Survey List", href: "/surveys", permission: "survey:read" },
-      { title: "Import Data", href: "/surveys/import", permission: "import:create" },
-      { title: "Export Data", href: "/surveys/export", permission: "export:create" },
-      { title: "Import History", href: "/surveys/import/history", permission: "import:read" },
-    ],
   },
   {
     title: "Reports",
@@ -81,7 +76,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     title: "Import / Export",
     icon: FileUp,
-    permission: "import:read",
+    permission: ["import:read", "import:create", "export:create"],
     children: [
       { title: "Import", href: "/surveys/import", permission: "import:create", icon: FileUp },
       { title: "Export", href: "/surveys/export", permission: "export:create", icon: FileDown },
@@ -89,3 +84,30 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
 ]
+
+/** True when Survey list/detail is active, but not import/export routes. */
+export function isSurveyNavActive(pathname: string): boolean {
+  if (pathname === "/surveys") return true
+  if (!pathname.startsWith("/surveys/")) return false
+  if (pathname.startsWith("/surveys/import") || pathname.startsWith("/surveys/export")) {
+    return false
+  }
+  return true
+}
+
+export function getBreadcrumbLabel(pathname: string): string {
+  if (pathname.startsWith("/dashboard")) return "Dashboard"
+  if (isSurveyNavActive(pathname)) return "Survey"
+  if (pathname.startsWith("/reports")) return "Reports"
+  if (pathname.startsWith("/payments")) return "Payments"
+  if (pathname.startsWith("/settings") || pathname.startsWith("/audit-logs")) {
+    return "Settings"
+  }
+  if (
+    pathname.startsWith("/surveys/import") ||
+    pathname.startsWith("/surveys/export")
+  ) {
+    return "Import / Export"
+  }
+  return "Admin Portal"
+}

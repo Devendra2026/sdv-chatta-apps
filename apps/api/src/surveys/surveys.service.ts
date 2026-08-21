@@ -99,11 +99,22 @@ export class SurveysService {
       "ownerName",
       "mobile",
       "status",
+      "parcelNo",
+      "propertyNo",
     ])
     const sortBy = sortable.has(query.sortBy ?? "")
       ? (query.sortBy as string)
-      : "createdAt"
-    const sortOrder = query.sortOrder === "asc" ? "asc" : "desc"
+      : "parcelNo"
+    const sortOrder: Prisma.SortOrder = query.sortOrder === "desc" ? "desc" : "asc"
+
+    const orderBy: Prisma.SurveyOrderByWithRelationInput[] =
+      sortBy === "parcelNo"
+        ? [
+            { ward: { number: "asc" } },
+            { surveyId: sortOrder },
+            { parcelNo: sortOrder },
+          ]
+        : [{ [sortBy]: sortOrder }]
 
     const [total, items] = await this.prisma.$transaction([
       this.prisma.survey.count({ where }),
@@ -113,7 +124,7 @@ export class SurveysService {
           ward: true,
           createdBy: { select: { id: true, name: true, email: true } },
         },
-        orderBy: { [sortBy]: sortOrder },
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
@@ -142,6 +153,30 @@ export class SurveysService {
       })
     }
     return survey
+  }
+
+  async findNeighbors(survey: { id: string; wardId: string; surveyId: string }) {
+    const whereBase = {
+      wardId: survey.wardId,
+      deletedAt: null,
+      status: { not: "DELETED" as const },
+      id: { not: survey.id },
+    }
+
+    const [previous, next] = await Promise.all([
+      this.prisma.survey.findFirst({
+        where: { ...whereBase, surveyId: { lt: survey.surveyId } },
+        orderBy: { surveyId: "desc" },
+        select: { id: true, surveyId: true },
+      }),
+      this.prisma.survey.findFirst({
+        where: { ...whereBase, surveyId: { gt: survey.surveyId } },
+        orderBy: { surveyId: "asc" },
+        select: { id: true, surveyId: true },
+      }),
+    ])
+
+    return { previous, next }
   }
 
   async update(id: string, dto: UpdateSurveyDto, user: AuthUser) {
@@ -347,7 +382,10 @@ export class SurveysService {
     return {
       ward: true,
       floors: { orderBy: { sortOrder: "asc" as const } },
-      attachments: true,
+      attachments: {
+        orderBy: { createdAt: "asc" as const },
+        include: { uploadedBy: { select: { id: true, name: true } } },
+      },
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
     }
@@ -386,13 +424,13 @@ export class SurveysService {
     file: Express.Multer.File,
     user: AuthUser
   ) {
-    await this.findOne(surveyId)
+    const current = await this.findOne(surveyId)
     const safeName = file.originalname.replace(/[^\w.\-]+/g, "_").slice(0, 180)
-    const objectKey = `surveys/${surveyId}/${Date.now()}-${safeName}`
+    const objectKey = `surveys/${current.id}/${Date.now()}-${safeName}`
     await this.storage.putObject(objectKey, file.buffer, file.mimetype)
     const attachment = await this.prisma.surveyAttachment.create({
       data: {
-        surveyId,
+        surveyId: current.id,
         objectKey,
         originalFileName: file.originalname,
         mimeType: file.mimetype,
@@ -401,13 +439,25 @@ export class SurveysService {
         uploadedById: user.id,
       },
     })
+    await this.audit.log({
+      action: "SURVEY_ATTACHMENT_ADDED",
+      entity: "Survey",
+      entityId: current.id,
+      actorId: user.id,
+      newValue: { fileName: file.originalname, mimeType: file.mimetype },
+    })
     const url = await this.storage.getSignedUrl(objectKey, 600).catch(() => null)
     return { ...attachment, url }
   }
 
-  async removeAttachment(surveyId: string, attachmentId: string) {
+  async removeAttachment(
+    surveyId: string,
+    attachmentId: string,
+    user: AuthUser
+  ) {
+    const current = await this.findOne(surveyId)
     const attachment = await this.prisma.surveyAttachment.findFirst({
-      where: { id: attachmentId, surveyId },
+      where: { id: attachmentId, surveyId: current.id },
     })
     if (!attachment) {
       throw new NotFoundException({
@@ -416,6 +466,13 @@ export class SurveysService {
       })
     }
     await this.prisma.surveyAttachment.delete({ where: { id: attachmentId } })
+    await this.audit.log({
+      action: "SURVEY_ATTACHMENT_REMOVED",
+      entity: "Survey",
+      entityId: current.id,
+      actorId: user.id,
+      oldValue: { fileName: attachment.originalFileName },
+    })
     return { id: attachmentId }
   }
 }

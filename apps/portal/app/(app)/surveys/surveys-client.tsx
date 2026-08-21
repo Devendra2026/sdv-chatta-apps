@@ -2,13 +2,39 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Plus, Search } from "lucide-react"
+import {
+  createColumnHelper,
+  rowPaginationFeature,
+  tableFeatures,
+  useTable,
+  type PaginationState,
+  type Updater,
+} from "@tanstack/react-table"
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Eye,
+  FileDown,
+  FileUp,
+  MapPin,
+  Plus,
+  Search,
+} from "lucide-react"
 
+import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
-import { Badge } from "@workspace/ui/components/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import {
   Table,
@@ -18,125 +44,530 @@ import {
   TableHeader,
   TableRow,
 } from "@workspace/ui/components/table"
+import { cn } from "@workspace/ui/lib/utils"
 
 import { api } from "@/lib/api"
-import { useCan } from "@/hooks/use-permission"
+import { formatParcelNo } from "@/lib/survey-format"
+import { usePermission } from "@/hooks/use-permission"
 
 type SurveyRow = {
   id: string
   surveyId: string
   ownerName: string | null
-  mobile: string | null
   parcelNo: string | null
-  propertyNo: string | null
-  propertyUse: string | null
-  locality: string | null
-  surveyedAt: string | null
   status: string
   ward: { number: number; name: string }
-  createdBy?: { name: string } | null
+}
+
+type Ward = {
+  id: string
+  number: number
+  name: string
+  code: string
+  surveyCount: number
+}
+
+type SurveyListMeta = {
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
+}
+
+type SurveyStatusFilter = "DRAFT" | "ACTIVE" | "ARCHIVED"
+
+const PAGE_SIZES = [10, 20, 50] as const
+const DEFAULT_PAGE_SIZE = 20
+
+const features = tableFeatures({
+  rowPaginationFeature,
+})
+
+const columnHelper = createColumnHelper<typeof features, SurveyRow>()
+
+const STATUS_FILTERS: Array<{ value: SurveyStatusFilter | "ALL"; label: string }> =
+  [
+    { value: "ALL", label: "All" },
+    { value: "DRAFT", label: "Draft" },
+    { value: "ACTIVE", label: "Active" },
+    { value: "ARCHIVED", label: "Archived" },
+  ]
+
+function parsePage(value: string | null): number {
+  const n = Number(value ?? "1")
+  return Number.isInteger(n) && n > 0 ? n : 1
+}
+
+function parsePageSize(value: string | null): number {
+  const n = Number(value ?? String(DEFAULT_PAGE_SIZE))
+  return (PAGE_SIZES as readonly number[]).includes(n) ? n : DEFAULT_PAGE_SIZE
+}
+
+function parseStatus(value: string | null): SurveyStatusFilter | null {
+  if (value === "DRAFT" || value === "ACTIVE" || value === "ARCHIVED") {
+    return value
+  }
+  return null
+}
+
+function surveysHref(opts: {
+  page: number
+  pageSize: number
+  wardId: string | null
+  q: string
+  status: SurveyStatusFilter | null
+}): string {
+  const params = new URLSearchParams()
+  if (opts.page > 1) params.set("page", String(opts.page))
+  if (opts.pageSize !== DEFAULT_PAGE_SIZE) {
+    params.set("pageSize", String(opts.pageSize))
+  }
+  if (opts.wardId) params.set("wardId", opts.wardId)
+  if (opts.q.trim()) params.set("q", opts.q.trim())
+  if (opts.status) params.set("status", opts.status)
+  const qs = params.toString()
+  return qs ? `/surveys?${qs}` : "/surveys"
+}
+
+function statusBadgeClass(status: string): string {
+  if (status === "DRAFT") {
+    return "bg-amber-500/15 text-amber-800 hover:bg-amber-500/15 dark:text-amber-300"
+  }
+  if (status === "ACTIVE") {
+    return "bg-blue-500/15 text-blue-800 hover:bg-blue-500/15 dark:text-blue-300"
+  }
+  if (status === "ARCHIVED") {
+    return "bg-muted text-muted-foreground hover:bg-muted"
+  }
+  return ""
 }
 
 export default function SurveysClientPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { allowed: canCreate } = useCan("survey:create")
-  const [search, setSearch] = React.useState(searchParams.get("q") ?? "")
-  const [debounced, setDebounced] = React.useState(search)
-  const page = Number(searchParams.get("page") ?? "1")
+  const { can } = usePermission()
+  const canCreate = can("survey:create")
+  const canImport = can("import:create")
+  const canExport = can("export:create")
+
+  const qParam = searchParams.get("q") ?? ""
+  const wardId = searchParams.get("wardId")
+  const status = parseStatus(searchParams.get("status"))
+  const page = parsePage(searchParams.get("page"))
+  const pageSize = parsePageSize(searchParams.get("pageSize"))
+
+  const [search, setSearch] = React.useState(qParam)
 
   React.useEffect(() => {
-    const t = setTimeout(() => setDebounced(search), 300)
+    setSearch(qParam)
+  }, [qParam])
+
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      if (search.trim() === qParam.trim()) return
+      router.replace(
+        surveysHref({
+          page: 1,
+          pageSize,
+          wardId,
+          q: search,
+          status,
+        })
+      )
+    }, 300)
     return () => clearTimeout(t)
-  }, [search])
+  }, [search, qParam, pageSize, wardId, status, router])
+
+  const pagination = React.useMemo<PaginationState>(
+    () => ({ pageIndex: page - 1, pageSize }),
+    [page, pageSize]
+  )
+
+  const wardsQuery = useQuery({
+    queryKey: ["wards"],
+    queryFn: async () => (await api.get<Ward[]>("/api/v1/wards")).data,
+  })
 
   const query = useQuery({
-    queryKey: ["surveys", debounced, page],
+    queryKey: ["surveys", qParam, page, pageSize, wardId, status],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: String(page),
-        pageSize: "20",
+        pageSize: String(pageSize),
+        sortBy: "parcelNo",
+        sortOrder: "asc",
       })
-      if (debounced.trim()) params.set("search", debounced.trim())
+      if (qParam.trim()) params.set("search", qParam.trim())
+      if (wardId) params.set("wardId", wardId)
+      if (status) params.set("status", status)
       const res = await api.get<SurveyRow[]>(`/api/v1/surveys?${params}`)
       return {
         items: res.data,
-        meta: res.meta as { page: number; totalPages: number; total: number },
+        meta: res.meta as SurveyListMeta,
       }
     },
+    placeholderData: keepPreviousData,
   })
 
+  const items = query.data?.items ?? []
+  const meta = query.data?.meta
+  const rowCount = meta?.total ?? 0
+
+  const navigate = React.useCallback(
+    (next: {
+      page?: number
+      pageSize?: number
+      wardId?: string | null
+      q?: string
+      status?: SurveyStatusFilter | null
+    }) => {
+      router.replace(
+        surveysHref({
+          page: next.page ?? page,
+          pageSize: next.pageSize ?? pageSize,
+          wardId: next.wardId === undefined ? wardId : next.wardId,
+          q: next.q ?? qParam,
+          status: next.status === undefined ? status : next.status,
+        })
+      )
+    },
+    [page, pageSize, wardId, qParam, status, router]
+  )
+
+  const columns = React.useMemo(
+    () =>
+      columnHelper.columns([
+        columnHelper.display({
+          id: "sno",
+          header: "S.No",
+          cell: ({ row }) => (
+            <span className="text-muted-foreground tabular-nums">
+              {(page - 1) * pageSize + row.index + 1}
+            </span>
+          ),
+        }),
+        columnHelper.display({
+          id: "action",
+          header: "Action",
+          cell: ({ row }) => (
+            <span
+              className="inline-flex"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer"
+                render={<Link href={`/surveys/${row.original.id}`} />}
+              >
+                <Eye className="size-3.5" />
+                View
+              </Button>
+            </span>
+          ),
+        }),
+        columnHelper.accessor("status", {
+          header: "Status",
+          cell: ({ getValue }) => {
+            const value = getValue()
+            return (
+              <Badge variant="secondary" className={statusBadgeClass(value)}>
+                {value}
+              </Badge>
+            )
+          },
+        }),
+        columnHelper.accessor("surveyId", {
+          header: "Survey ID",
+          cell: ({ getValue }) => (
+            <span className="font-medium tabular-nums">{getValue()}</span>
+          ),
+        }),
+        columnHelper.accessor((row) => row.ward.number, {
+          id: "wardNumber",
+          header: "Ward Number",
+          cell: ({ getValue }) => (
+            <span className="tabular-nums">
+              {String(getValue()).padStart(2, "0")}
+            </span>
+          ),
+        }),
+        columnHelper.accessor("parcelNo", {
+          header: "Parcel Number",
+          cell: ({ row, getValue }) => (
+            <span className="tabular-nums">
+              {formatParcelNo(getValue(), row.original.surveyId)}
+            </span>
+          ),
+        }),
+        columnHelper.accessor("ownerName", {
+          header: "Owner Name",
+          cell: ({ getValue }) => getValue() ?? "—",
+        }),
+      ]),
+    [page, pageSize]
+  )
+
+  const onPaginationChange = React.useCallback(
+    (updater: Updater<PaginationState>) => {
+      const next = typeof updater === "function" ? updater(pagination) : updater
+      navigate({
+        page: next.pageIndex + 1,
+        pageSize: next.pageSize,
+      })
+    },
+    [pagination, navigate]
+  )
+
+  const table = useTable(
+    {
+      features,
+      columns,
+      data: items,
+      getRowId: (row) => row.id,
+      manualPagination: true,
+      rowCount,
+      state: { pagination },
+      onPaginationChange,
+      autoResetPageIndex: false,
+    },
+    (state) => ({ pagination: state.pagination })
+  )
+
+  const selectedWard = (wardsQuery.data ?? []).find((w) => w.id === wardId)
+  const totalWardSurveys = (wardsQuery.data ?? []).reduce(
+    (sum, w) => sum + w.surveyCount,
+    0
+  )
+  const columnCount = columns.length
+  const isInitialLoad = query.isLoading && !query.data
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Surveys</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Survey Registry
+          </h1>
           <p className="text-muted-foreground text-sm">
-            Search and filter property survey records
+            Select a ward to fetch records, then search and page through the
+            registry.
           </p>
         </div>
-        {canCreate ? (
-          <Button className="cursor-pointer" render={<Link href="/surveys/new" />}>
-            <Plus className="size-4" />
-            Create Survey
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {canExport ? (
+            <Button
+              variant="outline"
+              className="cursor-pointer"
+              render={<Link href="/surveys/export" />}
+            >
+              <FileDown className="size-4" />
+              Export Excel
+            </Button>
+          ) : null}
+          {canImport ? (
+            <Button
+              variant="outline"
+              className="cursor-pointer"
+              render={<Link href="/surveys/import" />}
+            >
+              <FileUp className="size-4" />
+              Import Excel
+            </Button>
+          ) : null}
+          {canCreate ? (
+            <Button
+              className="cursor-pointer"
+              render={<Link href="/surveys/new" />}
+            >
+              <Plus className="size-4" />
+              Create Survey
+            </Button>
+          ) : null}
+        </div>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="text-muted-foreground absolute top-2.5 left-2.5 size-4" />
-        <Input
-          className="pl-8"
-          placeholder="Survey ID, owner, mobile, parcel…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <section className="space-y-3" aria-labelledby="ward-matrix-heading">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2
+              id="ward-matrix-heading"
+              className="text-sm font-semibold tracking-tight"
+            >
+              Ward matrix
+            </h2>
+            <p className="text-muted-foreground text-xs">
+              Tap a ward to load its surveys. Counts exclude deleted records.
+            </p>
+          </div>
+          {selectedWard ? (
+            <p className="text-muted-foreground text-xs">
+              Showing ward {String(selectedWard.number).padStart(2, "0")} ·{" "}
+              <span className="font-(family-name:--font-deva)">
+                {selectedWard.name}
+              </span>
+            </p>
+          ) : (
+            <p className="text-muted-foreground text-xs">All wards</p>
+          )}
+        </div>
+
+        {wardsQuery.isLoading ? (
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
+            {Array.from({ length: 16 }).map((_, i) => (
+              <Skeleton key={i} className="h-18 rounded-xl" />
+            ))}
+          </div>
+        ) : (
+          <div
+            className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8"
+            role="listbox"
+            aria-label="Select ward"
+          >
+            <button
+              type="button"
+              role="option"
+              aria-selected={!wardId}
+              className={cn(
+                "cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-colors duration-200 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                !wardId
+                  ? "border-primary bg-primary/10 ring-1 ring-primary/40"
+                  : "border-border bg-card hover:bg-muted/60"
+              )}
+              onClick={() => navigate({ page: 1, wardId: null })}
+            >
+              <p className="text-[11px] font-semibold tracking-wide uppercase">
+                All
+              </p>
+              <p className="mt-0.5 truncate text-xs font-medium">Wards</p>
+              <p className="text-muted-foreground mt-1 text-xs tabular-nums">
+                {totalWardSurveys.toLocaleString("en-IN")}
+              </p>
+            </button>
+            {(wardsQuery.data ?? []).map((ward) => {
+              const selected = ward.id === wardId
+              return (
+                <button
+                  key={ward.id}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  className={cn(
+                    "cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-colors duration-200 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                    selected
+                      ? "border-primary bg-primary/10 ring-1 ring-primary/40"
+                      : "border-border bg-card hover:bg-muted/60"
+                  )}
+                  onClick={() => navigate({ page: 1, wardId: ward.id })}
+                >
+                  <p className="flex items-center gap-1 text-[11px] font-semibold tracking-wide uppercase">
+                    <MapPin className="size-3" />
+                    {String(ward.number).padStart(2, "0")}
+                  </p>
+                  <p className="mt-0.5 truncate font-(family-name:--font-deva) text-xs font-medium">
+                    {ward.name}
+                  </p>
+                  <p className="text-muted-foreground mt-1 text-xs tabular-nums">
+                    {ward.surveyCount.toLocaleString("en-IN")}
+                  </p>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </section>
+
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative max-w-md flex-1">
+          <label htmlFor="survey-search" className="sr-only">
+            Search surveys
+          </label>
+          <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-2.5 size-4" />
+          <Input
+            id="survey-search"
+            className="pl-8"
+            placeholder="Search by Survey ID, parcel, or owner name"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div
+          className="flex flex-wrap gap-1.5"
+          role="group"
+          aria-label="Filter by status"
+        >
+          {STATUS_FILTERS.map((item) => {
+            const active =
+              item.value === "ALL" ? status === null : status === item.value
+            return (
+              <Button
+                key={item.value}
+                type="button"
+                size="sm"
+                variant={active ? "default" : "outline"}
+                className="cursor-pointer"
+                aria-pressed={active}
+                onClick={() =>
+                  navigate({
+                    page: 1,
+                    status: item.value === "ALL" ? null : item.value,
+                  })
+                }
+              >
+                {item.label}
+              </Button>
+            )
+          })}
+        </div>
       </div>
 
-      <div className="rounded-lg border">
+      <div className="overflow-hidden rounded-xl border">
         <Table>
           <TableHeader className="bg-muted/40 sticky top-0">
-            <TableRow>
-              <TableHead>Survey ID</TableHead>
-              <TableHead>Owner</TableHead>
-              <TableHead>Mobile</TableHead>
-              <TableHead>Ward</TableHead>
-              <TableHead>Parcel</TableHead>
-              <TableHead>Property</TableHead>
-              <TableHead>Use</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} colSpan={header.colSpan}>
+                    <table.FlexRender header={header} />
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
           </TableHeader>
           <TableBody>
-            {query.isLoading ? (
-              <TableRow>
-                <TableCell colSpan={8}>
-                  <Skeleton className="h-8 w-full" />
-                </TableCell>
-              </TableRow>
-            ) : query.data?.items.length ? (
-              query.data.items.map((row) => (
+            {isInitialLoad ? (
+              Array.from({ length: 8 }).map((_, i) => (
+                <TableRow key={`sk-${i}`}>
+                  <TableCell colSpan={columnCount}>
+                    <Skeleton className="h-8 w-full" />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : table.getRowModel().rows.length ? (
+              table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
                   className="cursor-pointer"
-                  onClick={() => router.push(`/surveys/${row.id}`)}
+                  onClick={() => router.push(`/surveys/${row.original.id}`)}
                 >
-                  <TableCell className="font-medium">{row.surveyId}</TableCell>
-                  <TableCell>{row.ownerName ?? "—"}</TableCell>
-                  <TableCell>{row.mobile ?? "—"}</TableCell>
-                  <TableCell>W{row.ward.number}</TableCell>
-                  <TableCell>{row.parcelNo ?? "—"}</TableCell>
-                  <TableCell>{row.propertyNo ?? "—"}</TableCell>
-                  <TableCell>{row.propertyUse ?? "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{row.status}</Badge>
-                  </TableCell>
+                  {row.getAllCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      <table.FlexRender cell={cell} />
+                    </TableCell>
+                  ))}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={8} className="text-muted-foreground h-24 text-center">
+                <TableCell
+                  colSpan={columnCount}
+                  className="text-muted-foreground h-24 text-center"
+                >
                   No surveys found
+                  {selectedWard
+                    ? ` in ward ${String(selectedWard.number).padStart(2, "0")}`
+                    : ""}
                 </TableCell>
               </TableRow>
             )}
@@ -144,31 +575,103 @@ export default function SurveysClientPage() {
         </Table>
       </div>
 
-      {query.data?.meta ? (
-        <div className="text-muted-foreground flex items-center justify-between text-sm">
-          <span>{query.data.meta.total} records</span>
-          <div className="flex gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-muted-foreground text-sm tabular-nums">
+          {query.isFetching && !isInitialLoad ? "Updating… · " : null}
+          {rowCount.toLocaleString("en-IN")} records
+          {meta
+            ? ` · page ${meta.page.toLocaleString("en-IN")} of ${meta.totalPages.toLocaleString("en-IN")}`
+            : null}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="page-size" className="sr-only">
+            Rows per page
+          </label>
+          <Select
+            value={String(pageSize)}
+            onValueChange={(value) => {
+              const nextSize = parsePageSize(value ?? null)
+              navigate({ page: 1, pageSize: nextSize })
+            }}
+          >
+            <SelectTrigger
+              id="page-size"
+              size="sm"
+              className="w-30 cursor-pointer"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZES.map((size) => (
+                <SelectItem key={size} value={String(size)}>
+                  {size} / page
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-1">
             <Button
               variant="outline"
-              size="sm"
+              size="icon-sm"
               className="cursor-pointer"
-              disabled={page <= 1}
-              onClick={() => router.push(`/surveys?page=${page - 1}`)}
+              aria-label="First page"
+              disabled={!table.getCanPreviousPage()}
+              onClick={() => table.firstPage()}
             >
-              Previous
+              <ChevronsLeft />
             </Button>
             <Button
               variant="outline"
-              size="sm"
+              size="icon-sm"
               className="cursor-pointer"
-              disabled={page >= (query.data.meta.totalPages ?? 1)}
-              onClick={() => router.push(`/surveys?page=${page + 1}`)}
+              aria-label="Previous page"
+              disabled={!table.getCanPreviousPage()}
+              onClick={() => table.previousPage()}
             >
-              Next
+              <ChevronLeft />
+            </Button>
+            <label htmlFor="goto-page" className="sr-only">
+              Go to page
+            </label>
+            <Input
+              id="goto-page"
+              key={page}
+              type="number"
+              min={1}
+              max={table.getPageCount() || 1}
+              defaultValue={page}
+              className="h-7 w-16 text-center tabular-nums"
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return
+                const raw = Number((e.target as HTMLInputElement).value)
+                if (!Number.isInteger(raw)) return
+                const last = Math.max(1, table.getPageCount())
+                table.setPageIndex(Math.min(last, Math.max(1, raw)) - 1)
+              }}
+            />
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="cursor-pointer"
+              aria-label="Next page"
+              disabled={!table.getCanNextPage()}
+              onClick={() => table.nextPage()}
+            >
+              <ChevronRight />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="cursor-pointer"
+              aria-label="Last page"
+              disabled={!table.getCanLastPage()}
+              onClick={() => table.lastPage()}
+            >
+              <ChevronsRight />
             </Button>
           </div>
         </div>
-      ) : null}
+      </div>
     </div>
   )
 }

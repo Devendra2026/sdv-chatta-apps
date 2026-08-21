@@ -16,7 +16,26 @@ export class WardsController {
     const wards = await this.prisma.ward.findMany({
       where: { isActive: true },
       orderBy: { number: "asc" },
+      include: {
+        _count: {
+          select: {
+            surveys: {
+              where: { deletedAt: null, status: { not: "DELETED" } },
+            },
+          },
+        },
+      },
     })
-    return { success: true, data: wards }
+    return {
+      success: true,
+      data: wards.map((ward) => ({
+        id: ward.id,
+        code: ward.code,
+        name: ward.name,
+        number: ward.number,
+        isActive: ward.isActive,
+        surveyCount: ward._count.surveys,
+      })),
+    }
   }
 }

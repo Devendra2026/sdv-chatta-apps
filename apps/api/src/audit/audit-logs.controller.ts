@@ -12,12 +12,22 @@ export class AuditLogsController {
 
   @Get()
   @RequirePermission("audit:read")
-  async list(@Query("page") page = "1", @Query("pageSize") pageSize = "50") {
+  async list(
+    @Query("page") page = "1",
+    @Query("pageSize") pageSize = "50",
+    @Query("entity") entity?: string,
+    @Query("entityId") entityId?: string
+  ) {
     const p = Number(page)
     const s = Number(pageSize)
+    const where = {
+      ...(entity ? { entity } : {}),
+      ...(entityId ? { entityId } : {}),
+    }
     const [total, items] = await this.prisma.$transaction([
-      this.prisma.auditLog.count(),
+      this.prisma.auditLog.count({ where }),
       this.prisma.auditLog.findMany({
+        where,
         orderBy: { createdAt: "desc" },
         skip: (p - 1) * s,
         take: s,

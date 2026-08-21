@@ -10,9 +10,11 @@ import { StorageService } from "../storage/storage.service"
 import { computeDataQuality, parseFloorsRaw } from "../surveys/floors.util"
 import {
   cell,
-  detectPreset,
+  detectPresetFromHeaders,
   extractWardNumber,
   getMapping,
+  normalizeParcelNo,
+  normalizePropertyNo,
   parseBool,
   parseNumber,
   parseSurveyedAt,
@@ -51,8 +53,12 @@ export class ImportsService {
     const sheet =
       workbook.getWorksheet("Survey Data") ?? workbook.worksheets[0]
     const headerRow = sheet?.getRow(1)
-    const columnCount = headerRow?.cellCount ?? 0
-    const mappingPreset = detectPreset(columnCount)
+    const columnCount = Math.max(headerRow?.cellCount ?? 0, sheet?.columnCount ?? 0)
+    const headers: string[] = []
+    for (let col = 1; col <= columnCount; col++) {
+      headers[col - 1] = cell([headerRow?.getCell(col)?.value], 0)
+    }
+    const mappingPreset = detectPresetFromHeaders(headers, columnCount)
 
     const job = await this.prisma.importJob.create({
       data: {
@@ -128,6 +134,7 @@ export class ImportsService {
 
     const preset = (job.mappingPreset as MappingPreset) || "chhata-v2-55"
     const map = getMapping(preset)
+    const columnCount = Math.max(sheet.columnCount, 1)
     const wards = await this.prisma.ward.findMany()
     const wardByNumber = new Map(wards.map((w) => [w.number, w]))
 
@@ -141,9 +148,9 @@ export class ImportsService {
     for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
       const excelRow = sheet.getRow(rowNumber)
       const values: unknown[] = []
-      excelRow.eachCell({ includeEmpty: true }, (cellValue, col) => {
-        values[col - 1] = cellValue.value
-      })
+      for (let col = 1; col <= columnCount; col++) {
+        values[col - 1] = excelRow.getCell(col).value
+      }
 
       const surveyId = cell(values, map.surveyId)
       if (!surveyId) continue
@@ -157,20 +164,20 @@ export class ImportsService {
           throw new Error(`Ward not found for ${wardName || surveyId}`)
         }
 
-        const mobile = cell(values, map.mobile)
-        const floorsRaw =
-          "floorsRaw" in map ? cell(values, (map as typeof map & { floorsRaw: number }).floorsRaw) : ""
+        const mobileRaw = cell(values, map.mobile)
+        const mobile = !mobileRaw || mobileRaw === "0" ? "" : mobileRaw
+        const floorsRaw = cell(values, map.floorsRaw)
         const floors = parseFloorsRaw(floorsRaw)
-        const plotAreaSqFt =
-          "plotAreaSqFt" in map
-            ? parseNumber(cell(values, (map as { plotAreaSqFt: number }).plotAreaSqFt))
-            : undefined
-        const totalBuiltUpAreaSqFt =
-          "totalBuiltUpAreaSqFt" in map
-            ? parseNumber(
-                cell(values, (map as { totalBuiltUpAreaSqFt: number }).totalBuiltUpAreaSqFt)
-              )
-            : undefined
+        const plotAreaSqFt = parseNumber(cell(values, map.plotAreaSqFt))
+        const plotAreaSqMeter = parseNumber(cell(values, map.plotAreaSqMeter))
+        const plinthAreaSqFt = parseNumber(cell(values, map.plinthAreaSqFt))
+        const plinthAreaSqMeter = parseNumber(cell(values, map.plinthAreaSqMeter))
+        const totalBuiltUpAreaSqFt = parseNumber(cell(values, map.totalBuiltUpAreaSqFt))
+        const totalBuiltUpAreaSqMeter = parseNumber(
+          cell(values, map.totalBuiltUpAreaSqMeter)
+        )
+        const parcelNo = normalizeParcelNo(cell(values, map.parcelNo), surveyId)
+        const propertyNo = normalizePropertyNo(cell(values, map.propertyNo), surveyId)
 
         const payload = {
           surveyId,
@@ -181,8 +188,8 @@ export class ImportsService {
           mobile: mobile || null,
           isSlum: parseBool(cell(values, map.isSlum)) ?? false,
           remark: cell(values, map.remark) || null,
-          parcelNo: cell(values, map.parcelNo) || null,
-          propertyNo: cell(values, map.propertyNo) || null,
+          parcelNo,
+          propertyNo,
           electricityId: cell(values, map.electricityId) || null,
           khasraNo: cell(values, map.khasraNo) || null,
           registryNo: cell(values, map.registryNo) || null,
@@ -213,50 +220,23 @@ export class ImportsService {
           roadType: cell(values, map.roadType) || null,
           floorsRaw: floorsRaw || null,
           plotAreaSqFt,
+          plotAreaSqMeter,
+          plinthAreaSqFt,
+          plinthAreaSqMeter,
           totalBuiltUpAreaSqFt,
-          hasMunicipalWaterSupply:
-            "hasMunicipalWaterSupply" in map
-              ? parseBool(
-                  cell(values, (map as { hasMunicipalWaterSupply: number }).hasMunicipalWaterSupply)
-                )
-              : undefined,
-          hasAlternateWater:
-            "hasAlternateWater" in map
-              ? parseBool(cell(values, (map as { hasAlternateWater: number }).hasAlternateWater))
-              : undefined,
-          waterSourceType:
-            "waterSourceType" in map
-              ? cell(values, (map as { waterSourceType: number }).waterSourceType) || null
-              : null,
-          totalWaterConnections:
-            "totalWaterConnections" in map
-              ? parseNumber(
-                  cell(values, (map as { totalWaterConnections: number }).totalWaterConnections)
-                )
-              : undefined,
-          waterConnectionIdType:
-            "waterConnectionIdType" in map
-              ? cell(values, (map as { waterConnectionIdType: number }).waterConnectionIdType) ||
-                null
-              : null,
-          toiletType:
-            "toiletType" in map
-              ? cell(values, (map as { toiletType: number }).toiletType) || null
-              : null,
-          hasMunicipalWasteService:
-            "hasMunicipalWasteService" in map
-              ? parseBool(
-                  cell(values, (map as { hasMunicipalWasteService: number }).hasMunicipalWasteService)
-                )
-              : undefined,
-          ownerAadhaar:
-            "ownerAadhaar" in map
-              ? cell(values, (map as { ownerAadhaar: number }).ownerAadhaar) || null
-              : null,
+          totalBuiltUpAreaSqMeter,
+          hasMunicipalWaterSupply: parseBool(cell(values, map.hasMunicipalWaterSupply)),
+          hasAlternateWater: parseBool(cell(values, map.hasAlternateWater)),
+          waterSourceType: cell(values, map.waterSourceType) || null,
+          totalWaterConnections: parseNumber(cell(values, map.totalWaterConnections)),
+          waterConnectionIdType: cell(values, map.waterConnectionIdType) || null,
+          toiletType: cell(values, map.toiletType) || null,
+          hasMunicipalWasteService: parseBool(cell(values, map.hasMunicipalWasteService)),
+          ownerAadhaar: cell(values, map.ownerAadhaar) || null,
           dataQualityStatus: computeDataQuality({
             mobile,
-            propertyNo: cell(values, map.propertyNo),
-            parcelNo: cell(values, map.parcelNo),
+            propertyNo,
+            parcelNo,
             plotAreaSqFt,
             totalBuiltUpAreaSqFt,
           }),
@@ -365,6 +345,7 @@ export class ImportsService {
         ...(filters.wardId ? { wardId: filters.wardId } : {}),
       },
       include: { ward: true, floors: true },
+      orderBy: [{ ward: { number: "asc" } }, { parcelNo: "asc" }, { surveyId: "asc" }],
       take: 50000,
     })
 

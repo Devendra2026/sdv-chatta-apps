@@ -2,17 +2,19 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2, ChevronDown, LogOut } from "lucide-react"
+import { Building2, ChevronDown } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
-import { Separator } from "@workspace/ui/components/separator"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@workspace/ui/components/collapsible"
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -23,10 +25,14 @@ import {
   SidebarRail,
 } from "@workspace/ui/components/sidebar"
 import { Skeleton } from "@workspace/ui/components/skeleton"
+import { cn } from "@workspace/ui/lib/utils"
 
-import { NAV_ITEMS, type NavItem } from "@/components/app-nav"
+import {
+  NAV_ITEMS,
+  isSurveyNavActive,
+  type NavItem,
+} from "@/components/app-nav"
 import { usePermission } from "@/hooks/use-permission"
-import { signOutAndRedirect } from "@/lib/auth-client"
 
 function canSee(item: NavItem, hasPermission: (c: string | string[]) => boolean) {
   if (!item.permission) return true
@@ -36,9 +42,25 @@ function canSee(item: NavItem, hasPermission: (c: string | string[]) => boolean)
   return hasPermission(item.permission)
 }
 
+function isItemActive(item: NavItem, pathname: string): boolean {
+  if (item.href === "/surveys") {
+    return isSurveyNavActive(pathname)
+  }
+  if (item.href) {
+    return pathname === item.href || pathname.startsWith(`${item.href}/`)
+  }
+  return (
+    item.children?.some(
+      (c) =>
+        c.href &&
+        (pathname === c.href || pathname.startsWith(`${c.href}/`))
+    ) ?? false
+  )
+}
+
 export function AppSidebar() {
   const pathname = usePathname()
-  const { user, hasPermission, isLoading, isError, refetch } = usePermission()
+  const { hasPermission, isLoading, isError, refetch } = usePermission()
 
   const visible = NAV_ITEMS.filter((item) => canSee(item, hasPermission)).map(
     (item) => ({
@@ -48,31 +70,36 @@ export function AppSidebar() {
   )
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="gap-2 px-3 py-4">
-        <div className="flex items-center gap-2">
-          <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-md">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+      <SidebarHeader className="gap-0 px-3 pt-4 pb-2">
+        <div
+          className={cn(
+            "flex items-center gap-3 rounded-xl border border-sidebar-border bg-card px-3 py-2.5 shadow-sm",
+            "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:shadow-none"
+          )}
+        >
+          <div className="bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-lg shadow-sm">
             <Building2 className="size-4" />
           </div>
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-            <p className="truncate text-sm font-semibold">Nagar Panchayat Chhata</p>
-            <p className="text-muted-foreground truncate text-xs">
-              Mathura, Uttar Pradesh
+            <p className="truncate text-sm font-semibold tracking-tight text-foreground">
+              Nagar Panchayat
+            </p>
+            <p className="text-muted-foreground truncate text-[11px] font-medium tracking-wide uppercase">
+              Chhata · Mathura
             </p>
           </div>
         </div>
       </SidebarHeader>
-      <Separator />
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Main</SidebarGroupLabel>
+      <SidebarContent className="px-2 pt-3">
+        <SidebarGroup className="p-0">
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-1.5">
               {isLoading ? (
-                <div className="space-y-2 px-2 py-1">
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
+                <div className="space-y-2 px-1 py-1">
+                  <Skeleton className="h-10 w-full rounded-xl" />
+                  <Skeleton className="h-10 w-full rounded-xl" />
+                  <Skeleton className="h-10 w-full rounded-xl" />
                 </div>
               ) : isError ? (
                 <div className="text-muted-foreground space-y-2 px-2 text-xs">
@@ -93,30 +120,43 @@ export function AppSidebar() {
               ) : (
                 visible.map((item) => {
                   if (item.children?.length) {
+                    const openByDefault = isItemActive(item, pathname)
                     return (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton className="cursor-pointer">
-                          {item.icon ? <item.icon /> : null}
-                          <span>{item.title}</span>
-                          <ChevronDown className="ml-auto size-4" />
-                        </SidebarMenuButton>
-                        <SidebarMenuSub>
-                          {item.children.map((child) => (
-                            <SidebarMenuSubItem key={child.href}>
-                              <SidebarMenuSubButton
-                                render={<Link href={child.href!} />}
-                                isActive={
-                                  pathname === child.href ||
-                                  pathname.startsWith(`${child.href}/`)
-                                }
-                                className="cursor-pointer"
-                              >
-                                <span>{child.title}</span>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
-                        </SidebarMenuSub>
-                      </SidebarMenuItem>
+                      <Collapsible
+                        key={item.title}
+                        defaultOpen={openByDefault}
+                        className="group/collapsible"
+                      >
+                        <SidebarMenuItem>
+                          <SidebarMenuButton
+                            render={<CollapsibleTrigger />}
+                            tooltip={item.title}
+                            className="cursor-pointer text-sidebar-foreground"
+                          >
+                            {item.icon ? <item.icon /> : null}
+                            <span>{item.title}</span>
+                            <ChevronDown className="ml-auto size-4 opacity-60 transition-transform duration-200 group-data-[open]/collapsible:rotate-180" />
+                          </SidebarMenuButton>
+                          <CollapsibleContent>
+                            <SidebarMenuSub className="mt-1 ml-3.5 border-l border-sidebar-border pl-2">
+                              {item.children.map((child) => (
+                                <SidebarMenuSubItem key={child.href}>
+                                  <SidebarMenuSubButton
+                                    render={<Link href={child.href!} />}
+                                    isActive={
+                                      pathname === child.href ||
+                                      pathname.startsWith(`${child.href}/`)
+                                    }
+                                    className="cursor-pointer rounded-lg transition-colors duration-200"
+                                  >
+                                    <span>{child.title}</span>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              ))}
+                            </SidebarMenuSub>
+                          </CollapsibleContent>
+                        </SidebarMenuItem>
+                      </Collapsible>
                     )
                   }
 
@@ -124,8 +164,9 @@ export function AppSidebar() {
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
                         render={<Link href={item.href!} />}
-                        isActive={pathname === item.href}
-                        className="cursor-pointer"
+                        isActive={isItemActive(item, pathname)}
+                        tooltip={item.title}
+                        className="cursor-pointer text-sidebar-foreground"
                       >
                         {item.icon ? <item.icon /> : null}
                         <span>{item.title}</span>
@@ -138,28 +179,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="gap-2 p-3">
-        <div className="group-data-[collapsible=icon]:hidden">
-          <p className="truncate text-sm font-medium">{user?.name ?? "…"}</p>
-          <p className="text-muted-foreground truncate text-xs">{user?.email}</p>
-          {user?.roles?.length ? (
-            <p className="text-muted-foreground truncate text-[11px]">
-              {user.roles.join(", ")}
-            </p>
-          ) : null}
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="cursor-pointer justify-start"
-          onClick={() => {
-            void signOutAndRedirect()
-          }}
-        >
-          <LogOut className="size-4" />
-          <span className="group-data-[collapsible=icon]:hidden">Sign out</span>
-        </Button>
-      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )

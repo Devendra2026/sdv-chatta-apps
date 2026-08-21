@@ -41,7 +41,7 @@ export default function ImportWizardPage() {
       if (!file) throw new Error("Select a file")
       const form = new FormData()
       form.append("file", file)
-      form.append("duplicateStrategy", "SKIP")
+      form.append("duplicateStrategy", "UPDATE")
       const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"
       const res = await fetch(`${base}/api/v1/imports/upload`, {
         method: "POST",
@@ -78,7 +78,9 @@ export default function ImportWizardPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Import Survey Data</h1>
         <p className="text-muted-foreground text-sm">
-          Upload Ward Excel workbooks (Ward 1 = 38 cols, Ward 2+ = 55 cols)
+          Upload the ward Excel file exported from GIS (Ward 1 = 38 columns,
+          Ward 2+ = 55 columns with SN/Actions). Existing Survey IDs are updated
+          to match the workbook columns.
         </p>
       </div>
 

@@ -341,9 +341,9 @@ export class ListSurveysQueryDto {
 
   @IsOptional()
   @IsString()
-  sortBy?: string = "createdAt"
+  sortBy?: string = "parcelNo"
 
   @IsOptional()
   @IsString()
-  sortOrder?: "asc" | "desc" = "desc"
+  sortOrder?: "asc" | "desc" = "asc"
 }
