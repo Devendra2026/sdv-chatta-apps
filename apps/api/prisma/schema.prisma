@@ -10,26 +10,26 @@ datasource db {
 // ─── Better Auth ───────────────────────────────────────────────
 
 model User {
-  id            String    @id @default(cuid())
+  id            String     @id @default(cuid())
   name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
+  email         String     @unique
+  emailVerified Boolean    @default(false)
   image         String?
   phone         String?
   status        UserStatus @default(ACTIVE)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
   lastLoginAt   DateTime?
 
-  sessions      Session[]
-  accounts      Account[]
-  userRoles     UserRole[]
-  auditLogs     AuditLog[] @relation("AuditActor")
-  surveysCreated Survey[]  @relation("SurveyCreatedBy")
-  surveysUpdated Survey[]  @relation("SurveyUpdatedBy")
-  importJobs    ImportJob[]
-  exportJobs    ExportJob[]
-  paymentsCollected Payment[] @relation("PaymentCollectedBy")
+  sessions            Session[]
+  accounts            Account[]
+  userRoles           UserRole[]
+  auditLogs           AuditLog[]         @relation("AuditActor")
+  surveysCreated      Survey[]           @relation("SurveyCreatedBy")
+  surveysUpdated      Survey[]           @relation("SurveyUpdatedBy")
+  importJobs          ImportJob[]
+  exportJobs          ExportJob[]
+  paymentsCollected   Payment[]          @relation("PaymentCollectedBy")
   attachmentsUploaded SurveyAttachment[]
 
   @@map("user")
@@ -161,8 +161,9 @@ model Ward {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  surveys  Survey[]
-  payments Payment[]
+  surveys    Survey[]
+  payments   Payment[]
+  taxConfigs TaxConfig[]
 
   @@map("ward")
 }
@@ -187,14 +188,14 @@ enum DataQualityStatus {
 }
 
 model Survey {
-  id        String       @id @default(cuid())
-  surveyId  String       @unique
-  status    SurveyStatus @default(ACTIVE)
+  id                String            @id @default(cuid())
+  surveyId          String            @unique
+  status            SurveyStatus      @default(ACTIVE)
   dataQualityStatus DataQualityStatus @default(NEEDS_REVIEW)
 
   surveyedAt DateTime?
   wardId     String
-  ward       Ward     @relation(fields: [wardId], references: [id])
+  ward       Ward      @relation(fields: [wardId], references: [id])
 
   ownerName       String?
   ownerFatherName String?
@@ -204,22 +205,22 @@ model Survey {
   isSlum Boolean @default(false)
   remark String?
 
-  parcelNo       String?
-  propertyNo     String?
-  electricityId  String?
-  khasraNo       String?
-  registryNo     String?
+  parcelNo        String?
+  propertyNo      String?
+  electricityId   String?
+  khasraNo        String?
+  registryNo      String?
   constructedDate String?
 
   respondentName         String?
   respondentRelationship String?
 
-  city     String?
-  pincode  String?
-  houseNo  String?
+  city       String?
+  pincode    String?
+  houseNo    String?
   streetName String?
-  locality String?
-  colony   String?
+  locality   String?
+  colony     String?
 
   presentHouseNo    String?
   presentStreetName String?
@@ -241,19 +242,19 @@ model Survey {
 
   floorsRaw String?
 
-  plotAreaSqFt           Decimal? @db.Decimal(14, 4)
-  plotAreaSqMeter        Decimal? @db.Decimal(14, 4)
-  plinthAreaSqFt         Decimal? @db.Decimal(14, 4)
-  plinthAreaSqMeter      Decimal? @db.Decimal(14, 4)
-  totalBuiltUpAreaSqFt   Decimal? @db.Decimal(14, 4)
+  plotAreaSqFt            Decimal? @db.Decimal(14, 4)
+  plotAreaSqMeter         Decimal? @db.Decimal(14, 4)
+  plinthAreaSqFt          Decimal? @db.Decimal(14, 4)
+  plinthAreaSqMeter       Decimal? @db.Decimal(14, 4)
+  totalBuiltUpAreaSqFt    Decimal? @db.Decimal(14, 4)
   totalBuiltUpAreaSqMeter Decimal? @db.Decimal(14, 4)
 
-  hasMunicipalWaterSupply Boolean?
-  hasAlternateWater       Boolean?
-  waterSourceType         String?
-  totalWaterConnections   Int?
-  waterConnectionIdType   String?
-  toiletType              String?
+  hasMunicipalWaterSupply  Boolean?
+  hasAlternateWater        Boolean?
+  waterSourceType          String?
+  totalWaterConnections    Int?
+  waterConnectionIdType    String?
+  toiletType               String?
   hasMunicipalWasteService Boolean?
 
   sourceExtras Json?
@@ -265,8 +266,8 @@ model Survey {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  createdBy   User? @relation("SurveyCreatedBy", fields: [createdById], references: [id])
-  updatedBy   User? @relation("SurveyUpdatedBy", fields: [updatedById], references: [id])
+  createdBy   User?              @relation("SurveyCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?              @relation("SurveyUpdatedBy", fields: [updatedById], references: [id])
   floors      SurveyFloor[]
   attachments SurveyAttachment[]
   payments    Payment[]
@@ -341,29 +342,29 @@ enum DuplicateStrategy {
 }
 
 model ImportJob {
-  id              String            @id @default(cuid())
-  fileName        String
-  fileSize        Int
-  objectKey       String?
-  status          ImportJobStatus   @default(UPLOADED)
-  mappingPreset   String?
-  columnMapping   Json?
+  id                String            @id @default(cuid())
+  fileName          String
+  fileSize          Int
+  objectKey         String?
+  status            ImportJobStatus   @default(UPLOADED)
+  mappingPreset     String?
+  columnMapping     Json?
   duplicateStrategy DuplicateStrategy @default(SKIP)
-  totalRows       Int               @default(0)
-  processedRows   Int               @default(0)
-  successRows     Int               @default(0)
-  failedRows      Int               @default(0)
-  skippedRows     Int               @default(0)
-  warningRows     Int               @default(0)
-  insertedRows    Int               @default(0)
-  updatedRows     Int               @default(0)
-  errorFileKey    String?
-  startedAt       DateTime?
-  completedAt     DateTime?
-  createdById     String?
-  createdBy       User?             @relation(fields: [createdById], references: [id])
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  totalRows         Int               @default(0)
+  processedRows     Int               @default(0)
+  successRows       Int               @default(0)
+  failedRows        Int               @default(0)
+  skippedRows       Int               @default(0)
+  warningRows       Int               @default(0)
+  insertedRows      Int               @default(0)
+  updatedRows       Int               @default(0)
+  errorFileKey      String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdById       String?
+  createdBy         User?             @relation(fields: [createdById], references: [id])
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   errors ImportError[]
 
@@ -373,16 +374,16 @@ model ImportJob {
 }
 
 model ImportError {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   importJobId String
   importJob   ImportJob @relation(fields: [importJobId], references: [id], onDelete: Cascade)
   rowNumber   Int
   surveyId    String?
   field       String?
   message     String
-  severity    String   @default("error")
+  severity    String    @default("error")
   rawRow      Json?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@index([importJobId])
   @@map("import_error")
@@ -414,6 +415,115 @@ model ExportJob {
   @@map("export_job")
 }
 
+// ─── Reference catalogs & tax configuration ────────────────────
+
+enum ReferenceEntryStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TaxConfigStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model ReferenceCategory {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  iconKey     String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entries ReferenceEntry[]
+
+  @@map("reference_category")
+}
+
+model ReferenceEntry {
+  id          String               @id @default(cuid())
+  categoryId  String
+  category    ReferenceCategory    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  code        String
+  name        String
+  description String?
+  value       String?
+  sortOrder   Int                  @default(0)
+  status      ReferenceEntryStatus @default(ACTIVE)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  taxConfigsAssessmentYear TaxConfig[]   @relation("TaxConfigAssessmentYear")
+  taxCellsRoad             TaxRateCell[] @relation("CellRoadWidth")
+  taxCellsConstruction     TaxRateCell[] @relation("CellConstruction")
+
+  @@unique([categoryId, code])
+  @@index([categoryId, status])
+  @@map("reference_entry")
+}
+
+model TaxConfig {
+  id               String          @id @default(cuid())
+  wardId           String
+  ward             Ward            @relation(fields: [wardId], references: [id], onDelete: Cascade)
+  assessmentYearId String
+  assessmentYear   ReferenceEntry  @relation("TaxConfigAssessmentYear", fields: [assessmentYearId], references: [id])
+  status           TaxConfigStatus @default(DRAFT)
+  version          Int             @default(1)
+  effectiveFrom    DateTime?
+  propertyTaxPct   Decimal         @default(10) @db.Decimal(8, 4)
+  waterTaxPct      Decimal         @default(0) @db.Decimal(8, 4)
+  drainageTaxPct   Decimal         @default(0) @db.Decimal(8, 4)
+  penaltyPct       Decimal         @default(0) @db.Decimal(8, 4)
+  assessablePct    Decimal         @default(80) @db.Decimal(8, 4)
+  publishedAt      DateTime?
+  publishedById    String?
+  changeReason     String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  cells    TaxRateCell[]
+  versions TaxConfigVersion[]
+
+  @@unique([wardId, assessmentYearId])
+  @@index([wardId, assessmentYearId])
+  @@index([status])
+  @@map("tax_config")
+}
+
+model TaxRateCell {
+  id                  String         @id @default(cuid())
+  taxConfigId         String
+  taxConfig           TaxConfig      @relation(fields: [taxConfigId], references: [id], onDelete: Cascade)
+  roadWidthEntryId    String
+  roadWidthEntry      ReferenceEntry @relation("CellRoadWidth", fields: [roadWidthEntryId], references: [id])
+  constructionEntryId String
+  constructionEntry   ReferenceEntry @relation("CellConstruction", fields: [constructionEntryId], references: [id])
+  annualRatePerSqFt   Decimal        @default(0) @db.Decimal(14, 4)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@unique([taxConfigId, roadWidthEntryId, constructionEntryId])
+  @@map("tax_rate_cell")
+}
+
+model TaxConfigVersion {
+  id          String    @id @default(cuid())
+  taxConfigId String
+  taxConfig   TaxConfig @relation(fields: [taxConfigId], references: [id], onDelete: Cascade)
+  version     Int
+  snapshot    Json
+  reason      String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@index([taxConfigId, version])
+  @@map("tax_config_version")
+}
+
 // ─── Payments ──────────────────────────────────────────────────
 
 enum PaymentMode {
@@ -436,33 +546,33 @@ enum PaymentStatus {
 }
 
 model Payment {
-  id                 String        @id @default(cuid())
-  paymentReference   String        @unique
-  merchTxnId         String?       @unique
-  atomTxnId          String?
-  surveyId           String?
-  survey             Survey?       @relation(fields: [surveyId], references: [id])
-  wardId             String?
-  ward               Ward?         @relation(fields: [wardId], references: [id])
-  payerName          String?
-  payerMobile        String?
-  payerEmail         String?
-  amount             Decimal       @db.Decimal(14, 2)
-  currency           String        @default("INR")
-  paymentMode        PaymentMode
-  status             PaymentStatus @default(INITIATED)
-  gateway            String?
-  gatewayReference   String?
-  receiptNumber      String?       @unique
-  collectionDate     DateTime?
-  chequeDdReference  String?
-  remarks            String?
-  collectedById      String?
-  collectedBy        User?         @relation("PaymentCollectedBy", fields: [collectedById], references: [id])
-  attachmentKey      String?
-  refundableAmount   Decimal?      @db.Decimal(14, 2)
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  id                String        @id @default(cuid())
+  paymentReference  String        @unique
+  merchTxnId        String?       @unique
+  atomTxnId         String?
+  surveyId          String?
+  survey            Survey?       @relation(fields: [surveyId], references: [id])
+  wardId            String?
+  ward              Ward?         @relation(fields: [wardId], references: [id])
+  payerName         String?
+  payerMobile       String?
+  payerEmail        String?
+  amount            Decimal       @db.Decimal(14, 2)
+  currency          String        @default("INR")
+  paymentMode       PaymentMode
+  status            PaymentStatus @default(INITIATED)
+  gateway           String?
+  gatewayReference  String?
+  receiptNumber     String?       @unique
+  collectionDate    DateTime?
+  chequeDdReference String?
+  remarks           String?
+  collectedById     String?
+  collectedBy       User?         @relation("PaymentCollectedBy", fields: [collectedById], references: [id])
+  attachmentKey     String?
+  refundableAmount  Decimal?      @db.Decimal(14, 2)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   transactions PaymentTransaction[]
   callbacks    PaymentCallback[]
@@ -478,31 +588,31 @@ model Payment {
 }
 
 model PaymentTransaction {
-  id            String   @id @default(cuid())
-  paymentId     String
-  payment       Payment  @relation(fields: [paymentId], references: [id])
-  direction     String
-  requestPayload Json?
+  id              String   @id @default(cuid())
+  paymentId       String
+  payment         Payment  @relation(fields: [paymentId], references: [id])
+  direction       String
+  requestPayload  Json?
   responsePayload Json?
-  statusCode    String?
-  message       String?
-  createdAt     DateTime @default(now())
+  statusCode      String?
+  message         String?
+  createdAt       DateTime @default(now())
 
   @@index([paymentId])
   @@map("payment_transaction")
 }
 
 model PaymentCallback {
-  id              String   @id @default(cuid())
-  paymentId       String?
-  payment         Payment? @relation(fields: [paymentId], references: [id])
-  merchTxnId      String?
-  atomTxnId       String?
-  statusCode      String?
-  rawPayload      Json
-  processed       Boolean  @default(false)
-  idempotencyKey  String?  @unique
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  paymentId      String?
+  payment        Payment? @relation(fields: [paymentId], references: [id])
+  merchTxnId     String?
+  atomTxnId      String?
+  statusCode     String?
+  rawPayload     Json
+  processed      Boolean  @default(false)
+  idempotencyKey String?  @unique
+  createdAt      DateTime @default(now())
 
   @@index([merchTxnId])
   @@index([atomTxnId])
@@ -536,15 +646,15 @@ model PaymentRefund {
 }
 
 model PaymentSettlement {
-  id              String   @id @default(cuid())
-  settlementDate  DateTime?
-  merchTxnId      String?
-  atomTxnId       String?
-  amount          Decimal? @db.Decimal(14, 2)
-  status          String?
-  settlementUtr   String?
-  rawPayload      Json?
-  createdAt       DateTime @default(now())
+  id             String    @id @default(cuid())
+  settlementDate DateTime?
+  merchTxnId     String?
+  atomTxnId      String?
+  amount         Decimal?  @db.Decimal(14, 2)
+  status         String?
+  settlementUtr  String?
+  rawPayload     Json?
+  createdAt      DateTime  @default(now())
 
   @@index([merchTxnId])
   @@index([settlementDate])
@@ -554,18 +664,18 @@ model PaymentSettlement {
 // ─── Audit ─────────────────────────────────────────────────────
 
 model AuditLog {
-  id         String   @id @default(cuid())
-  action     String
-  entity     String
-  entityId   String?
-  oldValue   Json?
-  newValue   Json?
-  actorId    String?
-  actor      User?    @relation("AuditActor", fields: [actorId], references: [id])
-  ipAddress  String?
-  requestId  String?
-  metadata   Json?
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  action    String
+  entity    String
+  entityId  String?
+  oldValue  Json?
+  newValue  Json?
+  actorId   String?
+  actor     User?    @relation("AuditActor", fields: [actorId], references: [id])
+  ipAddress String?
+  requestId String?
+  metadata  Json?
+  createdAt DateTime @default(now())
 
   @@index([action])
   @@index([entity, entityId])

@@ -8,9 +8,11 @@ import { ImportsModule } from "./imports/imports.module"
 import { PaymentsModule } from "./payments/payments.module"
 import { PrismaModule } from "./prisma/prisma.module"
 import { RbacModule } from "./rbac/rbac.module"
+import { ReferenceModule } from "./reference/reference.module"
 import { ReportsModule } from "./reports/reports.module"
 import { StorageModule } from "./storage/storage.module"
 import { SurveysModule } from "./surveys/surveys.module"
+import { TaxConfigsModule } from "./tax-configs/tax-configs.module"
 import { WardsModule } from "./wards/wards.module"
 
 @Module({
@@ -27,6 +29,8 @@ import { WardsModule } from "./wards/wards.module"
     RbacModule,
     PaymentsModule,
     ReportsModule,
+    TaxConfigsModule,
+    ReferenceModule,
   ],
 })
 export class AppModule {}

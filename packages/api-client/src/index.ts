@@ -36,14 +36,12 @@ export function createApiClient(options: ApiClientOptions) {
       credentials: "include",
     })
 
-    const json = (await response.json().catch(() => null)) as
-      | {
-          success?: boolean
-          data?: T
-          meta?: Record<string, unknown>
-          error?: { code?: string; message?: string; requestId?: string }
-        }
-      | null
+    const json = (await response.json().catch(() => null)) as {
+      success?: boolean
+      data?: T
+      meta?: Record<string, unknown>
+      error?: { code?: string; message?: string; requestId?: string }
+    } | null
 
     if (!response.ok || json?.success === false) {
       throw new ApiError(
@@ -102,6 +100,11 @@ export function createApiClient(options: ApiClientOptions) {
     patch: <T>(path: string, body?: unknown) =>
       request<T>(path, {
         method: "PATCH",
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }),
+    put: <T>(path: string, body?: unknown) =>
+      request<T>(path, {
+        method: "PUT",
         body: body === undefined ? undefined : JSON.stringify(body),
       }),
     delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),

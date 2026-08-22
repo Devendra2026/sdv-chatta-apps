@@ -1,5 +1,7 @@
 import { PrismaClient } from "@prisma/client"
 
+import { seedReferenceCatalogs } from "./reference-catalogs-seed"
+
 const prisma = new PrismaClient()
 
 const WARDS = [
@@ -242,6 +244,7 @@ const ROLE_PERMISSIONS: Record<string, string[] | "*"> = {
     "export:create",
     "report:read",
     "report:export",
+    "settings:update",
     "file:read",
     "file:create",
   ],
@@ -365,6 +368,8 @@ async function main() {
       create: { ...ward, isActive: true },
     })
   }
+
+  await seedReferenceCatalogs(prisma)
 
   for (const permission of PERMISSIONS) {
     await prisma.permission.upsert({

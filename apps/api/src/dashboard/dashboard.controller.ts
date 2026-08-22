@@ -48,6 +48,7 @@ export class DashboardController {
       pendingCollectionAgg,
       byWard,
       paymentsByWard,
+      pendingByWard,
       recentAttachments,
       wards,
     ] = await Promise.all([
@@ -112,6 +113,15 @@ export class DashboardController {
         _sum: { amount: true },
         _count: { _all: true },
       }),
+      this.prisma.payment.groupBy({
+        by: ["wardId"],
+        where: {
+          ...paymentWhere,
+          wardId: { not: null },
+          status: { in: ["PENDING", "INITIATED"] },
+        },
+        _sum: { amount: true },
+      }),
       this.prisma.surveyAttachment.findMany({
         where: wardId
           ? { survey: { wardId, deletedAt: null } }
@@ -131,6 +141,9 @@ export class DashboardController {
     ])
 
     const countByWard = new Map(byWard.map((w) => [w.wardId, w._count._all]))
+    const pendingByWardMap = new Map(
+      pendingByWard.map((w) => [w.wardId ?? "", Number(w._sum.amount ?? 0)])
+    )
 
     type WardMoney = { online: number; offline: number; total: number }
     const moneyByWard = new Map<string, WardMoney>()
@@ -192,6 +205,7 @@ export class DashboardController {
         offline: 0,
         total: 0,
       }
+      const pendingCollectionWard = pendingByWardMap.get(w.id) ?? 0
       return {
         wardId: w.id,
         number: w.number,
@@ -200,6 +214,7 @@ export class DashboardController {
         surveyCount,
         onlineCollection: money.online,
         offlineCollection: money.offline,
+        pendingCollection: pendingCollectionWard,
         totalCollection: money.total,
         status:
           surveyCount === 0

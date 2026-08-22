@@ -1,16 +1,31 @@
 import { Controller, Get, Query, Res, UseGuards } from "@nestjs/common"
 import type { Response } from "express"
-import ExcelJS from "exceljs"
 
 import { RequirePermission } from "../auth/auth.decorators"
 import { AuthGuard } from "../auth/auth.guard"
 import { PermissionGuard } from "../auth/permission.guard"
+import {
+  buildSurveyExportFilename,
+  buildSurveyExportWorkbook,
+  detectExportPreset,
+  type SurveyExportRecord,
+} from "../imports/survey-excel-export"
 import { PrismaService } from "../prisma/prisma.service"
+import { TaxConfigsService } from "../tax-configs/tax-configs.service"
+import {
+  buildWardTaxReportWorkbook,
+  taxConfigToRateTable,
+} from "./ward-tax-report-excel"
+
+const EXPORT_ROW_LIMIT = 50_000
 
 @Controller("api/v1/reports")
 @UseGuards(AuthGuard, PermissionGuard)
 export class ReportsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly taxConfigs: TaxConfigsService
+  ) {}
 
   @Get("surveys")
   @RequirePermission("report:read")
@@ -113,39 +128,87 @@ export class ReportsController {
   @RequirePermission("report:export")
   async exportSurveys(
     @Res() res: Response,
-    @Query("wardId") wardId?: string
+    @Query("wardId") wardId?: string,
+    @Query("assessmentYearId") assessmentYearId?: string,
+    @Query("propertyUse") propertyUse?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+    @Query("template") template?: string
   ) {
+    const ward = wardId
+      ? await this.prisma.ward.findUnique({ where: { id: wardId } })
+      : null
+
     const surveys = await this.prisma.survey.findMany({
       where: {
         deletedAt: null,
         status: { not: "DELETED" },
         ...(wardId ? { wardId } : {}),
+        ...(propertyUse ? { propertyUse } : {}),
+        ...(from || to
+          ? {
+              surveyedAt: {
+                ...(from ? { gte: new Date(from) } : {}),
+                ...(to ? { lte: new Date(to) } : {}),
+              },
+            }
+          : {}),
       },
-      include: { ward: true },
-      orderBy: [{ ward: { number: "asc" } }, { parcelNo: "asc" }, { surveyId: "asc" }],
-      take: 20000,
+      include: {
+        ward: true,
+        floors: { orderBy: { sortOrder: "asc" } },
+      },
+      orderBy: [
+        { ward: { number: "asc" } },
+        { parcelNo: "asc" },
+        { surveyId: "asc" },
+      ],
+      take: EXPORT_ROW_LIMIT,
     })
 
-    const workbook = new ExcelJS.Workbook()
-    const sheet = workbook.addWorksheet("Survey Report")
-    sheet.addRow(["Survey ID", "Ward", "Owner", "Mobile", "Parcel", "Property Use", "Status"])
-    for (const s of surveys) {
-      sheet.addRow([
-        s.surveyId,
-        s.ward.name,
-        s.ownerName,
-        s.mobile,
-        s.parcelNo,
-        s.propertyUse,
-        s.status,
-      ])
+    if (template === "import") {
+      const preset = detectExportPreset(ward?.number)
+      const workbook = buildSurveyExportWorkbook(
+        surveys as SurveyExportRecord[],
+        preset
+      )
+      const filename = buildSurveyExportFilename({ wardNumber: ward?.number })
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      )
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`)
+      await workbook.xlsx.write(res)
+      res.end()
+      return
     }
+
+    if (!wardId || !assessmentYearId) {
+      res.status(400).json({
+        success: false,
+        message:
+          "wardId and assessmentYearId are required for tax demand export. Use template=import for import-mirror layout.",
+      })
+      return
+    }
+
+    const taxConfig = await this.taxConfigs.getPublishedForWard(
+      wardId,
+      assessmentYearId
+    )
+    const rates = taxConfigToRateTable(taxConfig)
+    const workbook = buildWardTaxReportWorkbook({
+      wardName: ward?.name ?? `Ward ${ward?.number ?? ""}`,
+      surveys,
+      rates,
+    })
+    const filename = `ward-tax-report-${ward?.number ?? "all"}.xlsx`
 
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-    res.setHeader("Content-Disposition", "attachment; filename=survey-report.xlsx")
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`)
     await workbook.xlsx.write(res)
     res.end()
   }

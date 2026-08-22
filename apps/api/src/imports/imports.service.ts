@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common"
 import { DuplicateStrategy, ImportJobStatus } from "@prisma/client"
-import ExcelJS from "exceljs"
 import { Queue } from "bullmq"
+import ExcelJS from "exceljs"
 import IORedis from "ioredis"
 
 import type { AuthUser } from "../auth/auth.decorators"
@@ -20,6 +20,12 @@ import {
   parseSurveyedAt,
   type MappingPreset,
 } from "./column-maps"
+import {
+  buildSurveyExportFilename,
+  buildSurveyExportWorkbook,
+  detectExportPreset,
+  type SurveyExportRecord,
+} from "./survey-excel-export"
 
 @Injectable()
 export class ImportsService {
@@ -31,9 +37,12 @@ export class ImportsService {
     private readonly storage: StorageService
   ) {
     try {
-      const connection = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379", {
-        maxRetriesPerRequest: null,
-      })
+      const connection = new IORedis(
+        process.env.REDIS_URL ?? "redis://localhost:6379",
+        {
+          maxRetriesPerRequest: null,
+        }
+      )
       this.queue = new Queue("survey-import", { connection })
     } catch (err) {
       this.logger.warn(`BullMQ queue unavailable: ${String(err)}`)
@@ -50,10 +59,12 @@ export class ImportsService {
 
     const workbook = new ExcelJS.Workbook()
     await workbook.xlsx.load(file.buffer as unknown as ExcelJS.Buffer)
-    const sheet =
-      workbook.getWorksheet("Survey Data") ?? workbook.worksheets[0]
+    const sheet = workbook.getWorksheet("Survey Data") ?? workbook.worksheets[0]
     const headerRow = sheet?.getRow(1)
-    const columnCount = Math.max(headerRow?.cellCount ?? 0, sheet?.columnCount ?? 0)
+    const columnCount = Math.max(
+      headerRow?.cellCount ?? 0,
+      sheet?.columnCount ?? 0
+    )
     const headers: string[] = []
     for (let col = 1; col <= columnCount; col++) {
       headers[col - 1] = cell([headerRow?.getCell(col)?.value], 0)
@@ -118,12 +129,39 @@ export class ImportsService {
     ])
     return {
       items,
-      meta: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
+      meta: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      },
     }
   }
 
+  async reprocessJob(jobId: string, duplicateStrategy: DuplicateStrategy) {
+    await this.prisma.importJob.update({
+      where: { id: jobId },
+      data: {
+        duplicateStrategy,
+        status: ImportJobStatus.PROCESSING,
+        startedAt: new Date(),
+        completedAt: null,
+        processedRows: 0,
+        successRows: 0,
+        failedRows: 0,
+        skippedRows: 0,
+        insertedRows: 0,
+        updatedRows: 0,
+      },
+    })
+    await this.prisma.importError.deleteMany({ where: { importJobId: jobId } })
+    return this.processJob(jobId)
+  }
+
   async processJob(jobId: string) {
-    const job = await this.prisma.importJob.findUniqueOrThrow({ where: { id: jobId } })
+    const job = await this.prisma.importJob.findUniqueOrThrow({
+      where: { id: jobId },
+    })
     if (!job.objectKey) throw new Error("Missing object key")
 
     const buffer = await this.storage.getObject(job.objectKey)
@@ -132,9 +170,16 @@ export class ImportsService {
     const sheet = workbook.getWorksheet("Survey Data") ?? workbook.worksheets[0]
     if (!sheet) throw new Error("Sheet not found")
 
-    const preset = (job.mappingPreset as MappingPreset) || "chhata-v2-55"
-    const map = getMapping(preset)
     const columnCount = Math.max(sheet.columnCount, 1)
+    const headerRow = sheet.getRow(1)
+    const headers: string[] = []
+    for (let col = 1; col <= columnCount; col++) {
+      headers[col - 1] = cell([headerRow.getCell(col).value], 0)
+    }
+    const preset =
+      (job.mappingPreset as MappingPreset) ||
+      detectPresetFromHeaders(headers, columnCount)
+    const map = getMapping(preset)
     const wards = await this.prisma.ward.findMany()
     const wardByNumber = new Map(wards.map((w) => [w.number, w]))
 
@@ -171,13 +216,20 @@ export class ImportsService {
         const plotAreaSqFt = parseNumber(cell(values, map.plotAreaSqFt))
         const plotAreaSqMeter = parseNumber(cell(values, map.plotAreaSqMeter))
         const plinthAreaSqFt = parseNumber(cell(values, map.plinthAreaSqFt))
-        const plinthAreaSqMeter = parseNumber(cell(values, map.plinthAreaSqMeter))
-        const totalBuiltUpAreaSqFt = parseNumber(cell(values, map.totalBuiltUpAreaSqFt))
+        const plinthAreaSqMeter = parseNumber(
+          cell(values, map.plinthAreaSqMeter)
+        )
+        const totalBuiltUpAreaSqFt = parseNumber(
+          cell(values, map.totalBuiltUpAreaSqFt)
+        )
         const totalBuiltUpAreaSqMeter = parseNumber(
           cell(values, map.totalBuiltUpAreaSqMeter)
         )
         const parcelNo = normalizeParcelNo(cell(values, map.parcelNo), surveyId)
-        const propertyNo = normalizePropertyNo(cell(values, map.propertyNo), surveyId)
+        const propertyNo = normalizePropertyNo(
+          cell(values, map.propertyNo),
+          surveyId
+        )
 
         const payload = {
           surveyId,
@@ -195,7 +247,8 @@ export class ImportsService {
           registryNo: cell(values, map.registryNo) || null,
           constructedDate: cell(values, map.constructedDate) || null,
           respondentName: cell(values, map.respondentName) || null,
-          respondentRelationship: cell(values, map.respondentRelationship) || null,
+          respondentRelationship:
+            cell(values, map.respondentRelationship) || null,
           city: cell(values, map.city) || null,
           pincode: cell(values, map.pincode) || null,
           houseNo: cell(values, map.houseNo) || null,
@@ -225,13 +278,20 @@ export class ImportsService {
           plinthAreaSqMeter,
           totalBuiltUpAreaSqFt,
           totalBuiltUpAreaSqMeter,
-          hasMunicipalWaterSupply: parseBool(cell(values, map.hasMunicipalWaterSupply)),
+          hasMunicipalWaterSupply: parseBool(
+            cell(values, map.hasMunicipalWaterSupply)
+          ),
           hasAlternateWater: parseBool(cell(values, map.hasAlternateWater)),
           waterSourceType: cell(values, map.waterSourceType) || null,
-          totalWaterConnections: parseNumber(cell(values, map.totalWaterConnections)),
-          waterConnectionIdType: cell(values, map.waterConnectionIdType) || null,
+          totalWaterConnections: parseNumber(
+            cell(values, map.totalWaterConnections)
+          ),
+          waterConnectionIdType:
+            cell(values, map.waterConnectionIdType) || null,
           toiletType: cell(values, map.toiletType) || null,
-          hasMunicipalWasteService: parseBool(cell(values, map.hasMunicipalWasteService)),
+          hasMunicipalWasteService: parseBool(
+            cell(values, map.hasMunicipalWasteService)
+          ),
           ownerAadhaar: cell(values, map.ownerAadhaar) || null,
           dataQualityStatus: computeDataQuality({
             mobile,
@@ -256,7 +316,9 @@ export class ImportsService {
           }
           if (job.duplicateStrategy === "UPDATE") {
             await this.prisma.$transaction(async (tx) => {
-              await tx.surveyFloor.deleteMany({ where: { surveyId: existing.id } })
+              await tx.surveyFloor.deleteMany({
+                where: { surveyId: existing.id },
+              })
               await tx.survey.update({
                 where: { id: existing.id },
                 data: {
@@ -337,53 +399,37 @@ export class ImportsService {
     })
   }
 
-  async exportSurveys(filters: { wardId?: string; status?: string }, user: AuthUser) {
+  async exportSurveys(
+    filters: { wardId?: string; status?: string },
+    user: AuthUser
+  ) {
+    const ward = filters.wardId
+      ? await this.prisma.ward.findUnique({ where: { id: filters.wardId } })
+      : null
+
     const surveys = await this.prisma.survey.findMany({
       where: {
         deletedAt: null,
         status: filters.status ? (filters.status as never) : { not: "DELETED" },
         ...(filters.wardId ? { wardId: filters.wardId } : {}),
       },
-      include: { ward: true, floors: true },
-      orderBy: [{ ward: { number: "asc" } }, { parcelNo: "asc" }, { surveyId: "asc" }],
+      include: { ward: true },
+      orderBy: [
+        { ward: { number: "asc" } },
+        { parcelNo: "asc" },
+        { surveyId: "asc" },
+      ],
       take: 50000,
     })
 
-    const workbook = new ExcelJS.Workbook()
-    const sheet = workbook.addWorksheet("Survey Data")
-    sheet.addRow([
-      "Survey ID",
-      "Surveyed At",
-      "Ward",
-      "Owner Name",
-      "Mobile",
-      "Parcel No",
-      "Property No",
-      "Locality",
-      "Property Use",
-      "Floors",
-      "Plot Area SqFt",
-      "Status",
-    ])
-    for (const s of surveys) {
-      sheet.addRow([
-        s.surveyId,
-        s.surveyedAt?.toISOString() ?? "",
-        s.ward.name,
-        s.ownerName,
-        s.mobile,
-        s.parcelNo,
-        s.propertyNo,
-        s.locality,
-        s.propertyUse,
-        s.floorsRaw,
-        s.plotAreaSqFt?.toString(),
-        s.status,
-      ])
-    }
+    const preset = detectExportPreset(ward?.number)
+    const workbook = buildSurveyExportWorkbook(
+      surveys as SurveyExportRecord[],
+      preset
+    )
+    const fileName = buildSurveyExportFilename({ wardNumber: ward?.number })
 
     const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
-    const fileName = `survey-export-${Date.now()}.xlsx`
     const objectKey = `exports/${fileName}`
     await this.storage.putObject(
       objectKey,

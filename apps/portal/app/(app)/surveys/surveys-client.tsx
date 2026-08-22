@@ -28,13 +28,6 @@ import {
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@workspace/ui/components/select"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import {
   Table,
@@ -54,6 +47,8 @@ type SurveyRow = {
   id: string
   surveyId: string
   ownerName: string | null
+  ownerFatherName: string | null
+  mobile: string | null
   parcelNo: string | null
   status: string
   ward: { number: number; name: string }
@@ -76,8 +71,8 @@ type SurveyListMeta = {
 
 type SurveyStatusFilter = "DRAFT" | "ACTIVE" | "ARCHIVED"
 
-const PAGE_SIZES = [10, 20, 50] as const
-const DEFAULT_PAGE_SIZE = 20
+const PAGE_SIZES = [50, 100, 500] as const
+const DEFAULT_PAGE_SIZE = 50
 
 const features = tableFeatures({
   rowPaginationFeature,
@@ -303,7 +298,27 @@ export default function SurveysClientPage() {
         }),
         columnHelper.accessor("ownerName", {
           header: "Owner Name",
-          cell: ({ getValue }) => getValue() ?? "—",
+          cell: ({ getValue }) => (
+            <span className="font-(family-name:--font-deva)">
+              {getValue()?.trim() || "—"}
+            </span>
+          ),
+        }),
+        columnHelper.accessor("ownerFatherName", {
+          header: "Owner Father Name",
+          cell: ({ getValue }) => (
+            <span className="font-(family-name:--font-deva)">
+              {getValue()?.trim() || "—"}
+            </span>
+          ),
+        }),
+        columnHelper.accessor("mobile", {
+          header: "Owner Mobile Number",
+          cell: ({ getValue }) => {
+            const value = getValue()?.trim()
+            if (!value || value === "0") return "—"
+            return <span className="tabular-nums">{value}</span>
+          },
         }),
       ]),
     [page, pageSize]
@@ -388,40 +403,49 @@ export default function SurveysClientPage() {
         </div>
       </div>
 
-      <section className="space-y-3" aria-labelledby="ward-matrix-heading">
+      <section
+        className="bg-card space-y-4 rounded-2xl border p-4 shadow-sm md:p-5"
+        aria-labelledby="ward-matrix-heading"
+      >
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
+            <p className="text-primary text-xs font-semibold tracking-wide uppercase">
+              Command center
+            </p>
             <h2
               id="ward-matrix-heading"
-              className="text-sm font-semibold tracking-tight"
+              className="text-lg font-semibold tracking-tight"
             >
-              Ward matrix
+              Survey Matrix Command Center
             </h2>
-            <p className="text-muted-foreground text-xs">
-              Tap a ward to load its surveys. Counts exclude deleted records.
+            <p className="text-muted-foreground mt-1 text-sm">
+              Select a ward to load its survey records. Counts exclude deleted
+              entries.
             </p>
           </div>
           {selectedWard ? (
-            <p className="text-muted-foreground text-xs">
-              Showing ward {String(selectedWard.number).padStart(2, "0")} ·{" "}
+            <Badge variant="secondary" className="font-normal">
+              Ward {String(selectedWard.number).padStart(2, "0")} ·{" "}
               <span className="font-(family-name:--font-deva)">
                 {selectedWard.name}
               </span>
-            </p>
+            </Badge>
           ) : (
-            <p className="text-muted-foreground text-xs">All wards</p>
+            <Badge variant="secondary" className="font-normal">
+              All wards · {totalWardSurveys.toLocaleString("en-IN")} records
+            </Badge>
           )}
         </div>
 
         {wardsQuery.isLoading ? (
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {Array.from({ length: 16 }).map((_, i) => (
-              <Skeleton key={i} className="h-18 rounded-xl" />
+              <Skeleton key={i} className="h-24 rounded-xl" />
             ))}
           </div>
         ) : (
           <div
-            className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8"
+            className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
             role="listbox"
             aria-label="Select ward"
           >
@@ -430,20 +454,20 @@ export default function SurveysClientPage() {
               role="option"
               aria-selected={!wardId}
               className={cn(
-                "cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-colors duration-200 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                "cursor-pointer rounded-xl border px-4 py-3 text-left transition-all duration-200 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
                 !wardId
-                  ? "border-primary bg-primary/10 ring-1 ring-primary/40"
-                  : "border-border bg-card hover:bg-muted/60"
+                  ? "border-primary bg-primary text-primary-foreground shadow-md"
+                  : "border-border bg-background hover:border-primary/40 hover:bg-muted/50"
               )}
               onClick={() => navigate({ page: 1, wardId: null })}
             >
-              <p className="text-[11px] font-semibold tracking-wide uppercase">
-                All
+              <p className="text-[11px] font-semibold tracking-wider uppercase opacity-90">
+                All wards
               </p>
-              <p className="mt-0.5 truncate text-xs font-medium">Wards</p>
-              <p className="text-muted-foreground mt-1 text-xs tabular-nums">
+              <p className="mt-1 text-2xl font-bold tabular-nums">
                 {totalWardSurveys.toLocaleString("en-IN")}
               </p>
+              <p className="mt-0.5 text-xs opacity-80">Total surveys</p>
             </button>
             {(wardsQuery.data ?? []).map((ward) => {
               const selected = ward.id === wardId
@@ -454,21 +478,28 @@ export default function SurveysClientPage() {
                   role="option"
                   aria-selected={selected}
                   className={cn(
-                    "cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-colors duration-200 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                    "cursor-pointer rounded-xl border px-4 py-3 text-left transition-all duration-200 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
                     selected
-                      ? "border-primary bg-primary/10 ring-1 ring-primary/40"
-                      : "border-border bg-card hover:bg-muted/60"
+                      ? "border-primary bg-primary/10 ring-1 ring-primary/40 shadow-sm"
+                      : "border-border bg-background hover:border-primary/40 hover:bg-muted/50"
                   )}
                   onClick={() => navigate({ page: 1, wardId: ward.id })}
                 >
-                  <p className="flex items-center gap-1 text-[11px] font-semibold tracking-wide uppercase">
+                  <p className="text-muted-foreground flex items-center gap-1 text-[11px] font-semibold tracking-wider uppercase">
                     <MapPin className="size-3" />
-                    {String(ward.number).padStart(2, "0")}
+                    Ward {String(ward.number).padStart(2, "0")}
                   </p>
-                  <p className="mt-0.5 truncate font-(family-name:--font-deva) text-xs font-medium">
+                  <p className="mt-1 line-clamp-2 min-h-8 font-(family-name:--font-deva) text-xs leading-snug font-medium">
                     {ward.name}
                   </p>
-                  <p className="text-muted-foreground mt-1 text-xs tabular-nums">
+                  <p
+                    className={cn(
+                      "mt-2 text-lg font-bold tabular-nums",
+                      ward.surveyCount > 0
+                        ? "text-foreground"
+                        : "text-muted-foreground"
+                    )}
+                  >
                     {ward.surveyCount.toLocaleString("en-IN")}
                   </p>
                 </button>
@@ -575,40 +606,36 @@ export default function SurveysClientPage() {
         </Table>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="bg-card flex flex-col gap-3 rounded-xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-muted-foreground text-sm tabular-nums">
           {query.isFetching && !isInitialLoad ? "Updating… · " : null}
-          {rowCount.toLocaleString("en-IN")} records
+          {rowCount > 0
+            ? `Showing ${((page - 1) * pageSize + 1).toLocaleString("en-IN")}–${Math.min(page * pageSize, rowCount).toLocaleString("en-IN")} of ${rowCount.toLocaleString("en-IN")}`
+            : "0 records"}
           {meta
-            ? ` · page ${meta.page.toLocaleString("en-IN")} of ${meta.totalPages.toLocaleString("en-IN")}`
+            ? ` · Page ${meta.page.toLocaleString("en-IN")} of ${meta.totalPages.toLocaleString("en-IN")}`
             : null}
         </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor="page-size" className="sr-only">
-            Rows per page
-          </label>
-          <Select
-            value={String(pageSize)}
-            onValueChange={(value) => {
-              const nextSize = parsePageSize(value ?? null)
-              navigate({ page: 1, pageSize: nextSize })
-            }}
+        <div className="flex flex-wrap items-center gap-3">
+          <div
+            className="flex items-center gap-1 rounded-lg border p-1"
+            role="group"
+            aria-label="Rows per page"
           >
-            <SelectTrigger
-              id="page-size"
-              size="sm"
-              className="w-30 cursor-pointer"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PAGE_SIZES.map((size) => (
-                <SelectItem key={size} value={String(size)}>
-                  {size} / page
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            {PAGE_SIZES.map((size) => (
+              <Button
+                key={size}
+                type="button"
+                size="sm"
+                variant={pageSize === size ? "default" : "ghost"}
+                className="cursor-pointer px-3"
+                aria-pressed={pageSize === size}
+                onClick={() => navigate({ page: 1, pageSize: size })}
+              >
+                {size}
+              </Button>
+            ))}
+          </div>
           <div className="flex items-center gap-1">
             <Button
               variant="outline"
@@ -649,6 +676,9 @@ export default function SurveysClientPage() {
                 table.setPageIndex(Math.min(last, Math.max(1, raw)) - 1)
               }}
             />
+            <span className="text-muted-foreground px-1 text-xs tabular-nums">
+              / {Math.max(1, table.getPageCount()).toLocaleString("en-IN")}
+            </span>
             <Button
               variant="outline"
               size="icon-sm"

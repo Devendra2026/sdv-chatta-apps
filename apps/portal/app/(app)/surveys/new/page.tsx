@@ -1,9 +1,9 @@
 "use client"
 
-import * as React from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import * as React from "react"
 import { Controller, useForm } from "react-hook-form"
 import { toast } from "sonner"
 
@@ -17,7 +17,6 @@ import {
 } from "@workspace/ui/components/card"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
-import { Textarea } from "@workspace/ui/components/textarea"
 import {
   Select,
   SelectContent,
@@ -25,6 +24,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@workspace/ui/components/select"
+import { Textarea } from "@workspace/ui/components/textarea"
+import {
+  buildSelectItems,
+  buildStringSelectItems,
+} from "@workspace/ui/lib/select-items"
 
 import { api } from "@/lib/api"
 import {
@@ -272,7 +276,7 @@ export default function SurveyFormPage() {
           <h1 className="text-2xl font-semibold tracking-tight">
             {isEdit ? "Edit Survey" : "Create Survey"}
           </h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Fields follow Ward 1.xlsx column order and pick-lists.
           </p>
         </div>
@@ -338,7 +342,12 @@ export default function SurveyFormPage() {
             rules={{ required: true }}
             render={({ field }) => (
               <Select
-                value={field.value || undefined}
+                value={toSelectValue(field.value)}
+                items={buildSelectItems(
+                  wards.data ?? [],
+                  (ward) => ward.id,
+                  (ward) => `Ward ${ward.number} — ${ward.name}`
+                )}
                 onValueChange={(value) => field.onChange(value ?? "")}
               >
                 <SelectTrigger id="wardId" className="cursor-pointer">
@@ -346,7 +355,11 @@ export default function SurveyFormPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {(wards.data ?? []).map((ward) => (
-                    <SelectItem key={ward.id} value={ward.id}>
+                    <SelectItem
+                      key={ward.id}
+                      value={ward.id}
+                      label={`Ward ${ward.number} — ${ward.name}`}
+                    >
                       Ward {ward.number} — {ward.name}
                     </SelectItem>
                   ))}
@@ -598,7 +611,7 @@ export default function SurveyFormPage() {
         <summary className="cursor-pointer text-sm font-medium">
           Additional columns (Ward 2+ workbooks)
         </summary>
-        <p className="text-muted-foreground mt-1 mb-4 text-sm">
+        <p className="mt-1 mb-4 text-sm text-muted-foreground">
           Not in Ward 1.xlsx. Kept so Ward 2+ records can still be edited.
         </p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -684,7 +697,7 @@ export default function SurveyFormPage() {
         </div>
       </details>
 
-      <div className="bg-background/90 sticky bottom-0 z-10 flex justify-end gap-2 border-t py-3 backdrop-blur-sm">
+      <div className="sticky bottom-0 z-10 flex justify-end gap-2 border-t bg-background/90 py-3 backdrop-blur-sm">
         <Button
           type="submit"
           className="cursor-pointer"
@@ -770,26 +783,34 @@ function CatalogField({
       <Controller
         name={name}
         control={control}
-        render={({ field }) => (
-          <Select
-            value={field.value || undefined}
-            onValueChange={(value) => field.onChange(value ?? "")}
-          >
-            <SelectTrigger id={id} className="cursor-pointer">
-              <SelectValue placeholder="—" />
-            </SelectTrigger>
-            <SelectContent>
-              {withCurrentOption(options, field.value).map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+        render={({ field }) => {
+          const optionList = withCurrentOption(options, field.value)
+          return (
+            <Select
+              value={toSelectValue(field.value)}
+              items={buildStringSelectItems(optionList)}
+              onValueChange={(value) => field.onChange(value ?? "")}
+            >
+              <SelectTrigger id={id} className="cursor-pointer">
+                <SelectValue placeholder="—" />
+              </SelectTrigger>
+              <SelectContent>
+                {optionList.map((option) => (
+                  <SelectItem key={option} value={option} label={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )
+        }}
       />
     </div>
   )
+}
+
+function toSelectValue(value: string): string | null {
+  return value === "" ? null : value
 }
 
 function recordToForm(row: SurveyRecord): FormValues {

@@ -1,0 +1,386 @@
+[
+  {
+    "i": 0,
+    "h2": "S N",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": 1
+  },
+  {
+    "i": 1,
+    "h2": "Survey Id",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": "249044-001-00001-001-P"
+  },
+  {
+    "i": 2,
+    "h2": "Owner Name",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": "Vijay singh"
+  },
+  {
+    "i": 3,
+    "h2": "Owner Father Name",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": "N/A"
+  },
+  {
+    "i": 4,
+    "h2": "Mobile No",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": 0
+  },
+  {
+    "i": 5,
+    "h2": "Parcel No",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": 1
+  },
+  {
+    "i": 6,
+    "h2": "Property No",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": 1
+  },
+  {
+    "i": 7,
+    "h2": "City",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": "Chhata"
+  },
+  {
+    "i": 8,
+    "h2": "Pincode",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": 281401
+  },
+  {
+    "i": 9,
+    "h2": "House No",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": "N/A"
+  },
+  {
+    "i": 10,
+    "h2": "Colony",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": "Jatav Jatan"
+  },
+  {
+    "i": 11,
+    "h2": "Tax Rate Zone",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": "RATE ZONE 1 (Upto 9 Meters)"
+  },
+  {
+    "i": 12,
+    "h2": "Property Use",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": "Open Land"
+  },
+  {
+    "i": 13,
+    "h2": "Road Type",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": "RCC Road"
+  },
+  {
+    "i": 14,
+    "h2": "Floors",
+    "h3": "Floor",
+    "h4": null,
+    "h5": null,
+    "v6": "P"
+  },
+  {
+    "i": 15,
+    "h2": null,
+    "h3": "Basement",
+    "h4": "Residential",
+    "h5": null,
+    "v6": 0
+  },
+  {
+    "i": 16,
+    "h2": null,
+    "h3": null,
+    "h4": "Non-Residential",
+    "h5": null,
+    "v6": 0
+  },
+  {
+    "i": 17,
+    "h2": null,
+    "h3": "Ground Floor",
+    "h4": "Residential",
+    "h5": null,
+    "v6": 300
+  },
+  {
+    "i": 18,
+    "h2": null,
+    "h3": null,
+    "h4": "Non-Residential",
+    "h5": null,
+    "v6": 0
+  },
+  {
+    "i": 19,
+    "h2": null,
+    "h3": "First Floor",
+    "h4": "Residential",
+    "h5": null,
+    "v6": 0
+  },
+  {
+    "i": 20,
+    "h2": null,
+    "h3": null,
+    "h4": "Non-Residential",
+    "h5": null,
+    "v6": 0
+  },
+  {
+    "i": 21,
+    "h2": null,
+    "h3": "Second Floor",
+    "h4": "Residential",
+    "h5": null,
+    "v6": 0
+  },
+  {
+    "i": 22,
+    "h2": null,
+    "h3": null,
+    "h4": "Non-Residential",
+    "h5": null,
+    "v6": 0
+  },
+  {
+    "i": 23,
+    "h2": "Plot Area SqFt",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": 300
+  },
+  {
+    "i": 24,
+    "h2": "Plinth Area SqFt",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": 0
+  },
+  {
+    "i": 25,
+    "h2": "Total Built Up Area SqFt",
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "v6": 0
+  },
+  {
+    "i": 26,
+    "h2": "Total Demand",
+    "h3": null,
+    "h4": "Residential",
+    "h5": "RCC",
+    "v6": "-"
+  },
+  {
+    "i": 27,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "T.Rate",
+    "v6": "-"
+  },
+  {
+    "i": 28,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "Tax",
+    "v6": 0
+  },
+  {
+    "i": 29,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "TEEN",
+    "v6": "-"
+  },
+  {
+    "i": 30,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "T.Rate",
+    "v6": "-"
+  },
+  {
+    "i": 31,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "Tax",
+    "v6": 0
+  },
+  {
+    "i": 32,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "KACCHA",
+    "v6": "-"
+  },
+  {
+    "i": 33,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "T.Rate",
+    "v6": "-"
+  },
+  {
+    "i": 34,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "Tax",
+    "v6": 0
+  },
+  {
+    "i": 35,
+    "h2": null,
+    "h3": null,
+    "h4": "Non-Residential",
+    "h5": "RCC",
+    "v6": "-"
+  },
+  {
+    "i": 36,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "T.Rate",
+    "v6": "-"
+  },
+  {
+    "i": 37,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "Tax",
+    "v6": 0
+  },
+  {
+    "i": 38,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "TEEN",
+    "v6": "-"
+  },
+  {
+    "i": 39,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "T.Rate",
+    "v6": "-"
+  },
+  {
+    "i": 40,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "Tax",
+    "v6": 0
+  },
+  {
+    "i": 41,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "KACCHA",
+    "v6": null
+  },
+  {
+    "i": 42,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "T.Rate",
+    "v6": null
+  },
+  {
+    "i": 43,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "Tax",
+    "v6": null
+  },
+  {
+    "i": 44,
+    "h2": null,
+    "h3": null,
+    "h4": "Open Land",
+    "h5": "Plot Area",
+    "v6": 300
+  },
+  {
+    "i": 45,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "Plot T.Rete",
+    "v6": 0.3
+  },
+  {
+    "i": 46,
+    "h2": null,
+    "h3": null,
+    "h4": null,
+    "h5": "Plot Tax",
+    "v6": 108
+  },
+  {
+    "i": 47,
+    "h2": null,
+    "h3": null,
+    "h4": "Total Tax",
+    "h5": null,
+    "v6": 108
+  }
+]

@@ -1,8 +1,6 @@
 "use client"
 
-import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
-import Link from "next/link"
 import {
   Building2,
   CheckCircle2,
@@ -10,11 +8,12 @@ import {
   Clock3,
   Droplets,
   Home,
-  ImageIcon,
   IndianRupee,
   MapPin,
   Wallet,
 } from "lucide-react"
+import Link from "next/link"
+import * as React from "react"
 import {
   Bar,
   BarChart,
@@ -28,7 +27,12 @@ import {
 
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@workspace/ui/components/card"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@workspace/ui/components/card"
 import {
   ChartContainer,
   ChartLegend,
@@ -45,10 +49,11 @@ import {
   SelectValue,
 } from "@workspace/ui/components/select"
 import { Skeleton } from "@workspace/ui/components/skeleton"
+import { buildSelectItems } from "@workspace/ui/lib/select-items"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { api } from "@/lib/api"
 import { useCan } from "@/hooks/use-permission"
+import { api } from "@/lib/api"
 
 type WardCardStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED"
 
@@ -69,14 +74,6 @@ type DashboardSummary = {
   pendingPayments: number
   successPayments: number
   failedPayments: number
-  recentAttachments: Array<{
-    id: string
-    originalFileName: string
-    mimeType: string
-    createdAt: string
-    url: string | null
-    survey: { id: string; surveyId: string; ownerName: string | null }
-  }>
   wardBreakdown: Array<{
     wardId: string
     number: number
@@ -85,6 +82,7 @@ type DashboardSummary = {
     surveyCount: number
     onlineCollection: number
     offlineCollection: number
+    pendingCollection: number
     totalCollection: number
     status: WardCardStatus
   }>
@@ -101,10 +99,10 @@ const WARD_ACCENTS = [
   "border-t-cyan-500",
 ] as const
 
-const collectionChartConfig = {
-  online: { label: "Online", color: "var(--chart-1)" },
-  offline: { label: "Offline", color: "var(--chart-2)" },
-  pending: { label: "Pending", color: "var(--chart-3)" },
+const taxChartConfig = {
+  property: { label: "Property Tax", color: "var(--chart-2)" },
+  drainage: { label: "Drainage Tax", color: "var(--chart-3)" },
+  water: { label: "Water Tax", color: "var(--chart-4)" },
 } satisfies ChartConfig
 
 const wardChartConfig = {
@@ -115,13 +113,20 @@ function formatInr(value: number): string {
   return `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
 }
 
-function formatInrCompact(value: number): string {
+function formatRs(value: number): string {
   return `Rs ${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
 }
 
+function wardTaxTotal(ward: DashboardSummary["wardBreakdown"][number]): number {
+  return ward.onlineCollection + ward.offlineCollection + ward.pendingCollection
+}
+
 export default function DashboardPage() {
-  const { allowed, isLoading: permLoading, isError: permError } =
-    useCan("dashboard:read")
+  const {
+    allowed,
+    isLoading: permLoading,
+    isError: permError,
+  } = useCan("dashboard:read")
   const [wardId, setWardId] = React.useState<string>("all")
 
   const wardsQuery = useQuery({
@@ -130,13 +135,24 @@ export default function DashboardPage() {
     enabled: allowed,
   })
 
+  const wardSelectItems = React.useMemo(
+    () => [
+      { value: "all", label: "All Wards" },
+      ...buildSelectItems(
+        wardsQuery.data ?? [],
+        (w) => w.id,
+        (w) => `Ward ${w.number} — ${w.name}`
+      ),
+    ],
+    [wardsQuery.data]
+  )
+
   const summaryQuery = useQuery({
     queryKey: ["dashboard", wardId],
     queryFn: async () => {
       const qs = wardId !== "all" ? `?wardId=${wardId}` : ""
-      return (
-        await api.get<DashboardSummary>(`/api/v1/dashboard/summary${qs}`)
-      ).data
+      return (await api.get<DashboardSummary>(`/api/v1/dashboard/summary${qs}`))
+        .data
     },
     enabled: allowed,
   })
@@ -147,7 +163,7 @@ export default function DashboardPage() {
 
   if (permError) {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Could not verify access. Confirm the API is running and try refreshing.
       </p>
     )
@@ -156,10 +172,10 @@ export default function DashboardPage() {
   if (!allowed) {
     return (
       <div className="space-y-2">
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           You do not have access to the dashboard.
         </p>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           Ask an administrator for{" "}
           <code className="text-foreground">dashboard:read</code>.
         </p>
@@ -169,32 +185,33 @@ export default function DashboardPage() {
 
   const data = summaryQuery.data
   const loading = summaryQuery.isLoading
-  const maxWardCollection = Math.max(
-    1,
-    ...(data?.wardBreakdown.map((w) => w.totalCollection) ?? [1])
-  )
 
-  const collectionMix = [
+  const propertyTax = data?.onlineCollection ?? 0
+  const drainageTax = data?.offlineCollection ?? 0
+  const waterTax = data?.pendingCollection ?? 0
+  const totalTax = propertyTax + drainageTax + waterTax
+
+  const taxMix = [
     {
-      key: "online",
-      name: "Online",
-      value: data?.onlineCollection ?? 0,
-      fill: "var(--color-online)",
+      key: "property",
+      name: "Property Tax",
+      value: propertyTax,
+      fill: "var(--color-property)",
     },
     {
-      key: "offline",
-      name: "Offline",
-      value: data?.offlineCollection ?? 0,
-      fill: "var(--color-offline)",
+      key: "drainage",
+      name: "Drainage Tax",
+      value: drainageTax,
+      fill: "var(--color-drainage)",
     },
     {
-      key: "pending",
-      name: "Pending",
-      value: data?.pendingCollection ?? 0,
-      fill: "var(--color-pending)",
+      key: "water",
+      name: "Water Tax",
+      value: waterTax,
+      fill: "var(--color-water)",
     },
   ]
-  const collectionMixTotal = collectionMix.reduce((s, r) => s + r.value, 0)
+  const taxMixTotal = taxMix.reduce((s, r) => s + r.value, 0)
 
   const wardBars = (data?.wardBreakdown ?? []).map((w) => ({
     ward: String(w.number),
@@ -204,25 +221,37 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      {/* Page header — Bakewar PDF style */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-primary text-sm font-medium">Dashboard</p>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+          <nav aria-label="Breadcrumb" className="mb-1">
+            <ol className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <li>Dashboard</li>
+            </ol>
+          </nav>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
             Nagar Panchayat Chhata
           </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Ward survey progress, property records &amp; collection analytics
-          </p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={wardId} onValueChange={(v) => setWardId(v ?? "all")}>
+          <Select
+            value={wardId}
+            items={wardSelectItems}
+            onValueChange={(v) => setWardId(v ?? "all")}
+          >
             <SelectTrigger className="w-64 cursor-pointer rounded-xl">
               <SelectValue placeholder="All wards" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Wards</SelectItem>
+              <SelectItem value="all" label="All Wards">
+                All Wards
+              </SelectItem>
               {(wardsQuery.data ?? []).map((w) => (
-                <SelectItem key={w.id} value={w.id}>
+                <SelectItem
+                  key={w.id}
+                  value={w.id}
+                  label={`Ward ${w.number} — ${w.name}`}
+                >
                   Ward {w.number} — {w.name}
                 </SelectItem>
               ))}
@@ -239,10 +268,7 @@ export default function DashboardPage() {
 
       {/* 1. Ward Wise Survey Statistics */}
       <section className="space-y-3">
-        <SectionHeading
-          title="Ward Wise Survey Statistics"
-          accent="text-emerald-600 dark:text-emerald-400"
-        />
+        <SectionHeading title="Ward Wise Survey Statistics" />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <SolidStatCard
             title="Total Wards"
@@ -260,7 +286,7 @@ export default function DashboardPage() {
           />
           <SolidStatCard
             title="Survey in Progress"
-            value={data?.draftSurveys}
+            value={data?.wardsInProgress}
             loading={loading}
             icon={Clock3}
             tone="amber"
@@ -277,70 +303,58 @@ export default function DashboardPage() {
 
       {/* 2. Property Wise Survey Statistics */}
       <section className="space-y-3">
-        <SectionHeading
-          title="Property Wise Survey Statistics"
-          accent="text-emerald-600 dark:text-emerald-400"
-        />
+        <SectionHeading title="Property Wise Survey Statistics" />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <SoftStatCard
-            title="Total Properties"
-            value={
-              data ? data.totalProperties.toLocaleString("en-IN") : undefined
-            }
-            hint="Survey records"
+          <TaxStatCard
+            title="Total Property Tax"
+            value={data ? formatRs(propertyTax) : undefined}
             loading={loading}
             icon={Home}
-            tone="blue"
-          />
-          <SoftStatCard
-            title="Online Collection"
-            value={data ? formatInrCompact(data.onlineCollection) : undefined}
-            hint="Successful online payments"
-            loading={loading}
-            icon={Wallet}
             tone="green"
           />
-          <SoftStatCard
-            title="Offline Collection"
-            value={data ? formatInrCompact(data.offlineCollection) : undefined}
-            hint="Cash, cheque, UPI & other"
+          <TaxStatCard
+            title="Total Drainage Tax"
+            value={data ? formatRs(drainageTax) : undefined}
             loading={loading}
             icon={Droplets}
-            tone="cyan"
+            tone="amber"
           />
-          <SoftStatCard
-            title="Total Collection"
-            value={data ? formatInrCompact(data.totalCollection) : undefined}
-            hint="All successful payments"
+          <TaxStatCard
+            title="Total Water Tax"
+            value={data ? formatRs(waterTax) : undefined}
+            loading={loading}
+            icon={Wallet}
+            tone="purple"
+          />
+          <TaxStatCard
+            title="Total Tax"
+            value={data ? formatRs(totalTax) : undefined}
             loading={loading}
             icon={IndianRupee}
-            tone="purple"
+            tone="blue"
           />
         </div>
       </section>
 
       {/* 3. Charts & Analytics */}
       <section className="space-y-3">
-        <SectionHeading
-          title="Charts & Analytics"
-          icon={Wallet}
-        />
+        <SectionHeading title="Charts & Analytics" />
         <div className="grid gap-4 xl:grid-cols-3">
           <Card className="xl:col-span-1">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Collection Breakdown</CardTitle>
+              <CardTitle className="text-base">Tax Breakdown</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
                 <Skeleton className="mx-auto size-48 rounded-full" />
-              ) : collectionMixTotal === 0 ? (
-                <p className="text-muted-foreground py-10 text-center text-sm">
-                  No collection data yet for this filter.
+              ) : taxMixTotal === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  No tax collection data yet for this filter.
                 </p>
               ) : (
                 <>
                   <ChartContainer
-                    config={collectionChartConfig}
+                    config={taxChartConfig}
                     className="mx-auto aspect-square max-h-56"
                   >
                     <PieChart>
@@ -349,21 +363,19 @@ export default function DashboardPage() {
                           <ChartTooltipContent
                             nameKey="key"
                             hideLabel
-                            formatter={(value) =>
-                              formatInr(Number(value ?? 0))
-                            }
+                            formatter={(value) => formatInr(Number(value ?? 0))}
                           />
                         }
                       />
                       <Pie
-                        data={collectionMix}
+                        data={taxMix}
                         dataKey="value"
                         nameKey="key"
                         innerRadius={58}
                         outerRadius={84}
                         strokeWidth={2}
                       >
-                        {collectionMix.map((entry) => (
+                        {taxMix.map((entry) => (
                           <Cell key={entry.key} fill={entry.fill} />
                         ))}
                       </Pie>
@@ -372,19 +384,25 @@ export default function DashboardPage() {
                       />
                     </PieChart>
                   </ChartContainer>
-                  <table className="text-muted-foreground mt-2 w-full text-xs">
+                  <table className="mt-2 w-full text-xs text-muted-foreground">
                     <caption className="sr-only">
-                      Collection amounts by channel
+                      Tax collection amounts by category
                     </caption>
                     <tbody>
-                      {collectionMix.map((row) => (
+                      {taxMix.map((row) => (
                         <tr key={row.key} className="border-t">
                           <td className="py-1.5">{row.name}</td>
-                          <td className="text-foreground py-1.5 text-right font-medium">
+                          <td className="py-1.5 text-right font-medium text-foreground">
                             {formatInr(row.value)}
                           </td>
                         </tr>
                       ))}
+                      <tr className="border-t font-semibold">
+                        <td className="py-1.5 text-foreground">Total Tax</td>
+                        <td className="py-1.5 text-right text-foreground">
+                          {formatInr(totalTax)}
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
                 </>
@@ -427,8 +445,7 @@ export default function DashboardPage() {
                         <ChartTooltipContent
                           labelFormatter={(_, payload) => {
                             const row = payload?.[0]?.payload as
-                              | { ward?: string; name?: string }
-                              | undefined
+                              { ward?: string; name?: string } | undefined
                             return row?.name
                               ? `Ward ${row.ward} — ${row.name}`
                               : `Ward ${row?.ward ?? ""}`
@@ -452,13 +469,8 @@ export default function DashboardPage() {
       {/* 4. Ward Tax Collection Cards */}
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <SectionHeading title="Ward Tax Collection Cards" />
-            <p className="text-muted-foreground text-sm">
-              Ward wise survey data &amp; successful collection
-            </p>
-          </div>
-          <p className="text-muted-foreground text-sm">
+          <SectionHeading title="Ward Tax Collection Cards" />
+          <p className="text-sm text-muted-foreground">
             {data?.totalWards ?? "—"} wards mapped
           </p>
         </div>
@@ -476,87 +488,18 @@ export default function DashboardPage() {
                 key={ward.wardId}
                 ward={ward}
                 accent={WARD_ACCENTS[index % WARD_ACCENTS.length]!}
-                maxCollection={maxWardCollection}
               />
             ))}
           </div>
         )}
       </section>
-
-      {/* Recent uploads */}
-      <section className="grid gap-4 xl:grid-cols-1">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ImageIcon className="size-4" />
-              Recent uploads
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-24 w-full" />
-            ) : (data?.recentAttachments?.length ?? 0) === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                No survey images yet. Open a survey and upload photos.
-              </p>
-            ) : (
-              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {data!.recentAttachments.map((a) => (
-                  <li key={a.id} className="flex gap-3">
-                    {a.url && a.mimeType.startsWith("image/") ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={a.url}
-                        alt={a.originalFileName}
-                        className="size-14 rounded-md object-cover"
-                      />
-                    ) : (
-                      <div className="bg-muted flex size-14 items-center justify-center rounded-md">
-                        <ImageIcon className="text-muted-foreground size-5" />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <Link
-                        href={`/surveys/${a.survey.id}`}
-                        className="text-sm font-medium hover:underline"
-                      >
-                        {a.survey.surveyId}
-                      </Link>
-                      <p className="text-muted-foreground truncate text-xs">
-                        {a.originalFileName}
-                      </p>
-                      <p className="text-muted-foreground text-xs">
-                        {a.survey.ownerName ?? "—"}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </section>
     </div>
   )
 }
 
-function SectionHeading({
-  title,
-  accent,
-  icon: Icon,
-}: {
-  title: string
-  accent?: string
-  icon?: React.ComponentType<{ className?: string }>
-}) {
+function SectionHeading({ title }: { title: string }) {
   return (
-    <h2
-      className={cn(
-        "flex items-center gap-2 text-base font-semibold tracking-tight",
-        accent ?? "text-foreground"
-      )}
-    >
-      {Icon ? <Icon className="text-primary size-4" /> : null}
+    <h2 className="text-base font-semibold tracking-tight text-emerald-600 dark:text-emerald-400">
       {title}
     </h2>
   )
@@ -585,7 +528,7 @@ function SolidStatCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl bg-linear-to-br p-5 text-white shadow-md",
+        "relative overflow-hidden rounded-2xl bg-linear-to-br p-5 text-white shadow-md transition-shadow duration-200 hover:shadow-lg",
         solidTones[tone]
       )}
     >
@@ -604,50 +547,65 @@ function SolidStatCard({
   )
 }
 
-const softTones = {
-  blue: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
-  green: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  cyan: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300",
-  purple: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
+const taxCardTones = {
+  green: {
+    icon: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    border: "border-emerald-100 dark:border-emerald-900/40",
+  },
+  amber: {
+    icon: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    border: "border-amber-100 dark:border-amber-900/40",
+  },
+  purple: {
+    icon: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+    border: "border-violet-100 dark:border-violet-900/40",
+  },
+  blue: {
+    icon: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    border: "border-blue-100 dark:border-blue-900/40",
+  },
 } as const
 
-function SoftStatCard({
+function TaxStatCard({
   title,
   value,
-  hint,
   loading,
   icon: Icon,
   tone,
 }: {
   title: string
   value?: string
-  hint: string
   loading?: boolean
   icon: React.ComponentType<{ className?: string }>
-  tone: keyof typeof softTones
+  tone: keyof typeof taxCardTones
 }) {
+  const styles = taxCardTones[tone]
   return (
-    <Card className="transition-shadow duration-200 hover:shadow-md">
-      <CardContent className="flex items-start gap-3 pt-5">
+    <Card
+      className={cn(
+        "transition-shadow duration-200 hover:shadow-md",
+        styles.border
+      )}
+    >
+      <CardContent className="relative pt-5 pb-5">
         <div
           className={cn(
-            "flex size-11 shrink-0 items-center justify-center rounded-full",
-            softTones[tone]
+            "absolute top-4 right-4 flex size-11 items-center justify-center rounded-full",
+            styles.icon
           )}
         >
           <Icon className="size-5" />
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-muted-foreground text-sm font-medium">{title}</p>
-          {loading ? (
-            <Skeleton className="mt-2 h-7 w-28" />
-          ) : (
-            <p className="mt-1 truncate text-xl font-bold tracking-tight">
-              {value ?? "—"}
-            </p>
-          )}
-          <p className="text-muted-foreground mt-0.5 text-xs">{hint}</p>
-        </div>
+        <p className="pr-14 text-sm font-medium text-muted-foreground">
+          {title}
+        </p>
+        {loading ? (
+          <Skeleton className="mt-2 h-7 w-32" />
+        ) : (
+          <p className="mt-1 truncate text-xl font-bold tracking-tight">
+            {value ?? "—"}
+          </p>
+        )}
       </CardContent>
     </Card>
   )
@@ -656,24 +614,18 @@ function SoftStatCard({
 function WardCollectionCard({
   ward,
   accent,
-  maxCollection,
 }: {
   ward: DashboardSummary["wardBreakdown"][number]
   accent: string
-  maxCollection: number
 }) {
-  const onlinePct =
-    maxCollection > 0
-      ? Math.round((ward.onlineCollection / maxCollection) * 100)
-      : 0
-  const offlinePct =
-    maxCollection > 0
-      ? Math.round((ward.offlineCollection / maxCollection) * 100)
-      : 0
-  const totalPct =
-    maxCollection > 0
-      ? Math.round((ward.totalCollection / maxCollection) * 100)
-      : 0
+  const propertyAmount = ward.onlineCollection
+  const waterAmount = ward.offlineCollection
+  const drainageAmount = ward.pendingCollection
+  const total = wardTaxTotal(ward)
+
+  const propertyPct = total > 0 ? Math.round((propertyAmount / total) * 100) : 0
+  const waterPct = total > 0 ? Math.round((waterAmount / total) * 100) : 0
+  const drainagePct = total > 0 ? Math.round((drainageAmount / total) * 100) : 0
 
   return (
     <Card
@@ -684,48 +636,43 @@ function WardCollectionCard({
     >
       <CardHeader className="flex flex-row items-start justify-between gap-2 pb-2">
         <div className="min-w-0">
-          <p className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
+          <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
             Ward {String(ward.number).padStart(2, "0")}
           </p>
           <p className="truncate font-(family-name:--font-deva) text-sm font-semibold">
             {ward.name}
           </p>
         </div>
-        <div className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs font-medium">
+        <div className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
           <Building2 className="size-3.5" />
           {ward.surveyCount}
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
         <MetricRow
-          icon={Home}
-          label="Online collection"
-          value={formatInrCompact(ward.onlineCollection)}
-          pct={onlinePct}
+          label="Property Tax Rate 10%"
+          value={formatRs(propertyAmount)}
+          pct={propertyPct}
           barClass="bg-blue-500"
         />
         <MetricRow
-          icon={Droplets}
-          label="Offline collection"
-          value={formatInrCompact(ward.offlineCollection)}
-          pct={offlinePct}
+          label="Water Tax Rate 7.5%"
+          value={formatRs(waterAmount)}
+          pct={waterPct}
           barClass="bg-cyan-500"
         />
         <MetricRow
-          icon={Wallet}
-          label="Share of max ward"
-          value={`${totalPct}%`}
-          pct={totalPct}
+          label="Drainage Tax Rate 2.5%"
+          value={formatRs(drainageAmount)}
+          pct={drainagePct}
           barClass="bg-amber-500"
         />
         <div className="flex items-center justify-between border-t pt-3">
           <div>
-            <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-              Total tax
+            <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+              Total Tax
             </p>
-            <p className="text-sm font-bold">
-              {formatInrCompact(ward.totalCollection)}
-            </p>
+            <p className="text-sm font-bold">{formatRs(total)}</p>
           </div>
           <StatusBadge status={ward.status} />
         </div>
@@ -735,13 +682,11 @@ function WardCollectionCard({
 }
 
 function MetricRow({
-  icon: Icon,
   label,
   value,
   pct,
   barClass,
 }: {
-  icon: React.ComponentType<{ className?: string }>
   label: string
   value: string
   pct: number
@@ -750,15 +695,15 @@ function MetricRow({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="text-muted-foreground flex items-center gap-1.5">
-          <Icon className="size-3.5" />
-          {label}
-        </span>
+        <span className="text-muted-foreground">{label}</span>
         <span className="font-semibold tabular-nums">{value}</span>
       </div>
-      <div className="bg-muted h-1.5 overflow-hidden rounded-full">
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <div
-          className={cn("h-full rounded-full transition-all duration-300", barClass)}
+          className={cn(
+            "h-full rounded-full transition-all duration-300",
+            barClass
+          )}
           style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
         />
       </div>

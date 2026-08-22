@@ -309,6 +309,7 @@ export class SurveysService {
       where.OR = [
         { surveyId: { contains: q, mode: "insensitive" } },
         { ownerName: { contains: q, mode: "insensitive" } },
+        { ownerFatherName: { contains: q, mode: "insensitive" } },
         { mobile: { contains: q } },
         { parcelNo: { contains: q, mode: "insensitive" } },
         { propertyNo: { contains: q, mode: "insensitive" } },

@@ -1,21 +1,19 @@
 "use client"
 
-import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
-import * as React from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Archive,
   ChevronLeft,
   ChevronRight,
-  MapPin,
   Pencil,
   RotateCcw,
   Search,
   Trash2,
   TriangleAlert,
-  Upload,
 } from "lucide-react"
+import Link from "next/link"
+import { useParams, useRouter } from "next/navigation"
+import * as React from "react"
 import { toast } from "sonner"
 
 import { Badge } from "@workspace/ui/components/badge"
@@ -23,7 +21,6 @@ import { Button } from "@workspace/ui/components/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
@@ -48,6 +45,7 @@ import {
 } from "@workspace/ui/components/table"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { useCan } from "@/hooks/use-permission"
 import { api } from "@/lib/api"
 import {
   ULB_NAME,
@@ -59,17 +57,8 @@ import {
   qualityLabel,
   toNumber,
 } from "@/lib/survey-format"
-import { useCan } from "@/hooks/use-permission"
 
 type Neighbor = { id: string; surveyId: string }
-
-type Attachment = {
-  id: string
-  originalFileName: string
-  mimeType?: string
-  url?: string | null
-  uploadedBy?: { name: string } | null
-}
 
 type FloorRow = {
   id: string
@@ -140,7 +129,6 @@ type SurveyDetail = {
   hasMunicipalWasteService: boolean | null
   ward: { number: number; name: string }
   floors: FloorRow[]
-  attachments: Attachment[]
   createdBy?: { name: string } | null
   updatedBy?: { name: string } | null
   createdAt?: string
@@ -161,8 +149,6 @@ type AuditLog = {
 
 type SurveySearchRow = { id: string; surveyId: string }
 
-const PHOTO_FALLBACK = ["Front View", "Side View", "Interior", "Document"]
-
 export default function SurveyDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
@@ -170,7 +156,6 @@ export default function SurveyDetailPage() {
   const { allowed: canEdit } = useCan("survey:update")
   const { allowed: canDelete } = useCan("survey:delete")
   const { allowed: canAudit } = useCan("audit:read")
-  const fileRef = React.useRef<HTMLInputElement>(null)
   const [parcelQuery, setParcelQuery] = React.useState("")
   const [deleteOpen, setDeleteOpen] = React.useState(false)
 
@@ -193,35 +178,13 @@ export default function SurveyDetailPage() {
     },
   })
 
-  const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const form = new FormData()
-      form.append("file", file)
-      return api.postForm(`/api/v1/surveys/${params.id}/attachments`, form)
-    },
-    onSuccess: async () => {
-      toast.success("Photo uploaded")
-      await queryClient.invalidateQueries({ queryKey: ["survey", params.id] })
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] })
-    },
-    onError: (err: Error) => toast.error(err.message || "Upload failed"),
-  })
-
-  const removePhotoMutation = useMutation({
-    mutationFn: async (attachmentId: string) =>
-      api.delete(`/api/v1/surveys/${params.id}/attachments/${attachmentId}`),
-    onSuccess: async () => {
-      toast.success("Photo removed")
-      await queryClient.invalidateQueries({ queryKey: ["survey", params.id] })
-    },
-    onError: (err: Error) => toast.error(err.message || "Remove failed"),
-  })
-
   const statusMutation = useMutation({
     mutationFn: async (status: "ACTIVE" | "ARCHIVED") =>
       api.patch(`/api/v1/surveys/${params.id}`, { status }),
     onSuccess: async (_res, status) => {
-      toast.success(status === "ARCHIVED" ? "Survey archived" : "Survey restored")
+      toast.success(
+        status === "ARCHIVED" ? "Survey archived" : "Survey restored"
+      )
       await queryClient.invalidateQueries({ queryKey: ["survey", params.id] })
       await queryClient.invalidateQueries({ queryKey: ["surveys"] })
     },
@@ -252,7 +215,9 @@ export default function SurveyDetailPage() {
     })
     if (query.data?.wardId) paramsQs.set("wardId", query.data.wardId)
     try {
-      const res = await api.get<SurveySearchRow[]>(`/api/v1/surveys?${paramsQs}`)
+      const res = await api.get<SurveySearchRow[]>(
+        `/api/v1/surveys?${paramsQs}`
+      )
       const match = res.data[0]
       if (!match) {
         toast.error("No parcel found in this ward")
@@ -296,8 +261,6 @@ export default function SurveyDetailPage() {
     floors: s.floors,
   })
   const floorTotals = derivedFloorTotals(s.floors)
-  const images = s.attachments.filter((a) => a.mimeType?.startsWith("image/"))
-  const files = s.attachments.filter((a) => !a.mimeType?.startsWith("image/"))
   const previous = s.neighbors?.previous
   const next = s.neighbors?.next
 
@@ -386,12 +349,12 @@ export default function SurveyDetailPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          <p className="text-xs font-semibold tracking-wide text-primary uppercase">
             Active ward
           </p>
-          <h1 className="text-xl font-semibold tracking-tight">
+          <h1 className="text-xl font-bold tracking-tight md:text-2xl">
             {ULB_NAME} — Ward {s.ward.number}
-            <span className="text-muted-foreground ml-2 text-base font-normal">
+            <span className="ml-2 text-base font-normal text-muted-foreground">
               {s.ward.name}
             </span>
           </h1>
@@ -415,7 +378,7 @@ export default function SurveyDetailPage() {
           Go to parcel
         </label>
         <div className="relative flex-1">
-          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             id="go-parcel"
             value={parcelQuery}
@@ -429,7 +392,7 @@ export default function SurveyDetailPage() {
         </Button>
       </form>
 
-      <Card>
+      <Card className="shadow-sm">
         <CardContent className="grid gap-4 pt-1 sm:grid-cols-2 lg:grid-cols-5">
           <SummaryCell label="Survey ID" value={s.surveyId} mono />
           <SummaryCell label="ULB Name" value={ULB_NAME} />
@@ -439,10 +402,7 @@ export default function SurveyDetailPage() {
         </CardContent>
       </Card>
 
-      <SectionCard
-        title="Survey & Owner"
-        description="Survey Id → Date of Survey → Owner Name → Owner Father Name → Mobile No → Ward Name → Is Slum."
-      >
+      <SectionCard title="Survey & Owner">
         <FieldGrid>
           <Field label="Survey Id" value={s.surveyId} />
           <Field
@@ -452,12 +412,15 @@ export default function SurveyDetailPage() {
           <Field label="Owner Name" value={s.ownerName} />
           <Field label="Owner Father Name" value={s.ownerFatherName} />
           <Field label="Mobile No" value={s.mobile} />
-          <Field label="Ward Name" value={`Ward ${s.ward.number} — ${s.ward.name}`} />
+          <Field
+            label="Ward Name"
+            value={`Ward ${s.ward.number} — ${s.ward.name}`}
+          />
           <Field label="Is Slum" value={yn(s.isSlum)} />
         </FieldGrid>
       </SectionCard>
 
-      <SectionCard title="Parcel" description="Parcel No → Property No.">
+      <SectionCard title="Parcel">
         <FieldGrid>
           <Field label="Parcel No" value={parcel} />
           <Field label="Property No" value={unit} />
@@ -465,50 +428,28 @@ export default function SurveyDetailPage() {
         </FieldGrid>
       </SectionCard>
 
-      <SectionCard
-        title="Respondent"
-        description="Respondent Name → Respondent Relationship."
-      >
+      <SectionCard title="Respondent">
         <FieldGrid>
           <Field label="Respondent Name" value={s.respondentName} />
-          <Field label="Respondent Relationship" value={s.respondentRelationship} />
+          <Field
+            label="Respondent Relationship"
+            value={s.respondentRelationship}
+          />
         </FieldGrid>
       </SectionCard>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <SectionCard
-          title="Address"
-          description="City → Pincode → House No → Street Name → Locality → Colony."
-        >
-          <FieldGrid cols="2">
-            <Field label="City" value={s.city} />
-            <Field label="Pincode" value={s.pincode} />
-            <Field label="House No" value={s.houseNo} />
-            <Field label="Street Name" value={s.streetName} />
-            <Field label="Locality" value={s.locality} />
-            <Field label="Colony" value={s.colony} />
-          </FieldGrid>
-        </SectionCard>
+      <SectionCard title="Address">
+        <FieldGrid cols="2">
+          <Field label="City" value={s.city} />
+          <Field label="Pincode" value={s.pincode} />
+          <Field label="House No" value={s.houseNo} />
+          <Field label="Street Name" value={s.streetName} />
+          <Field label="Locality" value={s.locality} />
+          <Field label="Colony" value={s.colony} />
+        </FieldGrid>
+      </SectionCard>
 
-        <SectionCard
-          title="GIS Mapping"
-          description="Field location coordinates."
-        >
-          <div className="bg-muted/40 flex min-h-56 flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-6 text-center">
-            <MapPin className="text-muted-foreground size-8" />
-            <p className="text-sm font-medium">Coordinates not captured</p>
-            <p className="text-muted-foreground max-w-sm text-xs">
-              Ward Excel imports do not include latitude or longitude. A map pin
-              will appear here when field GPS is stored on the survey record.
-            </p>
-          </div>
-        </SectionCard>
-      </div>
-
-      <SectionCard
-        title="Classification"
-        description="Tax Rate Zone → Property Ownership → Property Use → Commercial → Year of Construction → Situation → Road Type."
-      >
+      <SectionCard title="Classification">
         <FieldGrid>
           <Field label="Tax Rate Zone" value={s.taxRateZone} />
           <Field label="Property Ownership" value={s.propertyOwnership} />
@@ -520,17 +461,14 @@ export default function SurveyDetailPage() {
         </FieldGrid>
       </SectionCard>
 
-      <SectionCard
-        title="Floors & Area"
-        description="Floors → Plot Area SqFt/SqMeter → Plinth Area SqFt/SqMeter → Total Built Up Area SqFt/SqMeter."
-      >
+      <SectionCard title="Floors & Area">
         {checks.length ? (
           <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/30">
             <div className="mb-2 flex items-center gap-2 text-sm font-medium text-amber-900 dark:text-amber-200">
               <TriangleAlert className="size-4" />
               Floor usage checks ({checks.length})
             </div>
-            <ul className="text-amber-800 list-disc space-y-1 pl-5 text-sm dark:text-amber-200/90">
+            <ul className="list-disc space-y-1 pl-5 text-sm text-amber-800 dark:text-amber-200/90">
               {checks.map((check) => (
                 <li key={check}>{check}</li>
               ))}
@@ -549,11 +487,14 @@ export default function SurveyDetailPage() {
           />
           <Field
             label="Total Built Up Area SqFt"
-            value={formatArea(s.totalBuiltUpAreaSqFt, s.totalBuiltUpAreaSqMeter)}
+            value={formatArea(
+              s.totalBuiltUpAreaSqFt,
+              s.totalBuiltUpAreaSqMeter
+            )}
           />
         </FieldGrid>
 
-        <p className="text-muted-foreground mt-4 mb-2 text-sm">
+        <p className="mt-4 mb-2 text-sm text-muted-foreground">
           Derived floor totals:{" "}
           {floorTotals.length
             ? floorTotals
@@ -602,7 +543,10 @@ export default function SurveyDetailPage() {
                   Total built-up area
                 </TableCell>
                 <TableCell className="text-right font-semibold">
-                  {formatArea(s.totalBuiltUpAreaSqFt, s.totalBuiltUpAreaSqMeter)}
+                  {formatArea(
+                    s.totalBuiltUpAreaSqFt,
+                    s.totalBuiltUpAreaSqMeter
+                  )}
                 </TableCell>
               </TableRow>
             </TableFooter>
@@ -610,16 +554,16 @@ export default function SurveyDetailPage() {
         </div>
       </SectionCard>
 
-      <SectionCard
-        title="Municipal Services & Photo Documentation"
-        description="Is Muncipal Water Supply → Total Water Connection → Water Connection Id/Type → Toilet Type → Is Muncipal Waste Service → Alternate Water → Water Source."
-      >
+      <SectionCard title="Municipal Services">
         <FieldGrid>
           <Field
             label="Is Muncipal Water Supply"
             value={yn(s.hasMunicipalWaterSupply)}
           />
-          <Field label="Total Water Connection" value={s.totalWaterConnections} />
+          <Field
+            label="Total Water Connection"
+            value={s.totalWaterConnections}
+          />
           <Field
             label="Water Connection Id/Type"
             value={s.waterConnectionIdType}
@@ -632,134 +576,10 @@ export default function SurveyDetailPage() {
           <Field label="Alternate Water" value={yn(s.hasAlternateWater)} />
           <Field label="Water Source" value={s.waterSourceType} />
         </FieldGrid>
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-            Photos uploaded {images.length}
-            {files.length ? ` · ${files.length} other file(s)` : ""}
-          </p>
-          {canEdit ? (
-            <>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) uploadMutation.mutate(file)
-                  e.target.value = ""
-                }}
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                className="cursor-pointer"
-                disabled={uploadMutation.isPending}
-                onClick={() => fileRef.current?.click()}
-              >
-                <Upload />
-                {uploadMutation.isPending ? "Uploading…" : "Upload photo"}
-              </Button>
-            </>
-          ) : null}
-        </div>
-
-        {s.attachments.length ? (
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
-            {s.attachments.map((attachment, index) => (
-              <figure
-                key={attachment.id}
-                className="overflow-hidden rounded-xl border"
-              >
-                {attachment.url && attachment.mimeType?.startsWith("image/") ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={attachment.url}
-                    alt={photoCaption(attachment.originalFileName, index)}
-                    className="aspect-video w-full object-cover"
-                  />
-                ) : (
-                  <div className="bg-muted text-muted-foreground flex aspect-video items-center justify-center text-xs">
-                    {attachment.mimeType ?? "file"}
-                  </div>
-                )}
-                <figcaption className="flex items-center justify-between gap-2 p-3">
-                  <div>
-                    <p className="text-sm font-medium">
-                      {photoCaption(attachment.originalFileName, index)}
-                    </p>
-                    <p className="text-muted-foreground text-xs">
-                      {attachment.uploadedBy?.name ?? s.createdBy?.name ?? "—"}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {attachment.url ? (
-                      <a
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-primary cursor-pointer text-xs underline-offset-2 hover:underline"
-                      >
-                        Open
-                      </a>
-                    ) : null}
-                    {canEdit ? (
-                      <Button
-                        size="xs"
-                        variant="destructive"
-                        className="cursor-pointer"
-                        disabled={removePhotoMutation.isPending}
-                        onClick={() =>
-                          removePhotoMutation.mutate(attachment.id)
-                        }
-                      >
-                        Remove
-                      </Button>
-                    ) : null}
-                  </div>
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-        ) : (
-          <p className="text-muted-foreground mt-3 text-sm">
-            No photos yet
-            {canEdit ? " — upload a field photo to store it in MinIO." : "."}
-          </p>
-        )}
       </SectionCard>
 
-      {hasExtraColumns(s) ? (
-        <SectionCard
-          title="Additional columns"
-          description="Present on Ward 2+ workbooks. Hidden when empty."
-        >
-          <FieldGrid>
-            <Field label="Remark" value={s.remark} />
-            <Field label="Electricity ID" value={s.electricityId} />
-            <Field label="Khasra No" value={s.khasraNo} />
-            <Field label="Registry No" value={s.registryNo} />
-            <Field label="Constructed Date" value={s.constructedDate} />
-            <Field label="Owner Aadhaar" value={s.ownerAadhaar} />
-            <Field label="Same as property" value={yn(s.isSameAsProperty)} />
-            <Field label="Present House No" value={s.presentHouseNo} />
-            <Field label="Present Street Name" value={s.presentStreetName} />
-            <Field label="Present Locality" value={s.presentLocality} />
-            <Field label="Present Colony" value={s.presentColony} />
-            <Field label="Present City" value={s.presentCity} />
-            <Field label="Present Pincode" value={s.presentPincode} />
-            <Field label="Exemption Type" value={s.exemptionType} />
-            <Field label="Exemption Applicable" value={yn(s.exemptionApplicable)} />
-          </FieldGrid>
-        </SectionCard>
-      ) : null}
-
       {canAudit ? (
-        <SectionCard
-          title="Audit History"
-          description="Survey create, update, and attachment timeline."
-        >
+        <SectionCard title="Audit History">
           <div className="overflow-hidden rounded-xl border">
             <Table>
               <TableHeader>
@@ -783,7 +603,9 @@ export default function SurveyDetailPage() {
                       <TableCell>
                         {new Date(log.createdAt).toLocaleString()}
                       </TableCell>
-                      <TableCell className="font-medium">{log.action}</TableCell>
+                      <TableCell className="font-medium">
+                        {log.action}
+                      </TableCell>
                       <TableCell>{log.actor?.name ?? "—"}</TableCell>
                       <TableCell className="max-w-xs truncate text-xs">
                         {auditDetails(log)}
@@ -837,20 +659,19 @@ export default function SurveyDetailPage() {
 
 function SectionCard({
   title,
-  description,
   children,
 }: {
   title: string
-  description: string
   children: React.ReactNode
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg font-semibold">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+    <Card className="overflow-hidden shadow-sm transition-shadow duration-200 hover:shadow-md">
+      <CardHeader className="border-b bg-muted/30 pb-3">
+        <CardTitle className="text-base font-semibold tracking-tight text-primary">
+          {title}
+        </CardTitle>
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="pt-5">{children}</CardContent>
     </Card>
   )
 }
@@ -882,11 +703,11 @@ function Field({
   value?: string | number | null
 }) {
   return (
-    <div className="min-w-0">
-      <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+    <div className="min-w-0 rounded-xl border bg-muted/30 px-3 py-2.5 transition-colors duration-200">
+      <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
         {label}
       </p>
-      <p className="mt-0.5 text-sm font-semibold wrap-break-word text-foreground">
+      <p className="mt-1 text-sm font-semibold wrap-break-word text-foreground">
         {dash(value)}
       </p>
     </div>
@@ -903,13 +724,13 @@ function SummaryCell({
   mono?: boolean
 }) {
   return (
-    <div>
-      <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+    <div className="rounded-xl border bg-muted/20 px-3 py-2.5">
+      <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
         {label}
       </p>
       <p
         className={cn(
-          "mt-0.5 text-sm font-semibold",
+          "mt-1 text-sm font-semibold",
           mono && "font-mono text-xs sm:text-sm"
         )}
       >
@@ -923,30 +744,10 @@ function DetailSkeleton() {
   return (
     <div className="space-y-4">
       <Skeleton className="h-9 w-72" />
-      <Skeleton className="h-24 w-full" />
-      <Skeleton className="h-64 w-full" />
-      <Skeleton className="h-64 w-full" />
+      <Skeleton className="h-24 w-full rounded-2xl" />
+      <Skeleton className="h-64 w-full rounded-2xl" />
+      <Skeleton className="h-64 w-full rounded-2xl" />
     </div>
-  )
-}
-
-function hasExtraColumns(s: SurveyDetail) {
-  return Boolean(
-    s.remark ||
-      s.electricityId ||
-      s.khasraNo ||
-      s.registryNo ||
-      s.constructedDate ||
-      s.ownerAadhaar ||
-      s.presentHouseNo ||
-      s.presentStreetName ||
-      s.presentLocality ||
-      s.presentColony ||
-      s.presentCity ||
-      s.presentPincode ||
-      s.exemptionType ||
-      s.isSameAsProperty != null ||
-      s.exemptionApplicable != null
   )
 }
 
@@ -981,14 +782,6 @@ function qualityBadgeClass(status: string) {
     return "bg-sky-600/15 text-sky-800 hover:bg-sky-600/15 dark:text-sky-300"
   }
   return "bg-amber-500/15 text-amber-800 hover:bg-amber-500/15 dark:text-amber-300"
-}
-
-function photoCaption(fileName: string, index: number) {
-  const lower = fileName.toLowerCase()
-  if (lower.includes("front")) return "Front View"
-  if (lower.includes("side")) return "Side View"
-  if (lower.includes("back")) return "Back View"
-  return PHOTO_FALLBACK[index] ?? `Photo ${index + 1}`
 }
 
 function derivedFloorTotals(floors: FloorRow[]) {

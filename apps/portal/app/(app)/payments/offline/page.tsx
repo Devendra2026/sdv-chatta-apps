@@ -1,12 +1,17 @@
 "use client"
 
-import { useForm } from "react-hook-form"
 import { useMutation } from "@tanstack/react-query"
-import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { useForm } from "react-hook-form"
+import { toast } from "sonner"
 
 import { Button } from "@workspace/ui/components/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@workspace/ui/components/card"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@workspace/ui/components/card"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import {
@@ -16,8 +21,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@workspace/ui/components/select"
+import { buildStringSelectItems } from "@workspace/ui/lib/select-items"
 
 import { api } from "@/lib/api"
+
+const PAYMENT_MODES = ["CASH", "CHEQUE", "DD", "UPI_MANUAL", "OTHER"] as const
+
+const paymentModeItems = buildStringSelectItems(PAYMENT_MODES)
 
 type FormValues = {
   amount: string
@@ -59,22 +69,30 @@ export default function OfflinePaymentPage() {
         >
           <div className="space-y-1.5">
             <Label>Amount (₹)</Label>
-            <Input type="number" step="0.01" {...form.register("amount", { required: true })} />
+            <Input
+              type="number"
+              step="0.01"
+              {...form.register("amount", { required: true })}
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Mode</Label>
             <Select
               value={form.watch("paymentMode")}
+              items={paymentModeItems}
               onValueChange={(v) =>
-                form.setValue("paymentMode", (v as FormValues["paymentMode"]) ?? "CASH")
+                form.setValue(
+                  "paymentMode",
+                  (v as FormValues["paymentMode"]) ?? "CASH"
+                )
               }
             >
               <SelectTrigger className="cursor-pointer">
-                <SelectValue />
+                <SelectValue placeholder="Payment mode" />
               </SelectTrigger>
               <SelectContent>
-                {["CASH", "CHEQUE", "DD", "UPI_MANUAL", "OTHER"].map((m) => (
-                  <SelectItem key={m} value={m}>
+                {PAYMENT_MODES.map((m) => (
+                  <SelectItem key={m} value={m} label={m}>
                     {m}
                   </SelectItem>
                 ))}
@@ -97,7 +115,11 @@ export default function OfflinePaymentPage() {
             <Label>Remarks</Label>
             <Input {...form.register("remarks")} />
           </div>
-          <Button type="submit" className="cursor-pointer" disabled={mutation.isPending}>
+          <Button
+            type="submit"
+            className="cursor-pointer"
+            disabled={mutation.isPending}
+          >
             Save collection
           </Button>
         </form>
