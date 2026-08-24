@@ -1,147 +1,177 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { Filter } from "lucide-react"
 import * as React from "react"
-
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
-import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
+import { toast } from "sonner"
 
 import { api } from "@/lib/api"
+import { downloadAuthenticatedExport } from "@/lib/download-blob"
 
-import { ReportsTaxWorkspace } from "./reports-tax-workspace"
+import {
+  FilterControlPanel,
+  type ReportFilters,
+} from "./_components/filter-control-panel"
+import { ReportKpis } from "./_components/report-kpis"
+import { VisualReportBuilder } from "./_components/visual-report-builder"
 
-export default function ReportsPage() {
-  const [wardId, setWardId] = React.useState("")
-  const [propertyUse, setPropertyUse] = React.useState("")
-  const [from, setFrom] = React.useState("")
-  const [to, setTo] = React.useState("")
+type Ward = { id: string; name: string; number: number }
 
-  const surveys = useQuery({
-    queryKey: ["report-surveys", wardId, propertyUse, from, to],
+type TaxConfig = {
+  id: string
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED"
+  version: number
+}
+
+type RefEntry = { id: string; code: string; name: string }
+
+export default function ReportBuilderPage() {
+  const [filters, setFilters] = React.useState<ReportFilters>({
+    wardId: "",
+    propertyUse: "",
+    from: "",
+    to: "",
+    autoFilter: false,
+  })
+
+  const [assessmentYearId, setAssessmentYearId] = React.useState("")
+
+  const wardsQuery = useQuery({
+    queryKey: ["wards"],
+    queryFn: async () => (await api.get<Ward[]>("/api/v1/wards")).data,
+  })
+
+  const yearsQuery = useQuery({
+    queryKey: ["ref-assessment-years"],
+    queryFn: async () => {
+      const res = await api.get<RefEntry[]>(
+        "/api/v1/reference-entries?category=ASSESSMENT_YEAR"
+      )
+      return res.data ?? []
+    },
+  })
+
+  React.useEffect(() => {
+    if (!assessmentYearId && yearsQuery.data?.[0]) {
+      setAssessmentYearId(yearsQuery.data[0].id)
+    }
+  }, [yearsQuery.data, assessmentYearId])
+
+  const taxConfigQuery = useQuery({
+    queryKey: ["tax-config", filters.wardId, assessmentYearId],
+    enabled: Boolean(filters.wardId && assessmentYearId),
+    queryFn: async () =>
+      (
+        await api.get<TaxConfig>(
+          `/api/v1/tax-configs?wardId=${filters.wardId}&assessmentYearId=${assessmentYearId}`
+        )
+      ).data,
+  })
+
+  const surveysQuery = useQuery({
+    queryKey: ["report-surveys", filters.wardId, filters.propertyUse, filters.from, filters.to],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (wardId) params.set("wardId", wardId)
-      if (propertyUse.trim()) params.set("propertyUse", propertyUse.trim())
-      if (from) params.set("from", from)
-      if (to) params.set("to", to)
+      if (filters.wardId) params.set("wardId", filters.wardId)
+      if (filters.propertyUse.trim()) params.set("propertyUse", filters.propertyUse.trim())
+      if (filters.from) params.set("from", filters.from)
+      if (filters.to) params.set("to", filters.to)
       const qs = params.toString()
+      return (
+        await api.get<{ total: number }>(`/api/v1/reports/surveys${qs ? `?${qs}` : ""}`)
+      ).data
+    },
+  })
+
+  const dashboardQuery = useQuery({
+    queryKey: ["dashboard", filters.wardId || "all"],
+    queryFn: async () => {
+      const qs = filters.wardId ? `?wardId=${filters.wardId}` : ""
       return (
         await api.get<{
-          total: number
-          byUse: Array<{ propertyUse: string | null; _count: { _all: number } }>
-        }>(`/api/v1/reports/surveys${qs ? `?${qs}` : ""}`)
+          totalProperties: number
+          completeQuality: number
+          needsReviewQuality: number
+          totalWards: number
+        }>(`/api/v1/dashboard/summary${qs}`)
       ).data
     },
   })
 
-  const payments = useQuery({
-    queryKey: ["report-payments", wardId, from, to],
-    queryFn: async () => {
-      const params = new URLSearchParams()
-      if (wardId) params.set("wardId", wardId)
-      if (from) params.set("from", from)
-      if (to) params.set("to", to)
-      const qs = params.toString()
-      return (
-        await api.get<{ successTotal: number; successCount: number }>(
-          `/api/v1/reports/payments${qs ? `?${qs}` : ""}`
-        )
-      ).data
-    },
-  })
+  const kpiData = dashboardQuery.data
+    ? {
+        surveysInScope: surveysQuery.data?.total ?? dashboardQuery.data.totalProperties,
+        completeQuality: dashboardQuery.data.completeQuality,
+        needsReview: dashboardQuery.data.needsReviewQuality,
+        totalWards: dashboardQuery.data.totalWards,
+      }
+    : undefined
+
+  const taxPublished = taxConfigQuery.data?.status === "PUBLISHED"
+
+  const buildExportParams = () => {
+    const params = new URLSearchParams()
+    if (filters.wardId) params.set("wardId", filters.wardId)
+    if (filters.propertyUse.trim()) params.set("propertyUse", filters.propertyUse.trim())
+    if (filters.from) params.set("from", filters.from)
+    if (filters.to) params.set("to", filters.to)
+    if (filters.autoFilter) params.set("autoFilter", "1")
+    return params
+  }
+
+  const handleExportSurvey = async () => {
+    const params = buildExportParams()
+    params.set("template", "import")
+    const ward = wardsQuery.data?.find((w) => w.id === filters.wardId)
+    try {
+      await downloadAuthenticatedExport(
+        `/api/v1/reports/surveys/export?${params}`,
+        `survey-report-${ward?.number ?? "all"}.xlsx`
+      )
+      toast.success("Survey Excel downloaded")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Export failed")
+    }
+  }
+
+  const handleExportTax = async () => {
+    if (!filters.wardId || !assessmentYearId) {
+      toast.error("Select ward and assessment year")
+      return
+    }
+    if (!taxPublished) {
+      toast.error("Publish tax rates before exporting")
+      return
+    }
+    const params = buildExportParams()
+    params.set("assessmentYearId", assessmentYearId)
+    const ward = wardsQuery.data?.find((w) => w.id === filters.wardId)
+    try {
+      await downloadAuthenticatedExport(
+        `/api/v1/reports/surveys/export?${params}`,
+        `ward-tax-report-${ward?.number ?? "ward"}.xlsx`
+      )
+      toast.success("Tax demand Excel downloaded")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Export failed")
+    }
+  }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">
-        Reports & tax demand
-      </h1>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Filter className="size-4" aria-hidden />
-            Summary filters
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3">
-          <div className="space-y-2">
-            <Label htmlFor="report-property-use">Property use</Label>
-            <Input
-              id="report-property-use"
-              value={propertyUse}
-              onChange={(e) => setPropertyUse(e.target.value)}
-              placeholder="Optional"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="report-from">Surveyed from</Label>
-            <Input
-              id="report-from"
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="report-to">Surveyed to</Label>
-            <Input
-              id="report-to"
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <ReportsTaxWorkspace
-        wardId={wardId}
-        propertyUse={propertyUse}
-        from={from}
-        to={to}
-        onWardChange={setWardId}
+    <div className="space-y-6">
+      <FilterControlPanel
+        filters={filters}
+        onChange={setFilters}
+        wards={wardsQuery.data ?? []}
       />
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Survey summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>Total properties: {surveys.data?.total ?? "—"}</p>
-            <ul className="space-y-1">
-              {(surveys.data?.byUse ?? []).slice(0, 8).map((r) => (
-                <li
-                  key={String(r.propertyUse)}
-                  className="flex justify-between"
-                >
-                  <span>{r.propertyUse ?? "Unknown"}</span>
-                  <span>{r._count._all}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Payment summary</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm">
-            <p>Successful payments: {payments.data?.successCount ?? "—"}</p>
-            <p>
-              Collection: ₹
-              {(payments.data?.successTotal ?? 0).toLocaleString("en-IN")}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <ReportKpis data={kpiData} />
+
+      <VisualReportBuilder
+        filters={filters}
+        taxPublished={taxPublished}
+        onExportSurvey={handleExportSurvey}
+        onExportTax={handleExportTax}
+      />
     </div>
   )
 }

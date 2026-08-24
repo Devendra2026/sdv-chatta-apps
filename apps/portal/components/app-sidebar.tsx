@@ -1,8 +1,9 @@
 "use client"
 
+import { Building2, ChevronDown } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2, ChevronDown } from "lucide-react"
+import { useEffect, useState } from "react"
 
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -34,7 +35,10 @@ import {
 } from "@/components/app-nav"
 import { usePermission } from "@/hooks/use-permission"
 
-function canSee(item: NavItem, hasPermission: (c: string | string[]) => boolean) {
+function canSee(
+  item: NavItem,
+  hasPermission: (c: string | string[]) => boolean
+) {
   if (!item.permission) return true
   if (Array.isArray(item.permission)) {
     return item.permission.some((p) => hasPermission(p))
@@ -52,9 +56,63 @@ function isItemActive(item: NavItem, pathname: string): boolean {
   return (
     item.children?.some(
       (c) =>
-        c.href &&
-        (pathname === c.href || pathname.startsWith(`${c.href}/`))
+        c.href && (pathname === c.href || pathname.startsWith(`${c.href}/`))
     ) ?? false
+  )
+}
+
+function NavCollapsibleGroup({
+  item,
+  pathname,
+}: {
+  item: NavItem
+  pathname: string
+}) {
+  const isActive = isItemActive(item, pathname)
+  const [open, setOpen] = useState(isActive)
+
+  useEffect(() => {
+    if (isActive) {
+      setOpen(true)
+    }
+  }, [isActive])
+
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="group/collapsible"
+    >
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          render={<CollapsibleTrigger />}
+          tooltip={item.title}
+          className="cursor-pointer text-sidebar-foreground"
+        >
+          {item.icon ? <item.icon /> : null}
+          <span>{item.title}</span>
+          <ChevronDown className="ml-auto size-4 opacity-60 transition-transform duration-200 group-data-open/collapsible:rotate-180" />
+        </SidebarMenuButton>
+        <CollapsibleContent>
+          <SidebarMenuSub className="mt-1 ml-3.5 border-l border-sidebar-border pl-2">
+            {item.children?.map((child) => (
+              <SidebarMenuSubItem key={child.href}>
+                <SidebarMenuSubButton
+                  render={<Link href={child.href!} />}
+                  isActive={
+                    pathname === child.href ||
+                    pathname.startsWith(`${child.href}/`)
+                  }
+                  className="cursor-pointer rounded-lg transition-colors duration-200"
+                >
+                  <span>{child.title}</span>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            ))}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
   )
 }
 
@@ -78,14 +136,14 @@ export function AppSidebar() {
             "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:shadow-none"
           )}
         >
-          <div className="bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-lg shadow-sm">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
             <Building2 className="size-4" />
           </div>
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
             <p className="truncate text-sm font-semibold tracking-tight text-foreground">
               Nagar Panchayat
             </p>
-            <p className="text-muted-foreground truncate text-[11px] font-medium tracking-wide uppercase">
+            <p className="truncate text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
               Chhata · Mathura
             </p>
           </div>
@@ -102,7 +160,7 @@ export function AppSidebar() {
                   <Skeleton className="h-10 w-full rounded-xl" />
                 </div>
               ) : isError ? (
-                <div className="text-muted-foreground space-y-2 px-2 text-xs">
+                <div className="space-y-2 px-2 text-xs text-muted-foreground">
                   <p>Could not load permissions.</p>
                   <Button
                     size="sm"
@@ -114,49 +172,19 @@ export function AppSidebar() {
                   </Button>
                 </div>
               ) : visible.length === 0 ? (
-                <p className="text-muted-foreground px-2 text-xs">
-                  No menu access for this account. Ask an admin to assign a role.
+                <p className="px-2 text-xs text-muted-foreground">
+                  No menu access for this account. Ask an admin to assign a
+                  role.
                 </p>
               ) : (
                 visible.map((item) => {
                   if (item.children?.length) {
-                    const openByDefault = isItemActive(item, pathname)
                     return (
-                      <Collapsible
+                      <NavCollapsibleGroup
                         key={item.title}
-                        defaultOpen={openByDefault}
-                        className="group/collapsible"
-                      >
-                        <SidebarMenuItem>
-                          <SidebarMenuButton
-                            render={<CollapsibleTrigger />}
-                            tooltip={item.title}
-                            className="cursor-pointer text-sidebar-foreground"
-                          >
-                            {item.icon ? <item.icon /> : null}
-                            <span>{item.title}</span>
-                            <ChevronDown className="ml-auto size-4 opacity-60 transition-transform duration-200 group-data-[open]/collapsible:rotate-180" />
-                          </SidebarMenuButton>
-                          <CollapsibleContent>
-                            <SidebarMenuSub className="mt-1 ml-3.5 border-l border-sidebar-border pl-2">
-                              {item.children.map((child) => (
-                                <SidebarMenuSubItem key={child.href}>
-                                  <SidebarMenuSubButton
-                                    render={<Link href={child.href!} />}
-                                    isActive={
-                                      pathname === child.href ||
-                                      pathname.startsWith(`${child.href}/`)
-                                    }
-                                    className="cursor-pointer rounded-lg transition-colors duration-200"
-                                  >
-                                    <span>{child.title}</span>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              ))}
-                            </SidebarMenuSub>
-                          </CollapsibleContent>
-                        </SidebarMenuItem>
-                      </Collapsible>
+                        item={item}
+                        pathname={pathname}
+                      />
                     )
                   }
 

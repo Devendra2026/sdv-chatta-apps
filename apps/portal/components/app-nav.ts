@@ -39,9 +39,13 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     title: "Reports",
-    href: "/reports",
     icon: BarChart3,
     permission: "report:read",
+    children: [
+      { title: "Report Builder", href: "/reports", permission: "report:read" },
+      { title: "Tax Rates", href: "/reports/tax-rates", permission: "report:read" },
+      { title: "Demand Notice", href: "/reports/notice", permission: "report:read" },
+    ],
   },
   {
     title: "Payments",
