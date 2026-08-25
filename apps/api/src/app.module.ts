@@ -7,6 +7,7 @@ import { HealthModule } from "./health/health.module"
 import { ImportsModule } from "./imports/imports.module"
 import { PaymentsModule } from "./payments/payments.module"
 import { PrismaModule } from "./prisma/prisma.module"
+import { PublicPropertyTaxModule } from "./public-property-tax/public-property-tax.module"
 import { RbacModule } from "./rbac/rbac.module"
 import { ReferenceModule } from "./reference/reference.module"
 import { ReportsModule } from "./reports/reports.module"
@@ -31,6 +32,7 @@ import { WardsModule } from "./wards/wards.module"
     ReportsModule,
     TaxConfigsModule,
     ReferenceModule,
+    PublicPropertyTaxModule,
   ],
 })
 export class AppModule {}

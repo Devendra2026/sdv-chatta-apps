@@ -13,7 +13,10 @@ export class SandboxPaymentProvider implements PaymentGatewayProvider {
   readonly name = "sandbox"
 
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
-    const redirectUrl = `${process.env.ATOM_RETURN_URL ?? "http://localhost:3000/payments/return"}?merchTxnId=${encodeURIComponent(input.merchTxnId)}&sandbox=1`
+    const base =
+      process.env.ATOM_RETURN_URL ??
+      "http://localhost:3001/propertytax/payment/return"
+    const redirectUrl = `${base}?merchTxnId=${encodeURIComponent(input.merchTxnId)}&sandbox=1`
     return {
       redirectUrl,
       merchId: "SANDBOX",

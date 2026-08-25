@@ -6,8 +6,8 @@ import {
 import { PaymentMode, PaymentStatus, Prisma } from "@prisma/client"
 import { randomUUID } from "node:crypto"
 
-import type { AuthUser } from "../auth/auth.decorators"
 import { AuditService } from "../audit/audit.service"
+import type { AuthUser } from "../auth/auth.decorators"
 import { PrismaService } from "../prisma/prisma.service"
 import { AtomNdpsProvider } from "./providers/atom-ndps.provider"
 import type { PaymentGatewayProvider } from "./providers/payment-provider"
@@ -37,6 +37,32 @@ export class PaymentsService {
     },
     user: AuthUser
   ) {
+    return this.createOnlinePayment(input, user.id)
+  }
+
+  /** Citizen website online payment — no staff collector. */
+  async createCitizenOnline(input: {
+    amount: number
+    surveyId: string
+    wardId: string
+    payerName?: string
+    payerMobile: string
+    payerEmail?: string
+  }) {
+    return this.createOnlinePayment(input, null)
+  }
+
+  private async createOnlinePayment(
+    input: {
+      amount: number
+      surveyId?: string
+      wardId?: string
+      payerName?: string
+      payerMobile?: string
+      payerEmail?: string
+    },
+    collectedById: string | null
+  ) {
     const merchTxnId = `CHH-${Date.now()}-${randomUUID().slice(0, 8)}`
     const payment = await this.prisma.payment.create({
       data: {
@@ -51,18 +77,21 @@ export class PaymentsService {
         payerName: input.payerName,
         payerMobile: input.payerMobile,
         payerEmail: input.payerEmail,
-        collectedById: user.id,
+        collectedById: collectedById ?? undefined,
         refundableAmount: input.amount,
       },
     })
 
+    const returnUrl =
+      process.env.ATOM_RETURN_URL ??
+      "http://localhost:3001/propertytax/payment/return"
     const result = await this.provider.createPayment({
       merchTxnId,
       amount: input.amount,
       customerName: input.payerName,
       customerEmail: input.payerEmail,
       customerMobile: input.payerMobile,
-      returnUrl: process.env.ATOM_RETURN_URL ?? "http://localhost:3000/payments/return",
+      returnUrl,
       callbackUrl:
         process.env.ATOM_CALLBACK_URL ??
         "http://localhost:4000/api/v1/payments/gateway/callback",
@@ -77,12 +106,12 @@ export class PaymentsService {
       },
     })
 
-    await this.prisma.payment.update({
+    const updated = await this.prisma.payment.update({
       where: { id: payment.id },
       data: { status: PaymentStatus.PENDING },
     })
 
-    return { payment, gateway: result }
+    return { payment: updated, gateway: result }
   }
 
   async createOffline(
@@ -180,6 +209,12 @@ export class PaymentsService {
           status: success ? PaymentStatus.SUCCESS : PaymentStatus.FAILED,
           atomTxnId: atomTxnId ?? payment.atomTxnId,
           gatewayReference: atomTxnId,
+          ...(success && !payment.receiptNumber
+            ? {
+                receiptNumber: `RCP-${payment.merchTxnId ?? payment.paymentReference}`,
+                collectionDate: new Date(),
+              }
+            : {}),
         },
       })
       await this.prisma.paymentTransaction.create({
@@ -201,10 +236,14 @@ export class PaymentsService {
   }
 
   async requery(paymentId: string, user: AuthUser) {
-    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } })
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+    })
     if (!payment?.merchTxnId) throw new NotFoundException("Payment not found")
 
-    const result = await this.provider.requery({ merchTxnId: payment.merchTxnId })
+    const result = await this.provider.requery({
+      merchTxnId: payment.merchTxnId,
+    })
     await this.prisma.paymentTransaction.create({
       data: {
         paymentId: payment.id,
@@ -219,6 +258,12 @@ export class PaymentsService {
       data: {
         status: result.success ? PaymentStatus.SUCCESS : payment.status,
         atomTxnId: result.atomTxnId ?? payment.atomTxnId,
+        ...(result.success && !payment.receiptNumber
+          ? {
+              receiptNumber: `RCP-${payment.merchTxnId}`,
+              collectionDate: payment.collectionDate ?? new Date(),
+            }
+          : {}),
       },
     })
 
@@ -233,13 +278,66 @@ export class PaymentsService {
     return { payment: updated, result }
   }
 
+  /** Public citizen return-page sync — requery gateway for PENDING payments. */
+  async syncCitizenPaymentByMerchTxnId(merchTxnId: string) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { merchTxnId },
+    })
+    if (!payment?.merchTxnId) {
+      throw new NotFoundException({
+        code: "PAYMENT_NOT_FOUND",
+        message: "Payment was not found",
+      })
+    }
+
+    if (
+      payment.status === PaymentStatus.SUCCESS ||
+      payment.status === PaymentStatus.FAILED ||
+      payment.status === PaymentStatus.REFUNDED
+    ) {
+      return payment
+    }
+
+    const result = await this.provider.requery({
+      merchTxnId: payment.merchTxnId,
+    })
+    await this.prisma.paymentTransaction.create({
+      data: {
+        paymentId: payment.id,
+        direction: "requery",
+        responsePayload: result.raw as Prisma.InputJsonValue,
+        statusCode: result.statusCode,
+      },
+    })
+
+    return this.prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: result.success
+          ? PaymentStatus.SUCCESS
+          : payment.status === PaymentStatus.PENDING
+            ? PaymentStatus.PENDING
+            : payment.status,
+        atomTxnId: result.atomTxnId ?? payment.atomTxnId,
+        ...(result.success && !payment.receiptNumber
+          ? {
+              receiptNumber: `RCP-${payment.merchTxnId}`,
+              collectionDate: payment.collectionDate ?? new Date(),
+            }
+          : {}),
+      },
+    })
+  }
+
   async refund(
     paymentId: string,
     amount: number,
     reason: string | undefined,
     user: AuthUser
   ) {
-    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } })
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+    })
     if (!payment) throw new NotFoundException("Payment not found")
     if (payment.status !== PaymentStatus.SUCCESS) {
       throw new BadRequestException("Only successful payments can be refunded")
@@ -315,7 +413,12 @@ export class PaymentsService {
     ])
     return {
       items,
-      meta: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
+      meta: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      },
     }
   }
 

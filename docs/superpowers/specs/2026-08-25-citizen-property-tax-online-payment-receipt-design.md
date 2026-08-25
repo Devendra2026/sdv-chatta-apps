@@ -6,13 +6,13 @@
 
 ## Decisions
 
-| Question | Choice |
-| -------- | ------ |
-| Delivery | **B** — Full UAT (not UI-only mock) |
+| Question         | Choice                                                                   |
+| ---------------- | ------------------------------------------------------------------------ |
+| Delivery         | **B** — Full UAT (not UI-only mock)                                      |
 | Checkout handoff | **B** — HTTP redirect to gateway `redirectUrl` (not CDN atomcheckout.js) |
-| Payer details | **A** — Mobile required; email optional |
-| Architecture | **Approach 1** — Public pay module + dedicated web routes |
-| Tax Dues link | Already wired to `/propertytax/dues/[id]` — enable Pay Online from there |
+| Payer details    | **A** — Mobile required; email optional                                  |
+| Architecture     | **Approach 1** — Public pay module + dedicated web routes                |
+| Tax Dues link    | Already wired to `/propertytax/dues/[id]` — enable Pay Online from there |
 
 ## Out of scope
 
@@ -40,17 +40,18 @@
 
 ### Public endpoints (no AuthGuard; rate-limit `/public/property-tax`)
 
-| Method | Path | Purpose |
-| ------ | ---- | ------- |
-| `POST` | `/api/v1/public/property-tax/payments` | Start online payment |
-| `GET` | `/api/v1/public/property-tax/payments/by-merch/:merchTxnId` | Status for return page |
-| `GET` | `/api/v1/public/property-tax/receipts/:merchTxnId` | Receipt payload (SUCCESS only) |
+| Method | Path                                                        | Purpose                        |
+| ------ | ----------------------------------------------------------- | ------------------------------ |
+| `POST` | `/api/v1/public/property-tax/payments`                      | Start online payment           |
+| `GET`  | `/api/v1/public/property-tax/payments/by-merch/:merchTxnId` | Status for return page         |
+| `GET`  | `/api/v1/public/property-tax/receipts/:merchTxnId`          | Receipt payload (SUCCESS only) |
 
 ### Create payment
 
 **Body:** `{ surveyId: string` (cuid), `payerMobile: string` (10 digits), `payerEmail?: string }`
 
 **Rules:**
+
 1. Load ACTIVE survey; recompute dues via same path as public dues API
 2. Reject if `totalDemand <= 0` (`DUES_NOT_PAYABLE`)
 3. Create `Payment` ONLINE, amount = server `totalDemand`, `collectedById` null, link survey/ward
@@ -78,12 +79,12 @@
 
 ### Routes
 
-| Route | Purpose |
-| ----- | ------- |
-| `/propertytax/dues/[id]` | Enable **Pay Online** → pay page |
-| `/propertytax/pay/[id]` | Confirm amount + mobile (+ optional email) → create pay → redirect |
-| `/propertytax/payment/return` | Read `merchTxnId`; show pending/success/fail; link to receipt |
-| `/propertytax/receipt/[merchTxnId]` | Printable official receipt |
+| Route                               | Purpose                                                            |
+| ----------------------------------- | ------------------------------------------------------------------ |
+| `/propertytax/dues/[id]`            | Enable **Pay Online** → pay page                                   |
+| `/propertytax/pay/[id]`             | Confirm amount + mobile (+ optional email) → create pay → redirect |
+| `/propertytax/payment/return`       | Read `merchTxnId`; show pending/success/fail; link to receipt      |
+| `/propertytax/receipt/[merchTxnId]` | Printable official receipt                                         |
 
 ### Pay page content
 

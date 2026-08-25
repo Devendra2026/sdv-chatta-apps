@@ -6,12 +6,12 @@
 
 ## Decisions
 
-| Question | Choice |
-| -------- | ------ |
-| Delivery scope | **A** — Tax Dues button → dues/notice view only; Atom pay later |
-| Notice UI | **A** — Match department Demand Notice layout (portal `notice-template`) |
-| Assessment year | **A** — Ward’s currently published TaxConfig only (no year picker) |
-| Approach | **1** — Public dues API + dedicated `/propertytax/dues/[id]` page |
+| Question        | Choice                                                                   |
+| --------------- | ------------------------------------------------------------------------ |
+| Delivery scope  | **A** — Tax Dues button → dues/notice view only; Atom pay later          |
+| Notice UI       | **A** — Match department Demand Notice layout (portal `notice-template`) |
+| Assessment year | **A** — Ward’s currently published TaxConfig only (no year picker)       |
+| Approach        | **1** — Public dues API + dedicated `/propertytax/dues/[id]` page        |
 
 ## Out of scope
 

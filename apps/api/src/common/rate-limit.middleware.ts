@@ -9,7 +9,11 @@ export class RateLimitMiddleware implements NestMiddleware {
     const key = `${req.ip}:${req.path}`
     const now = Date.now()
     const windowMs = 60_000
-    const max = req.path.includes("/payments/gateway/callback") ? 120 : 300
+    const max = req.path.includes("/public/property-tax")
+      ? 30
+      : req.path.includes("/payments/gateway/callback")
+        ? 120
+        : 300
     const current = hits.get(key)
     if (!current || current.resetAt < now) {
       hits.set(key, { count: 1, resetAt: now + windowMs })

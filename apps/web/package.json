@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",
+    "@workspace/types": "workspace:*",
     "@workspace/ui": "workspace:*",
     "clsx": "^2.1.1",
     "framer-motion": "^13.1.1",

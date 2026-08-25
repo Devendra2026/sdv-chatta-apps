@@ -57,3 +57,131 @@ export const PERMISSIONS = [
 ] as const
 
 export type PermissionCode = (typeof PERMISSIONS)[number]
+
+/** Citizen public property-tax search (apps/web). */
+export type PublicPropertyTaxSearchMode = "ward" | "propertyId" | "owner"
+
+export type PublicPropertyTaxWard = {
+  id: string
+  code: string
+  name: string
+  number: number
+}
+
+export type PublicPropertyTaxResultItem = {
+  id: string
+  surveyId: string
+  wardNumber: number
+  wardName: string
+  propertyNo: string | null
+  parcelNo: string | null
+  ownerNameMasked: string
+  mobileMasked: string
+  locality: string | null
+}
+
+export type PublicPropertyTaxSearchResult = {
+  items: PublicPropertyTaxResultItem[]
+  page: number
+  pageSize: number
+  total: number
+}
+
+export type PublicPropertyTaxDuesFloor = {
+  floorLabel: string
+  usageType: string
+  usageFactor: string
+  construction: string
+  areaSqFt: number
+  rate: number
+  alv: number
+  tax: number
+}
+
+export type PublicPropertyTaxDues = {
+  id: string
+  surveyId: string
+  wardNumber: number
+  wardName: string
+  ownerName: string | null
+  mobileMasked: string
+  propertyNo: string | null
+  parcelNo: string | null
+  houseNo: string | null
+  streetName: string | null
+  locality: string | null
+  colony: string | null
+  city: string | null
+  pincode: string | null
+  propertyUse: string | null
+  taxRateZone: string | null
+  roadType: string | null
+  assessmentYear: {
+    id: string
+    code: string
+    name: string
+  }
+  taxConfig: {
+    id: string
+    version: number
+  }
+  floors: PublicPropertyTaxDuesFloor[]
+  tax: {
+    propertyTaxPct: number
+    waterTaxPct: number
+    drainageTaxPct: number
+    penaltyPct: number
+    assessablePct: number
+    propertyTax: number
+    waterTax: number
+    drainageTax: number
+    penalty: number
+    totalDemand: number
+    annualBaseRate: number | null
+    configFound: boolean
+  }
+}
+
+export type PublicPropertyTaxPaymentCreateResult = {
+  paymentId: string
+  merchTxnId: string | null
+  amount: number
+  currency: string
+  redirectUrl: string
+  assessmentYear: string
+  surveyId: string
+}
+
+export type PublicPropertyTaxPaymentStatus = {
+  paymentId: string
+  merchTxnId: string | null
+  receiptNumber: string | null
+  status: string
+  amount: number
+  currency: string
+  payerMobileMasked: string
+  /** Survey primary key (cuid) — use for dues/pay links */
+  id: string | null
+  /** Municipal survey / property id shown to citizens */
+  surveyId: string | null
+  wardNumber: number | null
+  wardName: string | null
+  propertyNo: string | null
+  parcelNo: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type PublicPropertyTaxReceipt = PublicPropertyTaxPaymentStatus & {
+  paidAt: string
+  assessmentYear: string | null
+  taxBreakdown: {
+    propertyTax: number
+    waterTax: number
+    drainageTax: number
+    penalty: number
+    totalDemand: number
+  } | null
+  gateway: string | null
+  atomTxnId: string | null
+}
