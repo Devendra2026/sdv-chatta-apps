@@ -2,32 +2,31 @@ import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 
 import { PrismaService } from "../prisma/prisma.service"
+import {
+  emailPasswordInviteOnly,
+  googleAccountLinking,
+  resolveGoogleSocialProvider,
+  resolvePublicAppUrl,
+  resolveTrustedOrigins,
+} from "./auth-options"
 
 export function createAuth(prisma: PrismaService) {
-  const publicAppUrl =
-    process.env.BETTER_AUTH_URL ??
-    process.env.PUBLIC_APP_URL ??
-    "http://localhost:3000"
-
-  const trustedOrigins = (
-    process.env.CORS_ORIGIN ??
-    "http://localhost:3000,http://localhost:3001"
-  )
-    .split(",")
-    .map((o) => o.trim())
-    .filter(Boolean)
-
   return betterAuth({
     appName: "Nagar Panchayat Chhata",
-    baseURL: publicAppUrl,
+    baseURL: resolvePublicAppUrl(),
     secret: process.env.BETTER_AUTH_SECRET,
     database: prismaAdapter(prisma, {
       provider: "postgresql",
     }),
-    emailAndPassword: {
-      enabled: true,
+    emailAndPassword: emailPasswordInviteOnly,
+    account: {
+      accountLinking: {
+        enabled: googleAccountLinking.enabled,
+        trustedProviders: [...googleAccountLinking.trustedProviders],
+      },
     },
-    trustedOrigins,
+    socialProviders: resolveGoogleSocialProvider(),
+    trustedOrigins: resolveTrustedOrigins(),
     user: {
       additionalFields: {
         phone: {
@@ -46,6 +45,8 @@ export function createAuth(prisma: PrismaService) {
       user: {
         create: {
           after: async (user) => {
+            // Safety net for any Better Auth-created users (should be rare with disableSignUp).
+            // Admin provisioning assigns roles explicitly in UsersController.
             const adminEmail = (
               process.env.SEED_ADMIN_EMAIL ?? "sikarwar2010@gmail.com"
             ).toLowerCase()

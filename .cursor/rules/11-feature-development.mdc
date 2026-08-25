@@ -1,0 +1,32 @@
+---
+description: Feature workflow, conflict priority, never-do list, and definition of done
+alwaysApply: true
+---
+
+# Feature Development
+
+Repository architecture and conventions win over assumptions. Inspect before coding. Reuse before creating.
+
+## Workflow
+
+1. Understand requirements (roles, permissions, DB, API, UI, storage).
+2. Inspect similar modules, schemas, endpoints, pages, permissions, tests.
+3. Decide placement from the **actual** tree — do not invent folders/patterns.
+4. Implement only what is required; no unrelated refactors.
+5. Validate with existing scripts (`pnpm lint` / `typecheck` / `test` / `build` as available).
+6. Summarize factually (What Changed · Files · DB · API · Frontend · RBAC · Tests · Remaining).
+
+## Conflict priority
+
+1. Working repo architecture → 2. Code conventions → 3. Auth/RBAC → 4. DB design → 5. API contracts → 6. UI patterns → 7. These rules → 8. Generic framework habits → 9. Assumptions
+
+## Never
+
+- Rewrite stack (Prisma, Better Auth, Postgres, MinIO, RBAC, API clients)
+- Duplicate utilities/services/guards/hooks with slightly different names
+- Bypass authz/validation; hardcode secrets; invent API/DB conventions
+- Add packages without checking existing deps; claim done without validation
+
+## Definition of done
+
+Fits existing architecture · patterns reused · backend + frontend complete · auth + RBAC enforced server-side · Prisma/MinIO correct when needed · validation/errors follow project norms · tests for important paths · lint/typecheck/tests pass for changed scope · no unrelated diffs

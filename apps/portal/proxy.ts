@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const publicPaths = ["/login", "/signup"]
+const publicPaths = ["/login", "/signup"] // /signup redirects to /login (no self-registration)
 
 function hasAuthSessionCookie(req: NextRequest) {
   return req.cookies

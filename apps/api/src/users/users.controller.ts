@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Get,
   Param,
@@ -8,13 +9,22 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common"
-import { IsEmail, IsOptional, IsString, MinLength } from "class-validator"
+import { hashPassword } from "better-auth/crypto"
+import {
+  IsArray,
+  IsEmail,
+  IsIn,
+  IsOptional,
+  IsString,
+  MinLength,
+} from "class-validator"
 
 import { RequirePermission } from "../auth/auth.decorators"
 import { AuthGuard } from "../auth/auth.guard"
 import { PermissionGuard } from "../auth/permission.guard"
 import { PrismaService } from "../prisma/prisma.service"
-import { AuthService } from "../auth/auth.service"
+
+const CREDENTIAL_ISSUER = "local:credential"
 
 class CreateUserDto {
   @IsEmail()
@@ -33,6 +43,8 @@ class CreateUserDto {
   phone?: string
 
   @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   roleIds?: string[]
 }
 
@@ -46,20 +58,19 @@ class UpdateUserDto {
   phone?: string
 
   @IsOptional()
-  @IsString()
+  @IsIn(["ACTIVE", "INACTIVE", "SUSPENDED"])
   status?: "ACTIVE" | "INACTIVE" | "SUSPENDED"
 
   @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   roleIds?: string[]
 }
 
 @Controller("api/v1/users")
 @UseGuards(AuthGuard, PermissionGuard)
 export class UsersController {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly authService: AuthService
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   @Get()
   @RequirePermission("user:read")
@@ -90,33 +101,67 @@ export class UsersController {
   @Post()
   @RequirePermission("user:create")
   async create(@Body() dto: CreateUserDto) {
-    const created = await this.authService.auth.api.signUpEmail({
-      body: {
-        email: dto.email,
-        password: dto.password,
-        name: dto.name,
+    const email = dto.email.trim().toLowerCase()
+    const existing = await this.prisma.user.findUnique({ where: { email } })
+    if (existing) {
+      throw new ConflictException({
+        code: "USER_EMAIL_EXISTS",
+        message: "A user with this email already exists",
+      })
+    }
+
+    const hashed = await hashPassword(dto.password)
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email,
+          name: dto.name.trim(),
+          phone: dto.phone?.trim() || null,
+          emailVerified: true,
+          status: "ACTIVE",
+        },
+      })
+
+      await tx.account.create({
+        data: {
+          accountId: created.id,
+          providerId: "credential",
+          issuer: CREDENTIAL_ISSUER,
+          userId: created.id,
+          password: hashed,
+        },
+      })
+
+      let roleIds = dto.roleIds?.filter(Boolean) ?? []
+      if (roleIds.length === 0) {
+        const surveyor = await tx.role.findUnique({ where: { code: "SURVEYOR" } })
+        if (surveyor) roleIds = [surveyor.id]
+      }
+
+      if (roleIds.length) {
+        await tx.userRole.createMany({
+          data: roleIds.map((roleId) => ({
+            userId: created.id,
+            roleId,
+          })),
+          skipDuplicates: true,
+        })
+      }
+
+      return tx.user.findUniqueOrThrow({
+        where: { id: created.id },
+        include: { userRoles: { include: { role: true } } },
+      })
+    })
+
+    return {
+      success: true,
+      data: {
+        ...user,
+        roles: user.userRoles.map((ur) => ur.role),
       },
-    })
-
-    const userId = created.user.id
-    if (dto.phone) {
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: { phone: dto.phone },
-      })
     }
-    if (dto.roleIds?.length) {
-      await this.prisma.userRole.createMany({
-        data: dto.roleIds.map((roleId) => ({ userId, roleId })),
-        skipDuplicates: true,
-      })
-    }
-
-    const user = await this.prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      include: { userRoles: { include: { role: true } } },
-    })
-    return { success: true, data: user }
   }
 
   @Patch(":id")
@@ -142,6 +187,12 @@ export class UsersController {
       where: { id },
       include: { userRoles: { include: { role: true } } },
     })
-    return { success: true, data: user }
+    return {
+      success: true,
+      data: {
+        ...user,
+        roles: user.userRoles.map((ur) => ur.role),
+      },
+    }
   }
 }

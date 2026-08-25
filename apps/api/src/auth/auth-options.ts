@@ -1,0 +1,53 @@
+/**
+ * Pure Better Auth option fragments (no better-auth imports) for unit tests
+ * and shared wiring in createAuth.
+ */
+export function resolveTrustedOrigins(): string[] {
+  return (process.env.CORS_ORIGIN ?? "http://localhost:3000")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean)
+}
+
+export function resolvePublicAppUrl(): string {
+  return (
+    process.env.BETTER_AUTH_URL ??
+    process.env.PUBLIC_APP_URL ??
+    "http://localhost:3000"
+  )
+}
+
+export type GoogleSocialConfig = {
+  clientId: string
+  clientSecret: string
+  disableSignUp: true
+  prompt: "select_account"
+}
+
+export function resolveGoogleSocialProvider():
+  | { google: GoogleSocialConfig }
+  | Record<string, never> {
+  const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim()
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim()
+  if (!googleClientId || !googleClientSecret) {
+    return {}
+  }
+  return {
+    google: {
+      clientId: googleClientId,
+      clientSecret: googleClientSecret,
+      disableSignUp: true,
+      prompt: "select_account",
+    },
+  }
+}
+
+export const emailPasswordInviteOnly = {
+  enabled: true as const,
+  disableSignUp: true as const,
+}
+
+export const googleAccountLinking = {
+  enabled: true as const,
+  trustedProviders: ["google"] as const,
+}
