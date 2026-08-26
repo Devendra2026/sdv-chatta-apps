@@ -132,6 +132,7 @@ export type PublicPropertyTaxDues = {
     drainageTaxPct: number
     penaltyPct: number
     assessablePct: number
+    commercialAssessablePct?: number
     propertyTax: number
     waterTax: number
     drainageTax: number
@@ -184,4 +185,46 @@ export type PublicPropertyTaxReceipt = PublicPropertyTaxPaymentStatus & {
   } | null
   gateway: string | null
   atomTxnId: string | null
+}
+
+/** Staff portal offline / counter collection receipt (full PII — authenticated only). */
+export type StaffPaymentReceipt = {
+  paymentId: string
+  paymentReference: string
+  receiptNumber: string
+  amount: number
+  currency: string
+  paymentMode: string
+  status: string
+  payerName: string | null
+  payerMobile: string | null
+  chequeDdReference: string | null
+  remarks: string | null
+  collectionDate: string
+  collectedBy: { id: string; name: string } | null
+  survey: {
+    id: string
+    surveyId: string
+    ownerName: string | null
+    ownerFatherName: string | null
+    mobile: string | null
+    propertyNo: string | null
+    parcelNo: string | null
+    houseNo: string | null
+    streetName: string | null
+    locality: string | null
+    colony: string | null
+    city: string | null
+    pincode: string | null
+    propertyUse: string | null
+    taxRateZone: string | null
+    roadType: string | null
+    address: string | null
+  } | null
+  ward: {
+    id: string
+    number: number
+    name: string
+    code: string
+  } | null
 }
