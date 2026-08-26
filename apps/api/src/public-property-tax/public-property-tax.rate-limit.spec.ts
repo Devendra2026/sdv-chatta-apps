@@ -5,7 +5,7 @@ describe("rate limit for public property tax", () => {
     const path = "/api/v1/public/property-tax/search"
     const max = path.includes("/public/property-tax")
       ? 30
-      : path.includes("/payments/gateway/callback")
+      : path.includes("/payments/gateway/")
         ? 120
         : 300
     expect(max).toBe(30)

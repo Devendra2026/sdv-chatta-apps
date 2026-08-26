@@ -170,10 +170,56 @@ export class PublicPropertyTaxService {
       payerEmail: dto.payerEmail?.trim() || undefined,
     })
 
+    const gatewayReturnUrl =
+      process.env.ATOM_GATEWAY_RETURN_URL?.trim() ||
+      (() => {
+        const callback =
+          process.env.ATOM_CALLBACK_URL?.trim() ||
+          "http://localhost:4000/api/v1/payments/gateway/callback"
+        return callback.includes("/gateway/callback")
+          ? callback.replace("/gateway/callback", "/gateway/return")
+          : "http://localhost:4000/api/v1/payments/gateway/return"
+      })()
+
+    const custEmail =
+      dto.payerEmail?.trim() || `${dto.payerMobile}@citizen.chhata.in`
+    const checkoutEnv = (
+      process.env.ATOM_CHECKOUT_ENV?.trim().toLowerCase() === "prod"
+        ? "prod"
+        : "uat"
+    ) as "uat" | "prod"
+    const cdnUrl =
+      process.env.ATOM_CHECKOUT_CDN?.trim() ||
+      (checkoutEnv === "prod"
+        ? "https://psa.atomtech.in/staticdata/ots/js/atomcheckout.js"
+        : "https://pgtest.atomtech.in/staticdata/ots/js/atomcheckout.js")
+
+    if (gateway.atomTokenId && gateway.merchId) {
+      return {
+        paymentId: payment.id,
+        merchTxnId: payment.merchTxnId,
+        amount: Number(payment.amount),
+        currency: payment.currency,
+        checkout: {
+          mode: "aipay" as const,
+          atomTokenId: gateway.atomTokenId,
+          merchId: gateway.merchId,
+          custEmail,
+          custMobile: dto.payerMobile,
+          returnUrl: gatewayReturnUrl,
+          cdnUrl,
+          env: checkoutEnv,
+        },
+        assessmentYear: dues.assessmentYear.name,
+        surveyId: dues.surveyId,
+      }
+    }
+
     if (!gateway.redirectUrl) {
       throw new BadRequestException({
-        code: "GATEWAY_REDIRECT_MISSING",
-        message: "Payment gateway did not return a redirect URL",
+        code: "GATEWAY_CHECKOUT_MISSING",
+        message:
+          "Payment gateway did not return a checkout token or redirect URL. Check Atom UAT credentials and PAYMENT_PROVIDER=atom.",
       })
     }
 
@@ -250,6 +296,14 @@ export class PublicPropertyTaxService {
 
     const payment = await this.prisma.payment.findFirst({
       where: { merchTxnId: merchTxnId.trim() },
+      include: {
+        survey: {
+          select: {
+            ownerName: true,
+            ownerFatherName: true,
+          },
+        },
+      },
     })
     if (!payment?.surveyId) {
       throw new NotFoundException({
@@ -288,6 +342,8 @@ export class PublicPropertyTaxService {
         payment.collectionDate?.toISOString() ??
         payment.updatedAt.toISOString(),
       assessmentYear,
+      ownerName: payment.survey?.ownerName ?? payment.payerName ?? null,
+      ownerFatherName: payment.survey?.ownerFatherName ?? null,
       taxBreakdown,
       gateway: payment.gateway,
       atomTxnId: payment.atomTxnId,

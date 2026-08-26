@@ -109,7 +109,9 @@ export default function SystemSettingsPage() {
             />
             <p className="text-sm text-muted-foreground">
               Live credentials and callback URLs stay on the API host. Do not
-              expose gateway secrets in the portal.
+              expose gateway secrets in the portal. Citizen online pay runs on
+              the public website return URL (`ATOM_RETURN_URL`), not this
+              portal.
             </p>
           </CardContent>
         </Card>

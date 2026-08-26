@@ -143,12 +143,27 @@ export type PublicPropertyTaxDues = {
   }
 }
 
+export type PublicPropertyTaxAipayCheckout = {
+  mode: "aipay"
+  atomTokenId: string
+  merchId: string
+  custEmail: string
+  custMobile: string
+  returnUrl: string
+  cdnUrl: string
+  /** Second arg to AtomPaynetz — "uat" or "prod" */
+  env: "uat" | "prod"
+}
+
 export type PublicPropertyTaxPaymentCreateResult = {
   paymentId: string
   merchTxnId: string | null
   amount: number
   currency: string
-  redirectUrl: string
+  /** Sandbox / Non-Seamless redirect (optional when AIPay checkout is used). */
+  redirectUrl?: string
+  /** Atom AIPay widget — opens card / UPI / netbanking UI. */
+  checkout?: PublicPropertyTaxAipayCheckout
   assessmentYear: string
   surveyId: string
 }
@@ -176,6 +191,8 @@ export type PublicPropertyTaxPaymentStatus = {
 export type PublicPropertyTaxReceipt = PublicPropertyTaxPaymentStatus & {
   paidAt: string
   assessmentYear: string | null
+  ownerName: string | null
+  ownerFatherName: string | null
   taxBreakdown: {
     propertyTax: number
     waterTax: number

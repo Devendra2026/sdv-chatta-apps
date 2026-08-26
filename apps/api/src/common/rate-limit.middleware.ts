@@ -11,7 +11,7 @@ export class RateLimitMiddleware implements NestMiddleware {
     const windowMs = 60_000
     const max = req.path.includes("/public/property-tax")
       ? 30
-      : req.path.includes("/payments/gateway/callback")
+      : req.path.includes("/payments/gateway/")
         ? 120
         : 300
     const current = hits.get(key)

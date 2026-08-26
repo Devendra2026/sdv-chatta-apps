@@ -9,9 +9,45 @@ import { randomUUID } from "node:crypto"
 import { AuditService } from "../audit/audit.service"
 import type { AuthUser } from "../auth/auth.decorators"
 import { PrismaService } from "../prisma/prisma.service"
-import { AtomNdpsProvider } from "./providers/atom-ndps.provider"
+import {
+  AtomNdpsProvider,
+  extractAtomTxnFields,
+} from "./providers/atom-ndps.provider"
 import type { PaymentGatewayProvider } from "./providers/payment-provider"
 import { SandboxPaymentProvider } from "./providers/sandbox.provider"
+
+function defaultCitizenReturnUrl() {
+  return (
+    process.env.ATOM_RETURN_URL ??
+    "http://localhost:3001/propertytax/payment/return"
+  )
+}
+
+function defaultCallbackUrl() {
+  return (
+    process.env.ATOM_CALLBACK_URL ??
+    "http://localhost:4000/api/v1/payments/gateway/callback"
+  )
+}
+
+/** Browser return target Atom should POST/GET to (API then 302s to citizen web). */
+function defaultGatewayReturnUrl() {
+  if (process.env.ATOM_GATEWAY_RETURN_URL?.trim()) {
+    return process.env.ATOM_GATEWAY_RETURN_URL.trim()
+  }
+  const callback = defaultCallbackUrl()
+  if (callback.includes("/gateway/callback")) {
+    return callback.replace("/gateway/callback", "/gateway/return")
+  }
+  return "http://localhost:4000/api/v1/payments/gateway/return"
+}
+
+function citizenReturnRedirectUrl(merchTxnId: string | undefined) {
+  const base = defaultCitizenReturnUrl()
+  const url = new URL(base)
+  if (merchTxnId) url.searchParams.set("merchTxnId", merchTxnId)
+  return url.toString()
+}
 
 @Injectable()
 export class PaymentsService {
@@ -82,9 +118,8 @@ export class PaymentsService {
       },
     })
 
-    const returnUrl =
-      process.env.ATOM_RETURN_URL ??
-      "http://localhost:3001/propertytax/payment/return"
+    // Atom posts encData to API return endpoint; API redirects to citizen web.
+    const returnUrl = defaultGatewayReturnUrl()
     const result = await this.provider.createPayment({
       merchTxnId,
       amount: input.amount,
@@ -92,9 +127,7 @@ export class PaymentsService {
       customerEmail: input.payerEmail,
       customerMobile: input.payerMobile,
       returnUrl,
-      callbackUrl:
-        process.env.ATOM_CALLBACK_URL ??
-        "http://localhost:4000/api/v1/payments/gateway/callback",
+      callbackUrl: defaultCallbackUrl(),
     })
 
     await this.prisma.paymentTransaction.create({
@@ -374,13 +407,54 @@ export class PaymentsService {
     }
   }
 
+  /**
+   * Normalize Atom gateway bodies: decrypt encData when present and flatten
+   * nested payInstrument fields used by callback / browser return.
+   */
+  normalizeGatewayPayload(
+    payload: Record<string, unknown>
+  ): Record<string, unknown> {
+    let decoded: unknown = payload
+    const encData =
+      typeof payload.encData === "string" ? payload.encData.trim() : ""
+    if (encData && this.provider.decryptPayload) {
+      try {
+        decoded = this.provider.decryptPayload(encData)
+      } catch {
+        decoded = payload
+      }
+    }
+
+    const fields = extractAtomTxnFields(decoded)
+    const flatFields = extractAtomTxnFields(payload)
+    const merchTxnId = fields.merchTxnId ?? flatFields.merchTxnId
+    const atomTxnId = fields.atomTxnId ?? flatFields.atomTxnId
+    const statusCode =
+      fields.statusCode !== "UNKNOWN"
+        ? fields.statusCode
+        : flatFields.statusCode
+
+    return {
+      ...payload,
+      ...(typeof decoded === "object" && decoded !== null
+        ? (decoded as Record<string, unknown>)
+        : {}),
+      merchTxnId,
+      atomTxnId,
+      statusCode,
+      _decoded: decoded,
+    }
+  }
+
   async handleCallback(payload: Record<string, unknown>) {
+    const normalized = this.normalizeGatewayPayload(payload)
     const merchTxnId =
-      (payload.merchTxnId as string | undefined) ||
-      (payload.merchantTxnId as string | undefined) ||
+      (normalized.merchTxnId as string | undefined) ||
+      (normalized.merchantTxnId as string | undefined) ||
       undefined
-    const atomTxnId = (payload.atomTxnId as string | undefined) || undefined
-    const statusCode = (payload.statusCode as string | undefined) || "UNKNOWN"
+    const atomTxnId = (normalized.atomTxnId as string | undefined) || undefined
+    const statusCode =
+      (normalized.statusCode as string | undefined) || "UNKNOWN"
     const idempotencyKey =
       (payload.idempotencyKey as string | undefined) ||
       `${merchTxnId ?? "na"}:${atomTxnId ?? "na"}:${statusCode}`
@@ -389,7 +463,7 @@ export class PaymentsService {
       where: { idempotencyKey },
     })
     if (existing?.processed) {
-      return { duplicate: true, callback: existing }
+      return { duplicate: true, callback: existing, merchTxnId }
     }
 
     const payment = merchTxnId
@@ -404,20 +478,29 @@ export class PaymentsService {
         merchTxnId,
         atomTxnId,
         statusCode,
-        rawPayload: payload as Prisma.InputJsonValue,
+        rawPayload: normalized as Prisma.InputJsonValue,
         idempotencyKey,
         processed: false,
       },
     })
 
     if (payment) {
-      const success = statusCode === "OTS0000" || statusCode === "SUCCESS"
+      const success =
+        statusCode === "OTS0000" ||
+        statusCode === "SUCCESS" ||
+        statusCode.toUpperCase() === "SUCCESS"
+      // Avoid marking FAILED when status is still unknown (e.g. decrypt miss).
+      const nextStatus = success
+        ? PaymentStatus.SUCCESS
+        : statusCode === "UNKNOWN"
+          ? payment.status
+          : PaymentStatus.FAILED
       await this.prisma.payment.update({
         where: { id: payment.id },
         data: {
-          status: success ? PaymentStatus.SUCCESS : PaymentStatus.FAILED,
+          status: nextStatus,
           atomTxnId: atomTxnId ?? payment.atomTxnId,
-          gatewayReference: atomTxnId,
+          gatewayReference: atomTxnId ?? payment.gatewayReference,
           ...(success && !payment.receiptNumber
             ? {
                 receiptNumber: `RCP-${payment.merchTxnId ?? payment.paymentReference}`,
@@ -430,7 +513,7 @@ export class PaymentsService {
         data: {
           paymentId: payment.id,
           direction: "callback",
-          responsePayload: payload as Prisma.InputJsonValue,
+          responsePayload: normalized as Prisma.InputJsonValue,
           statusCode,
         },
       })
@@ -441,7 +524,22 @@ export class PaymentsService {
       data: { processed: true },
     })
 
-    return { duplicate: false, callback: updated }
+    return { duplicate: false, callback: updated, merchTxnId }
+  }
+
+  /**
+   * Atom browser return: process payload like callback, then redirect citizen UI.
+   */
+  async handleGatewayReturn(payload: Record<string, unknown>) {
+    const result = await this.handleCallback(payload)
+    const merchTxnId =
+      result.merchTxnId ??
+      (this.normalizeGatewayPayload(payload).merchTxnId as string | undefined)
+    return {
+      ...result,
+      redirectUrl: citizenReturnRedirectUrl(merchTxnId),
+      merchTxnId,
+    }
   }
 
   async requery(paymentId: string, user: AuthUser) {

@@ -5,6 +5,7 @@ import {
   Param,
   Post,
   Query,
+  Res,
   UseGuards,
 } from "@nestjs/common"
 import { PaymentMode, PaymentStatus } from "@prisma/client"
@@ -17,6 +18,7 @@ import {
   IsString,
   Min,
 } from "class-validator"
+import type { Response } from "express"
 
 import {
   CurrentUser,
@@ -124,8 +126,29 @@ export class PaymentsController {
 
   @Post("gateway/callback")
   async callback(@Body() body: Record<string, unknown>) {
-    const data = await this.paymentsService.handleCallback(body)
+    const data = await this.paymentsService.handleCallback(body ?? {})
     return { success: true, data }
+  }
+
+  /** Atom (or sandbox) browser return — process payload and 302 to citizen web. */
+  @Post("gateway/return")
+  async gatewayReturnPost(
+    @Body() body: Record<string, unknown>,
+    @Query() query: Record<string, string | undefined>,
+    @Res() res: Response
+  ) {
+    const payload = { ...query, ...(body ?? {}) }
+    const data = await this.paymentsService.handleGatewayReturn(payload)
+    return res.redirect(302, data.redirectUrl)
+  }
+
+  @Get("gateway/return")
+  async gatewayReturnGet(
+    @Query() query: Record<string, string | undefined>,
+    @Res() res: Response
+  ) {
+    const data = await this.paymentsService.handleGatewayReturn({ ...query })
+    return res.redirect(302, data.redirectUrl)
   }
 
   @Post(":id/requery")

@@ -1,5 +1,8 @@
 "use client"
 
+import { CheckCircle2 } from "lucide-react"
+import Image from "next/image"
+
 import type { PublicPropertyTaxReceipt } from "@workspace/types"
 
 function money(n: number): string {
@@ -20,38 +23,65 @@ function formatWhen(iso: string): string {
   }
 }
 
+function displayName(value: string | null | undefined): string {
+  const trimmed = value?.trim()
+  return trimmed && trimmed.length > 0 ? trimmed : "—"
+}
+
 export function PaymentReceiptView({
   receipt,
 }: {
   receipt: PublicPropertyTaxReceipt
 }) {
+  const wardLabel =
+    receipt.wardNumber != null
+      ? `${String(receipt.wardNumber).padStart(2, "0")} · ${receipt.wardName ?? ""}`.trim()
+      : "—"
+
   return (
     <div className="receipt-root">
       <style>{RECEIPT_CSS}</style>
-      <article className="page">
+      <article className="page" aria-label="Property tax payment receipt">
         <header className="header">
           <div className="logo">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src="/branding/up-government-logo.png"
-              alt="Uttar Pradesh Government"
-              onError={(e) => {
-                e.currentTarget.style.display = "none"
-              }}
+              alt="Government of Uttar Pradesh emblem"
+              width={72}
+              height={72}
+              className="logo-img"
+              priority
             />
           </div>
           <div className="header-center">
-            <div className="office-en">NAGAR PANCHAYAT CHHATA, MATHURA</div>
-            <div className="office-loc">Uttar Pradesh, India</div>
-            <div className="title-en">Property Tax Payment Receipt</div>
-            <div className="title-hi">सम्पत्ति कर भुगतान रसीद</div>
+            <p className="state-line">Government of Uttar Pradesh</p>
+            <h1 className="office-en">NAGAR PANCHAYAT CHHATA, MATHURA</h1>
+            <p className="office-loc">
+              Mathura District · Uttar Pradesh, India
+            </p>
+            <div className="title-block">
+              <h2 className="title-en">Property Tax Payment Receipt</h2>
+              <p className="title-hi">सम्पत्ति कर भुगतान रसीद</p>
+            </div>
           </div>
-          <div className="logo" aria-hidden />
+          <div className="logo seal-side" aria-hidden>
+            <Image
+              src="/branding/up-government-logo.png"
+              alt=""
+              width={64}
+              height={64}
+              className="logo-img muted"
+            />
+          </div>
         </header>
 
-        <div className="status-banner">PAYMENT SUCCESSFUL</div>
+        <div className="status-banner" role="status">
+          <CheckCircle2 className="status-icon" aria-hidden />
+          <span>PAYMENT SUCCESSFUL</span>
+          <span className="status-hi">भुगतान सफल</span>
+        </div>
 
-        <div className="meta">
+        <section className="meta" aria-label="Receipt summary">
           <div className="meta-cell">
             <div className="meta-label">Receipt No.</div>
             <div className="meta-value">
@@ -62,14 +92,34 @@ export function PaymentReceiptView({
             <div className="meta-label">Paid on</div>
             <div className="meta-value">{formatWhen(receipt.paidAt)}</div>
           </div>
-          <div className="meta-cell">
-            <div className="meta-label">Amount</div>
+          <div className="meta-cell highlight">
+            <div className="meta-label">Amount paid</div>
             <div className="meta-value amount">₹{money(receipt.amount)}</div>
           </div>
-        </div>
+        </section>
+
+        <section className="owner-band" aria-label="Assessee details">
+          <div className="owner-band-label">Assessee / Owner</div>
+          <div className="owner-grid">
+            <div className="owner-field">
+              <span className="owner-lbl">Owner name</span>
+              <span className="owner-val">
+                {displayName(receipt.ownerName)}
+              </span>
+            </div>
+            <div className="owner-field">
+              <span className="owner-lbl">
+                Father&apos;s / Husband&apos;s name
+              </span>
+              <span className="owner-val">
+                {displayName(receipt.ownerFatherName)}
+              </span>
+            </div>
+          </div>
+        </section>
 
         <div className="cols">
-          <div className="col">
+          <section className="col" aria-label="Transaction details">
             <div className="col-head">Transaction</div>
             <div className="row">
               <div className="lbl">Merchant Txn ID</div>
@@ -87,8 +137,13 @@ export function PaymentReceiptView({
               <div className="lbl">Currency</div>
               <div className="val">{receipt.currency}</div>
             </div>
-          </div>
-          <div className="col">
+            <div className="row">
+              <div className="lbl">Payer mobile</div>
+              <div className="val">{receipt.payerMobileMasked}</div>
+            </div>
+          </section>
+
+          <section className="col" aria-label="Property details">
             <div className="col-head">Property</div>
             <div className="row">
               <div className="lbl">Survey / Property ID</div>
@@ -104,25 +159,17 @@ export function PaymentReceiptView({
             </div>
             <div className="row">
               <div className="lbl">Ward</div>
-              <div className="val">
-                {receipt.wardNumber != null
-                  ? `${String(receipt.wardNumber).padStart(2, "0")} · ${receipt.wardName ?? ""}`
-                  : "—"}
-              </div>
+              <div className="val">{wardLabel}</div>
             </div>
             <div className="row">
               <div className="lbl">Assessment Year</div>
               <div className="val">{receipt.assessmentYear || "—"}</div>
             </div>
-            <div className="row">
-              <div className="lbl">Payer Mobile</div>
-              <div className="val">{receipt.payerMobileMasked}</div>
-            </div>
-          </div>
+          </section>
         </div>
 
         {receipt.taxBreakdown ? (
-          <div className="breakdown">
+          <section className="breakdown" aria-label="Tax components">
             <div className="col-head">Tax components (at payment)</div>
             <table>
               <tbody>
@@ -158,12 +205,18 @@ export function PaymentReceiptView({
                 </tr>
               </tbody>
             </table>
-          </div>
+          </section>
         ) : null}
 
         <footer className="footer">
-          This is a computer-generated receipt for online property tax payment
-          to Nagar Panchayat Chhata. Retain for your records.
+          <p>
+            This is a computer-generated official receipt for online property
+            tax payment to Nagar Panchayat Chhata. No signature is required.
+          </p>
+          <p className="footer-hi">
+            यह नगर पंचायत छाता के लिए ऑनलाइन सम्पत्ति कर भुगतान की
+            कम्प्यूटर-जनित आधिकारिक रसीद है।
+          </p>
         </footer>
       </article>
     </div>
@@ -171,98 +224,188 @@ export function PaymentReceiptView({
 }
 
 const RECEIPT_CSS = `
-.receipt-root { color: #0f172a; }
+.receipt-root {
+  color: #0f172a;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+}
 .receipt-root .page {
-  max-width: 900px;
+  max-width: 920px;
   margin: 0 auto;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 28px 32px 36px;
-  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.06);
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 28px 32px 32px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.07);
 }
 .receipt-root .header {
   display: grid;
-  grid-template-columns: 72px 1fr 72px;
-  gap: 12px;
+  grid-template-columns: 80px 1fr 80px;
+  gap: 14px;
   align-items: center;
-  border-bottom: 3px solid #ea580c;
-  padding-bottom: 16px;
+  border-bottom: 3px solid #c2410c;
+  padding-bottom: 18px;
 }
 .receipt-root .logo {
-  width: 72px;
-  height: 72px;
+  width: 80px;
+  height: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.receipt-root .logo img {
-  max-width: 64px;
-  max-height: 64px;
+.receipt-root .logo-img {
+  width: 72px;
+  height: 72px;
   object-fit: contain;
 }
+.receipt-root .logo-img.muted {
+  opacity: 0.92;
+  width: 64px;
+  height: 64px;
+}
 .receipt-root .header-center { text-align: center; }
+.receipt-root .state-line {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #334155;
+}
 .receipt-root .office-en {
-  font-size: 15px;
+  margin: 4px 0 0;
+  font-size: 17px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
+  color: #0f172a;
+  line-height: 1.25;
 }
 .receipt-root .office-loc {
-  font-size: 11px;
-  color: #64748b;
-  margin-top: 2px;
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #475569;
+  font-weight: 500;
+}
+.receipt-root .title-block {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
 }
 .receipt-root .title-en {
-  margin-top: 8px;
-  font-size: 18px;
+  margin: 0;
+  font-size: 20px;
   font-weight: 800;
-  color: #c2410c;
+  color: #9a3412;
+  letter-spacing: 0.01em;
 }
 .receipt-root .title-hi {
-  font-size: 13px;
-  color: #9a3412;
-  margin-top: 2px;
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: #c2410c;
+  font-weight: 600;
 }
 .receipt-root .status-banner {
-  margin: 18px 0 14px;
-  text-align: center;
+  margin: 18px 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 0.12em;
-  color: #047857;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-  border-radius: 999px;
-  padding: 8px 14px;
+  letter-spacing: 0.1em;
+  color: #065f46;
+  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1px solid #6ee7b7;
+  border-radius: 6px;
+  padding: 10px 16px;
+}
+.receipt-root .status-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.receipt-root .status-hi {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0.9;
 }
 .receipt-root .meta {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 .receipt-root .meta-cell {
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 10px 12px;
+  border-radius: 6px;
+  padding: 12px 14px;
   background: #f8fafc;
+}
+.receipt-root .meta-cell.highlight {
+  background: #fff7ed;
+  border-color: #fdba74;
 }
 .receipt-root .meta-label {
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #64748b;
+  color: #475569;
 }
 .receipt-root .meta-value {
-  margin-top: 4px;
+  margin-top: 6px;
   font-size: 13px;
   font-weight: 700;
-  word-break: break-all;
+  color: #0f172a;
+  word-break: break-word;
 }
 .receipt-root .meta-value.amount {
-  color: #c2410c;
-  font-size: 18px;
+  color: #9a3412;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.receipt-root .owner-band {
+  margin-bottom: 14px;
+  border: 1px solid #fdba74;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fffbeb;
+}
+.receipt-root .owner-band-label {
+  background: #c2410c;
+  color: #fff7ed;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+}
+.receipt-root .owner-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+.receipt-root .owner-field {
+  padding: 14px 16px;
+  border-right: 1px solid #fed7aa;
+}
+.receipt-root .owner-field:last-child { border-right: 0; }
+.receipt-root .owner-lbl {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9a3412;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.receipt-root .owner-val {
+  display: block;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.35;
+  word-break: break-word;
 }
 .receipt-root .cols {
   display: grid;
@@ -271,8 +414,9 @@ const RECEIPT_CSS = `
 }
 .receipt-root .col {
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 6px;
   overflow: hidden;
+  background: #fff;
 }
 .receipt-root .col-head {
   background: #fff7ed;
@@ -281,34 +425,35 @@ const RECEIPT_CSS = `
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  padding: 8px 12px;
+  padding: 9px 12px;
   border-bottom: 1px solid #fed7aa;
 }
 .receipt-root .row {
   display: grid;
   grid-template-columns: 140px 1fr;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 9px 12px;
   border-bottom: 1px solid #f1f5f9;
   font-size: 12px;
 }
 .receipt-root .row:last-child { border-bottom: 0; }
-.receipt-root .lbl { color: #64748b; font-weight: 600; }
-.receipt-root .val { font-weight: 700; word-break: break-word; }
+.receipt-root .lbl { color: #475569; font-weight: 600; }
+.receipt-root .val { font-weight: 700; color: #0f172a; word-break: break-word; }
 .receipt-root .breakdown {
   margin-top: 14px;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 6px;
   overflow: hidden;
 }
 .receipt-root .breakdown table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
 }
 .receipt-root .breakdown td {
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-top: 1px solid #f1f5f9;
+  color: #0f172a;
 }
 .receipt-root .breakdown .num {
   text-align: right;
@@ -319,18 +464,42 @@ const RECEIPT_CSS = `
   background: #fff7ed;
   font-weight: 800;
   color: #9a3412;
+  border-top: 1px solid #fed7aa;
 }
 .receipt-root .footer {
-  margin-top: 18px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px dashed #cbd5e1;
   font-size: 11px;
-  color: #64748b;
+  color: #475569;
   text-align: center;
-  line-height: 1.5;
+  line-height: 1.55;
+}
+.receipt-root .footer p { margin: 0; }
+.receipt-root .footer-hi {
+  margin-top: 6px !important;
+  color: #64748b;
 }
 @media (max-width: 720px) {
+  .receipt-root .page { padding: 20px 16px 24px; }
+  .receipt-root .header {
+    grid-template-columns: 64px 1fr;
+  }
+  .receipt-root .seal-side { display: none; }
+  .receipt-root .office-en { font-size: 14px; }
+  .receipt-root .title-en { font-size: 17px; }
   .receipt-root .meta { grid-template-columns: 1fr; }
+  .receipt-root .owner-grid { grid-template-columns: 1fr; }
+  .receipt-root .owner-field {
+    border-right: 0;
+    border-bottom: 1px solid #fed7aa;
+  }
+  .receipt-root .owner-field:last-child { border-bottom: 0; }
   .receipt-root .cols { grid-template-columns: 1fr; }
-  .receipt-root .row { grid-template-columns: 1fr; }
+  .receipt-root .row { grid-template-columns: 1fr; gap: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .receipt-root * { transition: none !important; }
 }
 @media print {
   .no-print { display: none !important; }
@@ -340,6 +509,15 @@ const RECEIPT_CSS = `
     border-radius: 0;
     max-width: none;
     padding: 0;
+  }
+  .receipt-root .status-banner {
+    background: #fff !important;
+    border: 1px solid #065f46;
+  }
+  .receipt-root .owner-band-label {
+    background: #fff !important;
+    color: #9a3412 !important;
+    border-bottom: 2px solid #c2410c;
   }
 }
 `

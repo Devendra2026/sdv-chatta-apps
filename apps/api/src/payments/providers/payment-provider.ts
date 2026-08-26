@@ -12,6 +12,8 @@ export type CreatePaymentResult = {
   redirectUrl?: string
   encData?: string
   merchId?: string
+  /** AIPay JS checkout token (card / UPI / NB widget). */
+  atomTokenId?: string
   raw?: unknown
 }
 
@@ -46,4 +48,6 @@ export interface PaymentGatewayProvider {
   createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult>
   requery(input: RequeryInput): Promise<RequeryResult>
   refund(input: RefundInput): Promise<RefundResult>
+  /** Decrypt Atom encData when present on callback/return bodies. */
+  decryptPayload?(encData: string): unknown
 }

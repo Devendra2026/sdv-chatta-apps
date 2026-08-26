@@ -1,5 +1,6 @@
-import { createCipheriv, createDecipheriv, createHash } from "node:crypto"
+import { createHash } from "node:crypto"
 
+import { atomAesDecrypt, atomAesEncrypt } from "./atom-aes"
 import type {
   CreatePaymentInput,
   CreatePaymentResult,
@@ -10,42 +11,162 @@ import type {
   RequeryResult,
 } from "./payment-provider"
 
-function aesEncrypt(plain: string, key: string, iv: string) {
-  const cipher = createCipheriv("aes-256-cbc", Buffer.from(key), Buffer.from(iv))
-  return Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]).toString("hex")
+type JsonObject = Record<string, unknown>
+
+function asObject(value: unknown): JsonObject | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as JsonObject)
+    : null
 }
 
-function aesDecrypt(encHex: string, key: string, iv: string) {
-  const decipher = createDecipheriv("aes-256-cbc", Buffer.from(key), Buffer.from(iv))
-  return Buffer.concat([
-    decipher.update(Buffer.from(encHex, "hex")),
-    decipher.final(),
-  ]).toString("utf8")
+function pickString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim()
+    if (typeof value === "number" && Number.isFinite(value))
+      return String(value)
+  }
+  return undefined
+}
+
+function payInstrumentOf(decoded: unknown): JsonObject | null {
+  const root = asObject(decoded)
+  if (!root) return null
+  return asObject(root.payInstrument) ?? root
+}
+
+/** Extract status / txn fields from flat or nested Atom payInstrument payloads. */
+export function extractAtomTxnFields(decoded: unknown): {
+  merchTxnId?: string
+  atomTxnId?: string
+  statusCode: string
+  redirectUrl?: string
+  message?: string
+} {
+  const root = asObject(decoded)
+  const instrument = payInstrumentOf(decoded)
+  const merchDetails = asObject(instrument?.merchDetails)
+  const payDetails = asObject(instrument?.payDetails)
+  const responseDetails = asObject(instrument?.responseDetails)
+
+  return {
+    merchTxnId: pickString(
+      root?.merchTxnId,
+      root?.merchantTxnId,
+      merchDetails?.merchTxnId,
+      merchDetails?.merchantTxnId
+    ),
+    atomTxnId: pickString(
+      root?.atomTxnId,
+      payDetails?.atomTxnId,
+      instrument?.atomTxnId
+    ),
+    statusCode:
+      pickString(
+        root?.statusCode,
+        responseDetails?.statusCode,
+        responseDetails?.message
+      ) ?? "UNKNOWN",
+    redirectUrl: pickString(
+      root?.redirectUrl,
+      instrument?.redirectUrl,
+      responseDetails?.redirectUrl,
+      payDetails?.redirectUrl
+    ),
+    message: pickString(responseDetails?.message, root?.message),
+  }
+}
+
+function tryParseJson(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    return null
+  }
 }
 
 /**
  * Atom NDPS / OTS Non-Seamless provider.
- * Paths and crypto follow docs under docs/payments/.
+ * Crypto follows official AtomAES (PBKDF2); paths follow docs/payments/.
  */
 export class AtomNdpsProvider implements PaymentGatewayProvider {
   readonly name = "atom-ndps"
 
-  private baseUrl = process.env.ATOM_BASE_URL ?? "https://paynetzuat.atomtech.in"
+  private baseUrl =
+    process.env.ATOM_BASE_URL ?? "https://paynetzuat.atomtech.in"
   private merchId = process.env.ATOM_MERCH_ID ?? ""
   private password = process.env.ATOM_PASSWORD ?? ""
   private apiSecret = process.env.ATOM_API_SECRET_KEY ?? ""
   private reqKey = process.env.ATOM_AES_REQUEST_KEY ?? ""
-  private reqIv = process.env.ATOM_AES_REQUEST_IV ?? ""
-  private resKey = process.env.ATOM_AES_RESPONSE_KEY ?? this.reqKey
-  private resIv = process.env.ATOM_AES_RESPONSE_IV ?? this.reqIv
+  private reqSalt =
+    process.env.ATOM_AES_REQUEST_IV ?? process.env.ATOM_AES_REQUEST_KEY ?? ""
+  private resKey =
+    process.env.ATOM_AES_RESPONSE_KEY ?? process.env.ATOM_AES_REQUEST_KEY ?? ""
+  private resSalt =
+    process.env.ATOM_AES_RESPONSE_IV ??
+    process.env.ATOM_AES_RESPONSE_KEY ??
+    this.reqSalt
   private product = process.env.ATOM_PRODUCT ?? "NSE"
 
   private authHeader() {
-    const token = Buffer.from(`${this.merchId}:${this.apiSecret}`).toString("base64")
+    const token = Buffer.from(`${this.merchId}:${this.apiSecret}`).toString(
+      "base64"
+    )
     return `Bearer ${token}`
   }
 
+  private encryptRequest(plain: string) {
+    return atomAesEncrypt(plain, this.reqKey, this.reqSalt)
+  }
+
+  private decryptResponse(encHex: string) {
+    return atomAesDecrypt(encHex, this.resKey, this.resSalt)
+  }
+
+  /** Decrypt gateway encData (callback / return / API response). */
+  decryptPayload(encData: string): unknown {
+    const plain = this.decryptResponse(encData.trim())
+    const parsed = tryParseJson(plain)
+    return parsed ?? plain
+  }
+
+  private decodeMaybeEncrypted(raw: unknown): unknown {
+    const obj = asObject(raw)
+    if (obj && typeof obj.encData === "string" && obj.encData.trim()) {
+      try {
+        return this.decryptPayload(obj.encData)
+      } catch {
+        return raw
+      }
+    }
+    if (typeof raw === "string" && raw.trim()) {
+      const asJson = tryParseJson(raw)
+      if (asJson) return this.decodeMaybeEncrypted(asJson)
+      // form-style: encData=...&merchId=...
+      if (raw.includes("encData=")) {
+        const params = new URLSearchParams(
+          raw.includes("?") ? raw.slice(raw.indexOf("?") + 1) : raw
+        )
+        const enc = params.get("encData")
+        if (enc) {
+          try {
+            return this.decryptPayload(enc)
+          } catch {
+            return raw
+          }
+        }
+      }
+    }
+    return raw
+  }
+
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
+    const email =
+      input.customerEmail?.trim() ||
+      (input.customerMobile
+        ? `${input.customerMobile}@citizen.chhata.in`
+        : "citizen@nagar-panchayat-chhata.in")
+    const mobile = input.customerMobile?.trim() || ""
+
     const payInstrument = {
       headDetails: {
         version: "OTSv1.1",
@@ -62,12 +183,12 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
       payDetails: {
         amount: input.amount.toFixed(2),
         product: this.product,
-        custAccNo: "",
+        custAccNo: "000000000000",
         txnCurrency: "INR",
       },
       custDetails: {
-        custEmail: input.customerEmail ?? "",
-        custMobile: input.customerMobile ?? "",
+        custEmail: email,
+        custMobile: mobile,
       },
       extras: {
         udf1: input.customerName ?? "",
@@ -78,37 +199,127 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
       },
     }
 
-    const encData = aesEncrypt(JSON.stringify({ payInstrument }), this.reqKey, this.reqIv)
-    const response = await fetch(`${this.baseUrl}/ots/v1/payment/init`, {
+    const encData = this.encryptRequest(JSON.stringify({ payInstrument }))
+
+    // AIPay auth — returns atomTokenId for atomcheckout.js (card / UPI / NB).
+    const authUrl =
+      process.env.ATOM_AUTH_URL?.trim() ||
+      `${this.baseUrl.replace(/\/$/, "")}/otsv2/aipay/auth`
+
+    const response = await fetch(authUrl, {
       method: "POST",
       headers: {
-        Authorization: this.authHeader(),
-        "Content-Type": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: JSON.stringify({
+      body: new URLSearchParams({
         encData,
         merchId: this.merchId,
-        returnUrl: input.returnUrl,
-        callbackUrl: input.callbackUrl,
-      }),
+      }).toString(),
     })
 
-    const raw = await response.json().catch(() => ({}))
+    const rawText = await response.text()
+    const decoded = this.decodeAipayAuthResponse(rawText)
+    const token = this.extractAtomTokenId(decoded)
+
+    if (!token) {
+      return {
+        encData,
+        merchId: this.merchId,
+        raw: decoded ?? rawText,
+      }
+    }
+
     return {
       encData,
       merchId: this.merchId,
-      redirectUrl:
-        typeof raw === "object" && raw && "redirectUrl" in raw
-          ? String((raw as { redirectUrl: string }).redirectUrl)
-          : undefined,
-      raw,
+      atomTokenId: token,
+      raw: decoded,
     }
+  }
+
+  private decodeAipayAuthResponse(rawText: string): unknown {
+    const trimmed = rawText.trim()
+    if (!trimmed) return null
+
+    // Typical: merchId=...&encData=HEX  (order may vary)
+    if (trimmed.includes("encData=") || trimmed.includes("=")) {
+      try {
+        const params = new URLSearchParams(
+          trimmed.includes("?")
+            ? trimmed.slice(trimmed.indexOf("?") + 1)
+            : trimmed
+        )
+        const enc = params.get("encData")
+        if (enc) return this.decryptPayload(enc)
+      } catch {
+        // fall through
+      }
+      // Kit sample takes explode("&")[1] as encData=...
+      const parts = trimmed.split("&")
+      for (const part of parts) {
+        const idx = part.indexOf("=")
+        if (idx > 0 && part.slice(0, idx).toLowerCase() === "encdata") {
+          try {
+            return this.decryptPayload(part.slice(idx + 1))
+          } catch {
+            // continue
+          }
+        }
+      }
+    }
+
+    // Plain hex ciphertext
+    if (/^[0-9A-Fa-f]+$/.test(trimmed) && trimmed.length > 32) {
+      try {
+        return this.decryptPayload(trimmed)
+      } catch {
+        // fall through
+      }
+    }
+
+    const asJson = tryParseJson(trimmed)
+    if (asJson) return this.decodeMaybeEncrypted(asJson)
+    return trimmed
+  }
+
+  private extractAtomTokenId(decoded: unknown): string | undefined {
+    const root = asObject(decoded)
+    if (!root) return undefined
+
+    const fromRoot = pickString(
+      root.atomTokenId,
+      root.atomTokenID,
+      root.tokenId
+    )
+    if (fromRoot) return fromRoot
+
+    const responseDetails = asObject(root.responseDetails)
+    const status =
+      pickString(
+        responseDetails?.txnStatusCode,
+        responseDetails?.statusCode,
+        root.txnStatusCode
+      ) ?? ""
+    if (
+      status &&
+      status !== "OTS0000" &&
+      status !== "SUCCESS" &&
+      status.toUpperCase() !== "SUCCESS"
+    ) {
+      return undefined
+    }
+
+    return pickString(root.atomTokenId, responseDetails?.atomTokenId)
   }
 
   async requery(input: RequeryInput): Promise<RequeryResult> {
     const payload = {
       payInstrument: {
-        headDetails: { version: "OTSv1.1", api: "TXNVERIFICATION", platform: "FLASH" },
+        headDetails: {
+          version: "OTSv1.1",
+          api: "TXNVERIFICATION",
+          platform: "FLASH",
+        },
         merchDetails: {
           merchId: this.merchId,
           password: this.password,
@@ -116,7 +327,7 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
         },
       },
     }
-    const encData = aesEncrypt(JSON.stringify(payload), this.reqKey, this.reqIv)
+    const encData = this.encryptRequest(JSON.stringify(payload))
     const response = await fetch(`${this.baseUrl}/ots/v2/payment/status`, {
       method: "POST",
       headers: {
@@ -125,36 +336,18 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
       },
       body: JSON.stringify({ encData, merchId: this.merchId }),
     })
-    const raw = await response.json().catch(() => ({}))
-    let decoded: unknown = raw
-    if (
-      typeof raw === "object" &&
-      raw &&
-      "encData" in raw &&
-      typeof (raw as { encData: string }).encData === "string"
-    ) {
-      try {
-        decoded = JSON.parse(
-          aesDecrypt((raw as { encData: string }).encData, this.resKey, this.resIv)
-        )
-      } catch {
-        decoded = raw
-      }
-    }
-
-    const statusCode =
-      typeof decoded === "object" &&
-      decoded &&
-      "payInstrument" in decoded &&
-      typeof (decoded as { payInstrument?: { responseDetails?: { statusCode?: string } } })
-        .payInstrument?.responseDetails?.statusCode === "string"
-        ? (decoded as { payInstrument: { responseDetails: { statusCode: string } } })
-            .payInstrument.responseDetails.statusCode
-        : "UNKNOWN"
+    const rawText = await response.text()
+    const raw: unknown = tryParseJson(rawText) ?? rawText
+    const decoded = this.decodeMaybeEncrypted(raw)
+    const fields = extractAtomTxnFields(decoded)
 
     return {
-      statusCode,
-      success: statusCode === "OTS0000",
+      statusCode: fields.statusCode,
+      success:
+        fields.statusCode === "OTS0000" ||
+        fields.statusCode === "SUCCESS" ||
+        fields.message === "SUCCESS",
+      atomTxnId: fields.atomTxnId,
       raw: decoded,
     }
   }
@@ -175,7 +368,7 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
         },
       },
     }
-    const encData = aesEncrypt(JSON.stringify(payload), this.reqKey, this.reqIv)
+    const encData = this.encryptRequest(JSON.stringify(payload))
     const response = await fetch(`${this.baseUrl}/ots/payment/refund`, {
       method: "POST",
       headers: {
@@ -184,16 +377,24 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
       },
       body: JSON.stringify({ encData, merchId: this.merchId }),
     })
-    const raw = await response.json().catch(() => ({}))
-    return {
-      statusCode: "OTS0000",
-      success: response.ok,
-      gatewayRefundId: createHash("sha1").update(input.merchTxnId).digest("hex").slice(0, 16),
-      raw,
-    }
-  }
+    const rawText = await response.text()
+    const raw: unknown = tryParseJson(rawText) ?? rawText
+    const decoded = this.decodeMaybeEncrypted(raw)
+    const fields = extractAtomTxnFields(decoded)
+    const success =
+      response.ok &&
+      (fields.statusCode === "OTS0000" ||
+        fields.statusCode === "SUCCESS" ||
+        fields.statusCode === "UNKNOWN")
 
-  decryptCallback(encData: string): unknown {
-    return JSON.parse(aesDecrypt(encData, this.resKey, this.resIv))
+    return {
+      statusCode:
+        fields.statusCode === "UNKNOWN" ? "OTS0000" : fields.statusCode,
+      success,
+      gatewayRefundId:
+        fields.atomTxnId ??
+        createHash("sha1").update(input.merchTxnId).digest("hex").slice(0, 16),
+      raw: decoded,
+    }
   }
 }

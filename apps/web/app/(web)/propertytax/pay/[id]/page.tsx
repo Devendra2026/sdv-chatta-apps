@@ -14,6 +14,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState, type FormEvent } from "react"
 
+import { openAtomAipayCheckout } from "@/lib/atom-checkout"
 import {
   createPublicPropertyTaxPayment,
   fetchPublicPropertyDues,
@@ -49,8 +50,24 @@ export default function PropertyTaxPayPage() {
         payerMobile: mobile,
         payerEmail: email.trim() || undefined,
       }),
-    onSuccess: (data) => {
-      window.location.assign(data.redirectUrl)
+    onSuccess: async (data) => {
+      try {
+        if (data.checkout?.mode === "aipay") {
+          await openAtomAipayCheckout(data.checkout)
+          return
+        }
+        if (data.redirectUrl) {
+          window.location.assign(data.redirectUrl)
+          return
+        }
+        throw new Error("Payment gateway did not return checkout details.")
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Unable to open payment gateway. Please try again."
+        setFieldError(message)
+      }
     },
   })
 
