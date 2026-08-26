@@ -30,7 +30,7 @@
 
 Citizen online tax uses **Atom AIPay** (server auth → `atomTokenId` → CDN `atomcheckout.js`):
 
-- Auth: `ATOM_AUTH_URL` (UAT default `{ATOM_BASE_URL}/otsv2/aipay/auth`)
+- Auth: `ATOM_AUTH_URL` (UAT default `{ATOM_BASE_URL}/ots/aipay/auth`)
 - Checkout CDN: `ATOM_CHECKOUT_CDN` (UAT `pgtest.../atomcheckout.js`)
 - Widget opens **card / UPI / netbanking** via `new AtomPaynetz(options, 'uat'|'prod')`
 - Status/refund: OTS APIs under `{ATOM_BASE_URL}/ots/...`
@@ -48,7 +48,7 @@ Hash Request/Response keys are unused (signature path not required for this kit 
 | Kit / email field       | Env var                                                     |
 | ----------------------- | ----------------------------------------------------------- |
 | Payment host (UAT)      | `ATOM_BASE_URL=https://paynetzuat.atomtech.in`              |
-| Payment Url             | `ATOM_AUTH_URL=.../otsv2/aipay/auth`                        |
+| Payment Url             | `ATOM_AUTH_URL=.../ots/aipay/auth`                          |
 | CDN Link                | `ATOM_CHECKOUT_CDN` + `ATOM_CHECKOUT_ENV=uat`               |
 | Merch ID                | `ATOM_MERCH_ID`                                             |
 | Transaction Password    | `ATOM_PASSWORD`                                             |

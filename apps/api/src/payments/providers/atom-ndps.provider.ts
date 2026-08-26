@@ -204,7 +204,7 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
     // AIPay auth — returns atomTokenId for atomcheckout.js (card / UPI / NB).
     const authUrl =
       process.env.ATOM_AUTH_URL?.trim() ||
-      `${this.baseUrl.replace(/\/$/, "")}/otsv2/aipay/auth`
+      `${this.baseUrl.replace(/\/$/, "")}/ots/aipay/auth`
 
     const response = await fetch(authUrl, {
       method: "POST",
