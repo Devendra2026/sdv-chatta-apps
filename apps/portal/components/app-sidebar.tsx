@@ -30,6 +30,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import {
   NAV_ITEMS,
+  isNavHrefActive,
   isSurveyNavActive,
   type NavItem,
 } from "@/components/app-nav"
@@ -51,12 +52,11 @@ function isItemActive(item: NavItem, pathname: string): boolean {
     return isSurveyNavActive(pathname)
   }
   if (item.href) {
-    return pathname === item.href || pathname.startsWith(`${item.href}/`)
+    return isNavHrefActive(item.href, pathname, item.exact)
   }
   return (
     item.children?.some(
-      (c) =>
-        c.href && (pathname === c.href || pathname.startsWith(`${c.href}/`))
+      (c) => c.href && isNavHrefActive(c.href, pathname, c.exact)
     ) ?? false
   )
 }
@@ -100,8 +100,9 @@ function NavCollapsibleGroup({
                 <SidebarMenuSubButton
                   render={<Link href={child.href!} />}
                   isActive={
-                    pathname === child.href ||
-                    pathname.startsWith(`${child.href}/`)
+                    child.href
+                      ? isNavHrefActive(child.href, pathname, child.exact)
+                      : false
                   }
                   className="cursor-pointer rounded-lg transition-colors duration-200"
                 >

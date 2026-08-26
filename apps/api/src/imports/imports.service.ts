@@ -1,5 +1,10 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common"
-import { DuplicateStrategy, ImportJobStatus } from "@prisma/client"
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common"
+import { DuplicateStrategy, ImportJobStatus, Prisma } from "@prisma/client"
 import { Queue } from "bullmq"
 import ExcelJS from "exceljs"
 import IORedis from "ioredis"
@@ -115,13 +120,37 @@ export class ImportsService {
     return job
   }
 
-  async list(page = 1, pageSize = 20) {
+  async list(
+    page = 1,
+    pageSize = 20,
+    filters?: { status?: string; q?: string }
+  ) {
+    const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1
+    const safeSize =
+      Number.isFinite(pageSize) && pageSize > 0
+        ? Math.min(100, Math.floor(pageSize))
+        : 20
+
+    const where: Prisma.ImportJobWhereInput = {}
+    const status = filters?.status?.trim()
+    if (status) {
+      if (!Object.values(ImportJobStatus).includes(status as ImportJobStatus)) {
+        throw new BadRequestException("Invalid import status")
+      }
+      where.status = status as ImportJobStatus
+    }
+    const q = filters?.q?.trim()
+    if (q) {
+      where.fileName = { contains: q, mode: "insensitive" }
+    }
+
     const [total, items] = await this.prisma.$transaction([
-      this.prisma.importJob.count(),
+      this.prisma.importJob.count({ where }),
       this.prisma.importJob.findMany({
+        where,
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        skip: (safePage - 1) * safeSize,
+        take: safeSize,
         include: {
           createdBy: { select: { id: true, name: true, email: true } },
         },
@@ -130,10 +159,10 @@ export class ImportsService {
     return {
       items,
       meta: {
-        page,
-        pageSize,
+        page: safePage,
+        pageSize: safeSize,
         total,
-        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+        totalPages: Math.max(1, Math.ceil(total / safeSize)),
       },
     }
   }

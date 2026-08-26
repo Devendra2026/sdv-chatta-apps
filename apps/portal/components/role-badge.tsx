@@ -2,21 +2,34 @@
 
 import { Shield } from "lucide-react"
 
-import { usePermission } from "@/hooks/use-permission"
 import { Skeleton } from "@workspace/ui/components/skeleton"
+
+import { usePermission } from "@/hooks/use-permission"
+import {
+  isStaffRoleCode,
+  STAFF_ROLE_META,
+  type StaffRoleCode,
+} from "@/lib/staff-roles"
 
 function accessLabel(roles?: string[]): string {
   if (!roles?.length) return "Limited access"
-  if (roles.includes("SUPER_ADMIN") || roles.includes("ADMIN")) {
-    return "Full access"
+  for (const code of roles) {
+    if (isStaffRoleCode(code)) return STAFF_ROLE_META[code].access
   }
   return "Scoped access"
 }
 
 function roleBadge(roles?: string[]): string {
   if (!roles?.length) return "USER"
-  if (roles.includes("SUPER_ADMIN")) return "SUPER ADMIN"
-  if (roles.includes("ADMIN")) return "ADMIN"
+  const priority: StaffRoleCode[] = [
+    "SUPER_ADMIN",
+    "ADMIN",
+    "CLERK",
+    "OPERATOR",
+  ]
+  for (const code of priority) {
+    if (roles.includes(code)) return STAFF_ROLE_META[code].name.toUpperCase()
+  }
   return roles[0]!.replace(/_/g, " ")
 }
 
@@ -32,7 +45,7 @@ export function RoleBadge() {
 
   return (
     <div
-      className="bg-emerald-500/10 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 hidden max-w-[16rem] items-center gap-1.5 truncate rounded-full px-3 py-1.5 text-xs font-medium lg:inline-flex"
+      className="hidden max-w-[16rem] items-center gap-1.5 truncate rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-800 lg:inline-flex dark:bg-emerald-500/15 dark:text-emerald-300"
       title={`${role} · ${access}`}
     >
       <Shield className="size-3.5 shrink-0 opacity-80" />

@@ -1,10 +1,10 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Plus, Search, Users } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
-import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
@@ -24,9 +24,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@workspace/ui/components/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@workspace/ui/components/table"
 
 import { usePermission } from "@/hooks/use-permission"
 import { api } from "@/lib/api"
+import { filterStaffRoles } from "@/lib/staff-roles"
+import { RolePill, UserAvatar } from "../_components/role-pill"
+import { SettingsEmptyState } from "../_components/settings-empty-state"
+import { SettingsTableLoading } from "../_components/settings-loading"
+import { SettingsPageHeader } from "../_components/settings-page-header"
+import { StatusBadge } from "../_components/status-badge"
 
 type Role = {
   id: string
@@ -62,6 +76,10 @@ export default function UsersPage() {
   const [editStatus, setEditStatus] = React.useState<string>("ACTIVE")
   const [editRoleIds, setEditRoleIds] = React.useState<string[]>([])
 
+  const [search, setSearch] = React.useState("")
+  const [statusFilter, setStatusFilter] = React.useState<string>("all")
+  const [roleFilter, setRoleFilter] = React.useState<string>("all")
+
   const users = useQuery({
     queryKey: ["users"],
     queryFn: async () => (await api.get<User[]>("/api/v1/users")).data,
@@ -70,8 +88,31 @@ export default function UsersPage() {
   const roles = useQuery({
     queryKey: ["roles"],
     queryFn: async () => (await api.get<Role[]>("/api/v1/roles")).data,
-    enabled: canCreate || canUpdate,
   })
+
+  const staffRoles = React.useMemo(
+    () => filterStaffRoles(roles.data ?? []),
+    [roles.data]
+  )
+
+  const filteredUsers = React.useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return (users.data ?? []).filter((u) => {
+      if (statusFilter !== "all" && u.status !== statusFilter) return false
+      if (
+        roleFilter !== "all" &&
+        !(u.roles ?? []).some(
+          (r) => r.code === roleFilter || r.id === roleFilter
+        )
+      ) {
+        return false
+      }
+      if (!q) return true
+      return (
+        u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+      )
+    })
+  }, [users.data, search, statusFilter, roleFilter])
 
   function resetCreateForm() {
     setName("")
@@ -91,16 +132,15 @@ export default function UsersPage() {
       setEditRoleIds([])
       return
     }
-    const catalog = roles.data ?? []
-    if (!catalog.length) return
+    if (!staffRoles.length) return
     setEditRoleIds(
-      catalog
+      staffRoles
         .filter((r) =>
           editUser.roles.some((ur) => ur.code === r.code || ur.id === r.id)
         )
         .map((r) => r.id)
     )
-  }, [editUser?.id, roles.data])
+  }, [editUser?.id, staffRoles])
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -151,79 +191,178 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Provision staff accounts and assign roles. Google sign-in works only
-            for provisioned emails.
-          </p>
-        </div>
-        {canCreate ? (
-          <Button
-            className="cursor-pointer"
-            onClick={() => {
-              resetCreateForm()
-              setCreateOpen(true)
-            }}
-          >
-            Create user
-          </Button>
-        ) : null}
-      </div>
+      <SettingsPageHeader
+        title="Users"
+        description="Provision staff accounts and assign roles. Google sign-in works only for provisioned emails."
+        actions={
+          canCreate ? (
+            <Button
+              className="cursor-pointer"
+              onClick={() => {
+                resetCreateForm()
+                setCreateOpen(true)
+              }}
+            >
+              <Plus className="size-4" aria-hidden />
+              Create user
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="rounded-lg border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left">
-              <th className="p-2">Name</th>
-              <th className="p-2">Email</th>
-              <th className="p-2">Roles</th>
-              <th className="p-2">Status</th>
-              {canUpdate ? <th className="p-2">Actions</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {(users.data ?? []).map((u) => (
-              <tr key={u.id} className="border-b">
-                <td className="p-2 font-medium">{u.name}</td>
-                <td className="p-2">{u.email}</td>
-                <td className="p-2">
-                  <div className="flex flex-wrap gap-1">
-                    {(u.roles ?? []).map((r) => (
-                      <Badge key={r.code} variant="secondary">
-                        {r.code}
-                      </Badge>
-                    ))}
-                  </div>
-                </td>
-                <td className="p-2">{u.status}</td>
-                {canUpdate ? (
-                  <td className="p-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="cursor-pointer"
-                      onClick={() => openEdit(u)}
-                    >
-                      Edit
-                    </Button>
-                  </td>
-                ) : null}
-              </tr>
-            ))}
-            {!users.isLoading && (users.data?.length ?? 0) === 0 ? (
-              <tr>
-                <td
-                  className="p-4 text-muted-foreground"
-                  colSpan={canUpdate ? 5 : 4}
+      <div className="overflow-hidden rounded-xl border bg-card shadow-[var(--shadow-premium)]">
+        <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center">
+          <div className="relative min-w-0 flex-1">
+            <Search
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              className="pl-9"
+              placeholder="Search by name or email…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search users"
+            />
+          </div>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v ?? "all")}
+            items={[
+              { value: "all", label: "All statuses" },
+              ...STATUS_OPTIONS.map((s) => ({ value: s, label: s })),
+            ]}
+          >
+            <SelectTrigger className="w-full cursor-pointer sm:w-[160px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                value="all"
+                label="All statuses"
+                className="cursor-pointer"
+              >
+                All statuses
+              </SelectItem>
+              {STATUS_OPTIONS.map((s) => (
+                <SelectItem
+                  key={s}
+                  value={s}
+                  label={s}
+                  className="cursor-pointer"
                 >
-                  No users found.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={roleFilter}
+            onValueChange={(v) => setRoleFilter(v ?? "all")}
+            items={[
+              { value: "all", label: "All roles" },
+              ...staffRoles.map((r) => ({
+                value: r.code,
+                label: r.name,
+              })),
+            ]}
+          >
+            <SelectTrigger className="w-full cursor-pointer sm:w-[180px]">
+              <SelectValue placeholder="Role" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                value="all"
+                label="All roles"
+                className="cursor-pointer"
+              >
+                All roles
+              </SelectItem>
+              {staffRoles.map((r) => (
+                <SelectItem
+                  key={r.id}
+                  value={r.code}
+                  label={r.name}
+                  className="cursor-pointer"
+                >
+                  {r.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {users.isLoading ? (
+          <SettingsTableLoading />
+        ) : filteredUsers.length === 0 ? (
+          <SettingsEmptyState
+            icon={Users}
+            title={
+              (users.data?.length ?? 0) === 0
+                ? "No users found"
+                : "No matching users"
+            }
+            description={
+              (users.data?.length ?? 0) === 0
+                ? "Create a staff account to get started."
+                : "Try adjusting search or filters."
+            }
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="px-4">Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Roles</TableHead>
+                <TableHead>Status</TableHead>
+                {canUpdate ? (
+                  <TableHead className="px-4 text-right">Actions</TableHead>
+                ) : null}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredUsers.map((u) => (
+                <TableRow key={u.id} className="transition-colors duration-150">
+                  <TableCell className="px-4">
+                    <div className="flex items-center gap-3">
+                      <UserAvatar name={u.name} />
+                      <span className="font-medium">{u.name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {u.email}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {(u.roles ?? []).map((r) => (
+                        <RolePill key={r.code} code={r.code} />
+                      ))}
+                      {(u.roles ?? []).length === 0 ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={u.status} />
+                  </TableCell>
+                  {canUpdate ? (
+                    <TableCell className="px-4 text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="cursor-pointer"
+                        onClick={() => openEdit(u)}
+                      >
+                        Edit
+                      </Button>
+                    </TableCell>
+                  ) : null}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -235,45 +374,52 @@ export default function UsersPage() {
               can link later.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="create-name">Name</Label>
-              <Input
-                id="create-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="create-email">Email</Label>
-              <Input
-                id="create-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="create-password">Initial password</Label>
-              <Input
-                id="create-password"
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                minLength={8}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Roles</Label>
-              <p className="text-xs text-muted-foreground">
-                Leave empty to assign SURVEYOR by default.
+          <div className="space-y-5 py-2">
+            <div className="space-y-3">
+              <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                Profile
               </p>
-              <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
-                {(roles.data ?? []).map((r) => (
+              <div className="space-y-2">
+                <Label htmlFor="create-name">Name</Label>
+                <Input
+                  id="create-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-email">Email</Label>
+                <Input
+                  id="create-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-password">Initial password</Label>
+                <Input
+                  id="create-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  minLength={8}
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                Roles
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Leave empty to assign Operator by default.
+              </p>
+              <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border p-3">
+                {staffRoles.map((r) => (
                   <label
                     key={r.id}
                     className="flex cursor-pointer items-center gap-2 text-sm"
@@ -326,21 +472,29 @@ export default function UsersPage() {
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit user</DialogTitle>
-            <DialogDescription>
-              {editUser?.email}
-            </DialogDescription>
+            <DialogDescription>{editUser?.email}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Name</Label>
-              <Input
-                id="edit-name"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-              />
+          <div className="space-y-5 py-2">
+            <div className="space-y-3">
+              <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                Profile
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Name</Label>
+                <Input
+                  id="edit-name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-status">Status</Label>
+              <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                Status
+              </p>
+              <Label htmlFor="edit-status" className="sr-only">
+                Status
+              </Label>
               <Select
                 value={editStatus}
                 onValueChange={(v) => {
@@ -348,12 +502,20 @@ export default function UsersPage() {
                 }}
                 items={STATUS_OPTIONS.map((s) => ({ value: s, label: s }))}
               >
-                <SelectTrigger id="edit-status" className="w-full cursor-pointer">
+                <SelectTrigger
+                  id="edit-status"
+                  className="w-full cursor-pointer"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={s} label={s} className="cursor-pointer">
+                    <SelectItem
+                      key={s}
+                      value={s}
+                      label={s}
+                      className="cursor-pointer"
+                    >
                       {s}
                     </SelectItem>
                   ))}
@@ -361,9 +523,11 @@ export default function UsersPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Roles</Label>
-              <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
-                {(roles.data ?? []).map((r) => (
+              <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                Roles
+              </p>
+              <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border p-3">
+                {staffRoles.map((r) => (
                   <label
                     key={r.id}
                     className="flex cursor-pointer items-center gap-2 text-sm"

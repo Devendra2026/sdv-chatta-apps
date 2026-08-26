@@ -1,9 +1,6 @@
 "use client"
 
-import * as React from "react"
-import Link from "next/link"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
-import { useRouter, useSearchParams } from "next/navigation"
 import {
   createColumnHelper,
   rowPaginationFeature,
@@ -24,6 +21,9 @@ import {
   Plus,
   Search,
 } from "lucide-react"
+import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
+import * as React from "react"
 
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
@@ -39,9 +39,9 @@ import {
 } from "@workspace/ui/components/table"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { usePermission } from "@/hooks/use-permission"
 import { api } from "@/lib/api"
 import { formatParcelNo } from "@/lib/survey-format"
-import { usePermission } from "@/hooks/use-permission"
 
 type SurveyRow = {
   id: string
@@ -80,13 +80,15 @@ const features = tableFeatures({
 
 const columnHelper = createColumnHelper<typeof features, SurveyRow>()
 
-const STATUS_FILTERS: Array<{ value: SurveyStatusFilter | "ALL"; label: string }> =
-  [
-    { value: "ALL", label: "All" },
-    { value: "DRAFT", label: "Draft" },
-    { value: "ACTIVE", label: "Active" },
-    { value: "ARCHIVED", label: "Archived" },
-  ]
+const STATUS_FILTERS: Array<{
+  value: SurveyStatusFilter | "ALL"
+  label: string
+}> = [
+  { value: "ALL", label: "All" },
+  { value: "DRAFT", label: "Draft" },
+  { value: "ACTIVE", label: "Active" },
+  { value: "ARCHIVED", label: "Archived" },
+]
 
 function parsePage(value: string | null): number {
   const n = Number(value ?? "1")
@@ -143,7 +145,7 @@ export default function SurveysClientPage() {
   const { can } = usePermission()
   const canCreate = can("survey:create")
   const canImport = can("import:create")
-  const canExport = can("export:create")
+  const canExport = can("report:export")
 
   const qParam = searchParams.get("q") ?? ""
   const wardId = searchParams.get("wardId")
@@ -365,7 +367,7 @@ export default function SurveysClientPage() {
           <h1 className="text-2xl font-semibold tracking-tight">
             Survey Registry
           </h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Select a ward to fetch records, then search and page through the
             registry.
           </p>
@@ -375,7 +377,7 @@ export default function SurveysClientPage() {
             <Button
               variant="outline"
               className="cursor-pointer"
-              render={<Link href="/surveys/export" />}
+              render={<Link href="/reports" />}
             >
               <FileDown className="size-4" />
               Export Excel
@@ -404,12 +406,12 @@ export default function SurveysClientPage() {
       </div>
 
       <section
-        className="bg-card space-y-4 rounded-2xl border p-4 shadow-sm md:p-5"
+        className="space-y-4 rounded-2xl border bg-card p-4 shadow-sm md:p-5"
         aria-labelledby="ward-matrix-heading"
       >
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
-            <p className="text-primary text-xs font-semibold tracking-wide uppercase">
+            <p className="text-xs font-semibold tracking-wide text-primary uppercase">
               Command center
             </p>
             <h2
@@ -418,7 +420,7 @@ export default function SurveysClientPage() {
             >
               Survey Matrix Command Center
             </h2>
-            <p className="text-muted-foreground mt-1 text-sm">
+            <p className="mt-1 text-sm text-muted-foreground">
               Select a ward to load its survey records. Counts exclude deleted
               entries.
             </p>
@@ -480,12 +482,12 @@ export default function SurveysClientPage() {
                   className={cn(
                     "cursor-pointer rounded-xl border px-4 py-3 text-left transition-all duration-200 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
                     selected
-                      ? "border-primary bg-primary/10 ring-1 ring-primary/40 shadow-sm"
+                      ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary/40"
                       : "border-border bg-background hover:border-primary/40 hover:bg-muted/50"
                   )}
                   onClick={() => navigate({ page: 1, wardId: ward.id })}
                 >
-                  <p className="text-muted-foreground flex items-center gap-1 text-[11px] font-semibold tracking-wider uppercase">
+                  <p className="flex items-center gap-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
                     <MapPin className="size-3" />
                     Ward {String(ward.number).padStart(2, "0")}
                   </p>
@@ -514,7 +516,7 @@ export default function SurveysClientPage() {
           <label htmlFor="survey-search" className="sr-only">
             Search surveys
           </label>
-          <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-2.5 size-4" />
+          <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
           <Input
             id="survey-search"
             className="pl-8"
@@ -555,7 +557,7 @@ export default function SurveysClientPage() {
 
       <div className="overflow-hidden rounded-xl border">
         <Table>
-          <TableHeader className="bg-muted/40 sticky top-0">
+          <TableHeader className="sticky top-0 bg-muted/40">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
@@ -593,7 +595,7 @@ export default function SurveysClientPage() {
               <TableRow>
                 <TableCell
                   colSpan={columnCount}
-                  className="text-muted-foreground h-24 text-center"
+                  className="h-24 text-center text-muted-foreground"
                 >
                   No surveys found
                   {selectedWard
@@ -606,8 +608,8 @@ export default function SurveysClientPage() {
         </Table>
       </div>
 
-      <div className="bg-card flex flex-col gap-3 rounded-xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-muted-foreground text-sm tabular-nums">
+      <div className="flex flex-col gap-3 rounded-xl border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground tabular-nums">
           {query.isFetching && !isInitialLoad ? "Updating… · " : null}
           {rowCount > 0
             ? `Showing ${((page - 1) * pageSize + 1).toLocaleString("en-IN")}–${Math.min(page * pageSize, rowCount).toLocaleString("en-IN")} of ${rowCount.toLocaleString("en-IN")}`
@@ -676,7 +678,7 @@ export default function SurveysClientPage() {
                 table.setPageIndex(Math.min(last, Math.max(1, raw)) - 1)
               }}
             />
-            <span className="text-muted-foreground px-1 text-xs tabular-nums">
+            <span className="px-1 text-xs text-muted-foreground tabular-nums">
               / {Math.max(1, table.getPageCount()).toLocaleString("en-IN")}
             </span>
             <Button

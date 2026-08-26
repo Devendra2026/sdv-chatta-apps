@@ -94,7 +94,12 @@ export class UsersController {
         ...u,
         roles: u.userRoles.map((ur) => ur.role),
       })),
-      meta: { page: p, pageSize: s, total, totalPages: Math.ceil(total / s) || 1 },
+      meta: {
+        page: p,
+        pageSize: s,
+        total,
+        totalPages: Math.ceil(total / s) || 1,
+      },
     }
   }
 
@@ -135,8 +140,10 @@ export class UsersController {
 
       let roleIds = dto.roleIds?.filter(Boolean) ?? []
       if (roleIds.length === 0) {
-        const surveyor = await tx.role.findUnique({ where: { code: "SURVEYOR" } })
-        if (surveyor) roleIds = [surveyor.id]
+        const operator = await tx.role.findUnique({
+          where: { code: "OPERATOR" },
+        })
+        if (operator) roleIds = [operator.id]
       }
 
       if (roleIds.length) {

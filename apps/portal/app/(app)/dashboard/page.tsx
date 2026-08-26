@@ -57,6 +57,27 @@ import { api } from "@/lib/api"
 
 type WardCardStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED"
 
+type WardBreakdown = {
+  wardId: string
+  number: number
+  code: string
+  name: string
+  surveyCount: number
+  onlineCollection: number
+  offlineCollection: number
+  pendingCollection: number
+  totalCollection: number
+  propertyTaxDemand: number
+  waterTaxDemand: number
+  drainageTaxDemand: number
+  totalTaxDemand: number
+  propertyTaxPct: number
+  waterTaxPct: number
+  drainageTaxPct: number
+  assessmentYearName: string | null
+  status: WardCardStatus
+}
+
 type DashboardSummary = {
   totalProperties: number
   draftSurveys: number
@@ -74,18 +95,14 @@ type DashboardSummary = {
   pendingPayments: number
   successPayments: number
   failedPayments: number
-  wardBreakdown: Array<{
-    wardId: string
-    number: number
-    code: string
-    name: string
-    surveyCount: number
-    onlineCollection: number
-    offlineCollection: number
-    pendingCollection: number
-    totalCollection: number
-    status: WardCardStatus
-  }>
+  propertyTaxDemand: number
+  waterTaxDemand: number
+  drainageTaxDemand: number
+  totalTaxDemand: number
+  propertyTaxPct: number
+  waterTaxPct: number
+  drainageTaxPct: number
+  wardBreakdown: WardBreakdown[]
 }
 
 type Ward = { id: string; number: number; name: string; code: string }
@@ -105,8 +122,14 @@ const taxChartConfig = {
   water: { label: "Water Tax", color: "var(--chart-4)" },
 } satisfies ChartConfig
 
-const wardChartConfig = {
+const wardCountChartConfig = {
   surveyCount: { label: "Properties", color: "var(--chart-1)" },
+} satisfies ChartConfig
+
+const wardTaxChartConfig = {
+  propertyTaxDemand: { label: "Property Tax", color: "var(--chart-2)" },
+  waterTaxDemand: { label: "Water Tax", color: "var(--chart-4)" },
+  drainageTaxDemand: { label: "Drainage Tax", color: "var(--chart-3)" },
 } satisfies ChartConfig
 
 function formatInr(value: number): string {
@@ -117,8 +140,10 @@ function formatRs(value: number): string {
   return `Rs ${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
 }
 
-function wardTaxTotal(ward: DashboardSummary["wardBreakdown"][number]): number {
-  return ward.onlineCollection + ward.offlineCollection + ward.pendingCollection
+function formatPct(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "—"
+  const rounded = Number.isInteger(value) ? String(value) : value.toFixed(1)
+  return `${rounded}%`
 }
 
 export default function DashboardPage() {
@@ -163,7 +188,7 @@ export default function DashboardPage() {
 
   if (permError) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-muted-foreground" role="alert">
         Could not verify access. Confirm the API is running and try refreshing.
       </p>
     )
@@ -186,10 +211,14 @@ export default function DashboardPage() {
   const data = summaryQuery.data
   const loading = summaryQuery.isLoading
 
-  const propertyTax = data?.onlineCollection ?? 0
-  const drainageTax = data?.offlineCollection ?? 0
-  const waterTax = data?.pendingCollection ?? 0
-  const totalTax = propertyTax + drainageTax + waterTax
+  const propertyTax = data?.propertyTaxDemand ?? 0
+  const drainageTax = data?.drainageTaxDemand ?? 0
+  const waterTax = data?.waterTaxDemand ?? 0
+  const totalTax = data?.totalTaxDemand ?? propertyTax + drainageTax + waterTax
+
+  const propertyPct = data?.propertyTaxPct ?? 0
+  const waterPct = data?.waterTaxPct ?? 0
+  const drainagePct = data?.drainageTaxPct ?? 0
 
   const taxMix = [
     {
@@ -217,11 +246,16 @@ export default function DashboardPage() {
     ward: String(w.number),
     name: w.name,
     surveyCount: w.surveyCount,
+    propertyTaxDemand: w.propertyTaxDemand,
+    waterTaxDemand: w.waterTaxDemand,
+    drainageTaxDemand: w.drainageTaxDemand,
+    totalTaxDemand: w.totalTaxDemand,
   }))
 
+  const hasWardTax = wardBars.some((w) => w.totalTaxDemand > 0)
+
   return (
-    <div className="space-y-8">
-      {/* Page header — Bakewar PDF style */}
+    <div className="space-y-8 motion-safe:animate-in motion-safe:duration-300 motion-safe:fade-in-0">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <nav aria-label="Breadcrumb" className="mb-1">
@@ -232,14 +266,20 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
             Nagar Panchayat Chhata
           </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Ward-wise survey progress and assessed tax demand
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Select
             value={wardId}
             items={wardSelectItems}
             onValueChange={(v) => setWardId(v ?? "all")}
           >
-            <SelectTrigger className="w-64 cursor-pointer rounded-xl">
+            <SelectTrigger
+              className="h-11 w-64 cursor-pointer rounded-xl"
+              aria-label="Filter by ward"
+            >
               <SelectValue placeholder="All wards" />
             </SelectTrigger>
             <SelectContent>
@@ -258,7 +298,7 @@ export default function DashboardPage() {
             </SelectContent>
           </Select>
           <Button
-            className="cursor-pointer rounded-xl"
+            className="h-11 cursor-pointer rounded-xl"
             render={<Link href="/surveys" />}
           >
             Open surveys
@@ -266,9 +306,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 1. Ward Wise Survey Statistics */}
-      <section className="space-y-3">
-        <SectionHeading title="Ward Wise Survey Statistics" />
+      <section className="space-y-3" aria-labelledby="ward-survey-stats">
+        <SectionHeading
+          id="ward-survey-stats"
+          title="Ward Wise Survey Statistics"
+        />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <SolidStatCard
             title="Total Wards"
@@ -301,26 +343,25 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* 2. Property Wise Survey Statistics */}
-      <section className="space-y-3">
-        <SectionHeading title="Property Wise Survey Statistics" />
+      <section className="space-y-3" aria-labelledby="all-ward-tax">
+        <SectionHeading id="all-ward-tax" title="All Ward Tax Collection" />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <TaxStatCard
-            title="Total Property Tax"
+            title={`Total Property Tax${propertyPct > 0 ? ` (${formatPct(propertyPct)})` : ""}`}
             value={data ? formatRs(propertyTax) : undefined}
             loading={loading}
             icon={Home}
             tone="green"
           />
           <TaxStatCard
-            title="Total Drainage Tax"
+            title={`Total Drainage Tax${drainagePct > 0 ? ` (${formatPct(drainagePct)})` : ""}`}
             value={data ? formatRs(drainageTax) : undefined}
             loading={loading}
             icon={Droplets}
             tone="amber"
           />
           <TaxStatCard
-            title="Total Water Tax"
+            title={`Total Water Tax${waterPct > 0 ? ` (${formatPct(waterPct)})` : ""}`}
             value={data ? formatRs(waterTax) : undefined}
             loading={loading}
             icon={Wallet}
@@ -336,11 +377,10 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* 3. Charts & Analytics */}
-      <section className="space-y-3">
-        <SectionHeading title="Charts & Analytics" />
+      <section className="space-y-3" aria-labelledby="charts-analytics">
+        <SectionHeading id="charts-analytics" title="Charts & Analytics" />
         <div className="grid gap-4 xl:grid-cols-3">
-          <Card className="xl:col-span-1">
+          <Card className="transition-shadow duration-200 hover:shadow-md xl:col-span-1">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Tax Breakdown</CardTitle>
             </CardHeader>
@@ -349,7 +389,8 @@ export default function DashboardPage() {
                 <Skeleton className="mx-auto size-48 rounded-full" />
               ) : taxMixTotal === 0 ? (
                 <p className="py-10 text-center text-sm text-muted-foreground">
-                  No tax collection data yet for this filter.
+                  No assessed tax demand yet for this filter. Publish tax rates
+                  and complete surveys to see totals.
                 </p>
               ) : (
                 <>
@@ -386,20 +427,22 @@ export default function DashboardPage() {
                   </ChartContainer>
                   <table className="mt-2 w-full text-xs text-muted-foreground">
                     <caption className="sr-only">
-                      Tax collection amounts by category
+                      Assessed tax demand by category
                     </caption>
                     <tbody>
                       {taxMix.map((row) => (
                         <tr key={row.key} className="border-t">
-                          <td className="py-1.5">{row.name}</td>
-                          <td className="py-1.5 text-right font-medium text-foreground">
+                          <td className="py-1.5 text-foreground/80">
+                            {row.name}
+                          </td>
+                          <td className="py-1.5 text-right font-medium text-foreground tabular-nums">
                             {formatInr(row.value)}
                           </td>
                         </tr>
                       ))}
                       <tr className="border-t font-semibold">
                         <td className="py-1.5 text-foreground">Total Tax</td>
-                        <td className="py-1.5 text-right text-foreground">
+                        <td className="py-1.5 text-right text-foreground tabular-nums">
                           {formatInr(totalTax)}
                         </td>
                       </tr>
@@ -410,16 +453,20 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="xl:col-span-2">
+          <Card className="transition-shadow duration-200 hover:shadow-md xl:col-span-2">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Ward Property Count</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
                 <Skeleton className="h-64 w-full" />
+              ) : wardBars.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  No wards mapped yet.
+                </p>
               ) : (
                 <ChartContainer
-                  config={wardChartConfig}
+                  config={wardCountChartConfig}
                   className="aspect-auto h-64 w-full"
                 >
                   <BarChart
@@ -464,12 +511,92 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+
+        <Card className="transition-shadow duration-200 hover:shadow-md">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Ward Tax Collection</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className="h-72 w-full" />
+            ) : !hasWardTax ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                No ward tax demand to chart yet.
+              </p>
+            ) : (
+              <ChartContainer
+                config={wardTaxChartConfig}
+                className="aspect-auto h-72 w-full"
+              >
+                <BarChart
+                  accessibilityLayer
+                  data={wardBars}
+                  margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+                >
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                    dataKey="ward"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    width={48}
+                    tickFormatter={(v) =>
+                      Number(v).toLocaleString("en-IN", {
+                        notation: "compact",
+                        maximumFractionDigits: 1,
+                      })
+                    }
+                  />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value) => formatInr(Number(value ?? 0))}
+                        labelFormatter={(_, payload) => {
+                          const row = payload?.[0]?.payload as
+                            { ward?: string; name?: string } | undefined
+                          return row?.name
+                            ? `Ward ${row.ward} — ${row.name}`
+                            : `Ward ${row?.ward ?? ""}`
+                        }}
+                      />
+                    }
+                  />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  <Bar
+                    dataKey="propertyTaxDemand"
+                    stackId="tax"
+                    fill="var(--color-propertyTaxDemand)"
+                    radius={[0, 0, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="waterTaxDemand"
+                    stackId="tax"
+                    fill="var(--color-waterTaxDemand)"
+                    radius={[0, 0, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="drainageTaxDemand"
+                    stackId="tax"
+                    fill="var(--color-drainageTaxDemand)"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
       </section>
 
-      {/* 4. Ward Tax Collection Cards */}
-      <section className="space-y-3">
+      <section className="space-y-3" aria-labelledby="ward-tax-cards">
         <div className="flex flex-wrap items-end justify-between gap-2">
-          <SectionHeading title="Ward Tax Collection Cards" />
+          <SectionHeading
+            id="ward-tax-cards"
+            title="Ward Wise Tax Collection"
+          />
           <p className="text-sm text-muted-foreground">
             {data?.totalWards ?? "—"} wards mapped
           </p>
@@ -481,6 +608,10 @@ export default function DashboardPage() {
               <Skeleton key={i} className="h-56 rounded-2xl" />
             ))}
           </div>
+        ) : (data?.wardBreakdown ?? []).length === 0 ? (
+          <p className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
+            No wards available for tax collection display.
+          </p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {(data?.wardBreakdown ?? []).map((ward, index) => (
@@ -497,19 +628,24 @@ export default function DashboardPage() {
   )
 }
 
-function SectionHeading({ title }: { title: string }) {
+function SectionHeading({ id, title }: { id?: string; title: string }) {
   return (
-    <h2 className="text-base font-semibold tracking-tight text-emerald-600 dark:text-emerald-400">
-      {title}
+    <h2
+      id={id}
+      className="text-base font-semibold tracking-tight text-slate-800 dark:text-slate-100"
+    >
+      <span className="border-b-2 border-sky-600 pb-0.5 dark:border-sky-400">
+        {title}
+      </span>
     </h2>
   )
 }
 
 const solidTones = {
-  blue: "from-blue-500 to-blue-600",
-  green: "from-emerald-500 to-emerald-600",
-  amber: "from-amber-400 to-orange-500",
-  purple: "from-violet-500 to-violet-600",
+  blue: "from-blue-600 to-blue-700",
+  green: "from-emerald-600 to-emerald-700",
+  amber: "from-amber-500 to-orange-600",
+  purple: "from-violet-600 to-violet-700",
 } as const
 
 function SolidStatCard({
@@ -533,13 +669,13 @@ function SolidStatCard({
       )}
     >
       <div className="absolute top-3 right-3 flex size-11 items-center justify-center rounded-full bg-white/20">
-        <Icon className="size-5" />
+        <Icon className="size-5" aria-hidden />
       </div>
       <p className="pr-12 text-sm font-medium text-white/90">{title}</p>
       {loading ? (
         <Skeleton className="mt-3 h-9 w-20 bg-white/30" />
       ) : (
-        <p className="mt-2 text-3xl font-bold tracking-tight">
+        <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums">
           {value?.toLocaleString("en-IN") ?? "—"}
         </p>
       )}
@@ -549,20 +685,20 @@ function SolidStatCard({
 
 const taxCardTones = {
   green: {
-    icon: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    border: "border-emerald-100 dark:border-emerald-900/40",
+    icon: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+    border: "border-emerald-200 dark:border-emerald-900/40",
   },
   amber: {
-    icon: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    border: "border-amber-100 dark:border-amber-900/40",
+    icon: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+    border: "border-amber-200 dark:border-amber-900/40",
   },
   purple: {
-    icon: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
-    border: "border-violet-100 dark:border-violet-900/40",
+    icon: "bg-violet-500/10 text-violet-700 dark:text-violet-400",
+    border: "border-violet-200 dark:border-violet-900/40",
   },
   blue: {
-    icon: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-    border: "border-blue-100 dark:border-blue-900/40",
+    icon: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
+    border: "border-sky-200 dark:border-sky-900/40",
   },
 } as const
 
@@ -594,15 +730,15 @@ function TaxStatCard({
             styles.icon
           )}
         >
-          <Icon className="size-5" />
+          <Icon className="size-5" aria-hidden />
         </div>
-        <p className="pr-14 text-sm font-medium text-muted-foreground">
+        <p className="pr-14 text-sm font-medium text-slate-600 dark:text-slate-300">
           {title}
         </p>
         {loading ? (
           <Skeleton className="mt-2 h-7 w-32" />
         ) : (
-          <p className="mt-1 truncate text-xl font-bold tracking-tight">
+          <p className="mt-1 truncate text-xl font-bold tracking-tight text-slate-900 tabular-nums dark:text-slate-50">
             {value ?? "—"}
           </p>
         )}
@@ -615,17 +751,19 @@ function WardCollectionCard({
   ward,
   accent,
 }: {
-  ward: DashboardSummary["wardBreakdown"][number]
+  ward: WardBreakdown
   accent: string
 }) {
-  const propertyAmount = ward.onlineCollection
-  const waterAmount = ward.offlineCollection
-  const drainageAmount = ward.pendingCollection
-  const total = wardTaxTotal(ward)
+  const propertyAmount = ward.propertyTaxDemand
+  const waterAmount = ward.waterTaxDemand
+  const drainageAmount = ward.drainageTaxDemand
+  const total = ward.totalTaxDemand
 
-  const propertyPct = total > 0 ? Math.round((propertyAmount / total) * 100) : 0
-  const waterPct = total > 0 ? Math.round((waterAmount / total) * 100) : 0
-  const drainagePct = total > 0 ? Math.round((drainageAmount / total) * 100) : 0
+  const propertyShare =
+    total > 0 ? Math.round((propertyAmount / total) * 100) : 0
+  const waterShare = total > 0 ? Math.round((waterAmount / total) * 100) : 0
+  const drainageShare =
+    total > 0 ? Math.round((drainageAmount / total) * 100) : 0
 
   return (
     <Card
@@ -639,32 +777,32 @@ function WardCollectionCard({
           <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
             Ward {String(ward.number).padStart(2, "0")}
           </p>
-          <p className="truncate font-(family-name:--font-deva) text-sm font-semibold">
+          <p className="truncate font-(family-name:--font-deva) text-sm font-semibold text-foreground">
             {ward.name}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
-          <Building2 className="size-3.5" />
-          {ward.surveyCount}
+          <Building2 className="size-3.5" aria-hidden />
+          <span className="tabular-nums">{ward.surveyCount}</span>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
         <MetricRow
-          label="Property Tax Rate 10%"
+          label={`Property Tax Rate ${formatPct(ward.propertyTaxPct)}`}
           value={formatRs(propertyAmount)}
-          pct={propertyPct}
-          barClass="bg-blue-500"
+          pct={propertyShare}
+          barClass="bg-blue-600"
         />
         <MetricRow
-          label="Water Tax Rate 7.5%"
+          label={`Water Tax Rate ${formatPct(ward.waterTaxPct)}`}
           value={formatRs(waterAmount)}
-          pct={waterPct}
-          barClass="bg-cyan-500"
+          pct={waterShare}
+          barClass="bg-cyan-600"
         />
         <MetricRow
-          label="Drainage Tax Rate 2.5%"
+          label={`Drainage Tax Rate ${formatPct(ward.drainageTaxPct)}`}
           value={formatRs(drainageAmount)}
-          pct={drainagePct}
+          pct={drainageShare}
           barClass="bg-amber-500"
         />
         <div className="flex items-center justify-between border-t pt-3">
@@ -672,7 +810,7 @@ function WardCollectionCard({
             <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
               Total Tax
             </p>
-            <p className="text-sm font-bold">{formatRs(total)}</p>
+            <p className="text-sm font-bold tabular-nums">{formatRs(total)}</p>
           </div>
           <StatusBadge status={ward.status} />
         </div>
@@ -695,13 +833,18 @@ function MetricRow({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-semibold tabular-nums">{value}</span>
+        <span className="text-slate-600 dark:text-slate-300">{label}</span>
+        <span className="font-semibold text-foreground tabular-nums">
+          {value}
+        </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+      <div
+        className="h-1.5 overflow-hidden rounded-full bg-muted"
+        role="presentation"
+      >
         <div
           className={cn(
-            "h-full rounded-full transition-all duration-300",
+            "h-full rounded-full transition-all duration-300 motion-reduce:transition-none",
             barClass
           )}
           style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
@@ -714,14 +857,14 @@ function MetricRow({
 function StatusBadge({ status }: { status: WardCardStatus }) {
   if (status === "COMPLETED") {
     return (
-      <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300">
+      <Badge className="bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/15 dark:text-emerald-300">
         Completed
       </Badge>
     )
   }
   if (status === "IN_PROGRESS") {
     return (
-      <Badge className="bg-amber-500/15 text-amber-800 hover:bg-amber-500/15 dark:text-amber-300">
+      <Badge className="bg-amber-500/15 text-amber-900 hover:bg-amber-500/15 dark:text-amber-300">
         In progress
       </Badge>
     )
@@ -735,7 +878,7 @@ function StatusBadge({ status }: { status: WardCardStatus }) {
 
 function DashboardSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-busy="true" aria-label="Loading dashboard">
       <Skeleton className="h-10 w-72" />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Skeleton className="h-28 rounded-2xl" />

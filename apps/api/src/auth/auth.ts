@@ -58,7 +58,7 @@ export function createAuth(prisma: PrismaService) {
             const roleCode =
               user.email.toLowerCase() === adminEmail || !hasSuperAdmin
                 ? "SUPER_ADMIN"
-                : "SURVEYOR"
+                : "OPERATOR"
 
             const role = await prisma.role.findUnique({
               where: { code: roleCode },

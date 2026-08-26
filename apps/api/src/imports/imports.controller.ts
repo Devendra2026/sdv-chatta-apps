@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -7,7 +8,6 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
-  Body,
 } from "@nestjs/common"
 import { FileInterceptor } from "@nestjs/platform-express"
 import { DuplicateStrategy } from "@prisma/client"
@@ -51,10 +51,16 @@ export class ImportsController {
 
   @Get()
   @RequirePermission("import:read")
-  async list(@Query("page") page?: string, @Query("pageSize") pageSize?: string) {
+  async list(
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
+    @Query("status") status?: string,
+    @Query("q") q?: string
+  ) {
     const { items, meta } = await this.importsService.list(
       Number(page ?? 1),
-      Number(pageSize ?? 20)
+      Number(pageSize ?? 20),
+      { status, q }
     )
     return { success: true, data: items, meta }
   }
