@@ -230,6 +230,7 @@ type SurveyWithFloors = SurveyExportRecord & {
     floorLabel: string
     areaSqFt?: { toString(): string } | null
     usageType?: string | null
+    usageFactor?: string | null
     buildingType?: string | null
   }>
   hasMunicipalWaterSupply?: boolean | null
@@ -303,6 +304,8 @@ export function buildWardTaxDataRow(
     constructionCode: mapConstructionCode(f.buildingType ?? f.usageType),
     usageResidential: isResidentialUsage(f.usageType, survey.propertyUse),
     areaSqFt: toTaxNumber(f.areaSqFt),
+    usageType: f.usageType,
+    usageFactor: f.usageFactor,
   }))
 
   const tax = computeSurveyExportTax({
@@ -343,6 +346,7 @@ export function buildWardTaxDataRow(
 
 export function taxConfigToRateTable(config: {
   assessablePct: { toString(): string }
+  commercialAssessablePct?: { toString(): string } | null
   propertyTaxPct: { toString(): string }
   waterTaxPct: { toString(): string }
   drainageTaxPct: { toString(): string }
@@ -367,6 +371,9 @@ export function taxConfigToRateTable(config: {
 
   return {
     assessablePct: toTaxNumber(config.assessablePct),
+    commercialAssessablePct: toTaxNumber(
+      config.commercialAssessablePct ?? config.assessablePct
+    ),
     propertyTaxPct: toTaxNumber(config.propertyTaxPct),
     waterTaxPct: toTaxNumber(config.waterTaxPct),
     drainageTaxPct: toTaxNumber(config.drainageTaxPct),

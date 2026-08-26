@@ -11,6 +11,7 @@ import { PaymentMode, PaymentStatus } from "@prisma/client"
 import { Type } from "class-transformer"
 import {
   IsEnum,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -53,9 +54,30 @@ class CreateOnlineDto {
   payerEmail?: string
 }
 
-class CreateOfflineDto extends CreateOnlineDto {
+class CreateOfflineDto {
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  amount!: number
+
   @IsEnum(PaymentMode)
   paymentMode!: PaymentMode
+
+  @IsString()
+  @IsNotEmpty()
+  surveyId!: string
+
+  @IsOptional()
+  @IsString()
+  wardId?: string
+
+  @IsOptional()
+  @IsString()
+  payerName?: string
+
+  @IsOptional()
+  @IsString()
+  payerMobile?: string
 
   @IsOptional()
   @IsString()
@@ -81,7 +103,10 @@ export class PaymentsController {
   @Post("online")
   @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission("payment:create")
-  async createOnline(@Body() dto: CreateOnlineDto, @CurrentUser() user: AuthUser) {
+  async createOnline(
+    @Body() dto: CreateOnlineDto,
+    @CurrentUser() user: AuthUser
+  ) {
     const data = await this.paymentsService.createOnline(dto, user)
     return { success: true, data }
   }
@@ -89,7 +114,10 @@ export class PaymentsController {
   @Post("offline")
   @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission("payment:offline:create")
-  async createOffline(@Body() dto: CreateOfflineDto, @CurrentUser() user: AuthUser) {
+  async createOffline(
+    @Body() dto: CreateOfflineDto,
+    @CurrentUser() user: AuthUser
+  ) {
     const data = await this.paymentsService.createOffline(dto, user)
     return { success: true, data }
   }
@@ -116,7 +144,12 @@ export class PaymentsController {
     @Body() body: { amount: number; reason?: string },
     @CurrentUser() user: AuthUser
   ) {
-    const data = await this.paymentsService.refund(id, body.amount, body.reason, user)
+    const data = await this.paymentsService.refund(
+      id,
+      body.amount,
+      body.reason,
+      user
+    )
     return { success: true, data }
   }
 
@@ -153,6 +186,14 @@ export class PaymentsController {
   @RequirePermission("settlement:read")
   async settlements() {
     const data = await this.paymentsService.listSettlements()
+    return { success: true, data }
+  }
+
+  @Get(":id/receipt")
+  @UseGuards(AuthGuard, PermissionGuard)
+  @RequirePermission("payment:read")
+  async staffReceipt(@Param("id") id: string) {
+    const data = await this.paymentsService.getStaffReceipt(id)
     return { success: true, data }
   }
 

@@ -60,6 +60,7 @@ type TaxConfig = {
   drainageTaxPct: string | number
   penaltyPct: string | number
   assessablePct: string | number
+  commercialAssessablePct: string | number
   cells: TaxCell[]
 }
 
@@ -213,6 +214,7 @@ export function ReportsTaxWorkspace({
 
   const [paramDraft, setParamDraft] = React.useState({
     assessablePct: "",
+    commercialAssessablePct: "",
     propertyTaxPct: "",
     waterTaxPct: "",
     drainageTaxPct: "",
@@ -223,6 +225,7 @@ export function ReportsTaxWorkspace({
     if (!config) {
       setParamDraft({
         assessablePct: "",
+        commercialAssessablePct: "",
         propertyTaxPct: "",
         waterTaxPct: "",
         drainageTaxPct: "",
@@ -232,6 +235,7 @@ export function ReportsTaxWorkspace({
     }
     setParamDraft({
       assessablePct: String(num(config.assessablePct)),
+      commercialAssessablePct: String(num(config.commercialAssessablePct)),
       propertyTaxPct: String(num(config.propertyTaxPct)),
       waterTaxPct: String(num(config.waterTaxPct)),
       drainageTaxPct: String(num(config.drainageTaxPct)),
@@ -554,7 +558,8 @@ export function ReportsTaxWorkspace({
             <CardContent className="grid gap-3 sm:grid-cols-2">
               {(
                 [
-                  ["assessablePct", "Assessable %"],
+                  ["assessablePct", "Residential assessable %"],
+                  ["commercialAssessablePct", "Commercial assessable %"],
                   ["propertyTaxPct", "Property tax %"],
                   ["waterTaxPct", "Water tax %"],
                   ["drainageTaxPct", "Drainage tax %"],
@@ -654,7 +659,7 @@ export function ReportsTaxWorkspace({
               {previewQuery.data ? (
                 <dl className="grid grid-cols-2 gap-2 rounded-md bg-muted/50 p-3">
                   <div>
-                    <dt className="text-muted-foreground">Annual rate</dt>
+                    <dt className="text-muted-foreground">Monthly rate</dt>
                     <dd>{previewQuery.data.rates.annualRate}</dd>
                   </div>
                   <div>

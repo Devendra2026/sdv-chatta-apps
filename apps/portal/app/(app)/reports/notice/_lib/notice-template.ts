@@ -33,6 +33,7 @@ export type NoticeTaxSummary = {
   totalDemand: number
   annualBaseRate: number | null
   configFound: boolean
+  assessmentYear?: string
 }
 
 type SurveyData = Record<string, unknown> & {
@@ -122,13 +123,12 @@ export function generateDemandNoticeHtml(
   options?: {
     floors?: NoticeFloorCalc[]
     tax?: NoticeTaxSummary
+    assessmentYear?: string
     /** Absolute URL or data URI — required for print popup (about:blank). */
     logoUrl?: string
   }
 ): string {
-  const logoUrl =
-    options?.logoUrl?.trim() ||
-    "/branding/up-government-logo.png"
+  const logoUrl = options?.logoUrl?.trim() || "/branding/up-government-logo.png"
   const rawFloors = (survey.floors ?? []) as FloorRow[]
   const floors =
     options?.floors && options.floors.length > 0
@@ -146,6 +146,11 @@ export function generateDemandNoticeHtml(
     annualBaseRate: null,
     configFound: false,
   }
+
+  const assessmentYearLabel =
+    options?.assessmentYear?.trim() ||
+    tax.assessmentYear?.trim() ||
+    currentAssessmentYear()
 
   const totalArea = floors.reduce((s, f) => s + f.areaSqFt, 0)
   const totalAlv = floors.reduce((s, f) => s + f.alv, 0)
@@ -173,7 +178,7 @@ export function generateDemandNoticeHtml(
 
   const baseRateLabel =
     tax.annualBaseRate != null && tax.annualBaseRate > 0
-      ? `₹${money(tax.annualBaseRate)}/sqft/yr`
+      ? `₹${money(tax.annualBaseRate)}/sqft/mo`
       : "—"
 
   return `<!DOCTYPE html>
@@ -452,7 +457,7 @@ table.alv tr.total td {
   <div class="meta">
     <div class="meta-cell">
       <div class="meta-label">Assessment Year</div>
-      <div class="meta-value">${esc(currentAssessmentYear())}</div>
+      <div class="meta-value">${esc(assessmentYearLabel)}</div>
     </div>
     <div class="meta-cell">
       <div class="meta-label">Notice Date</div>
@@ -476,7 +481,7 @@ table.alv tr.total td {
         <div class="val">Ward No. ${esc(survey.ward?.number ?? "—")}${survey.ward?.name ? ` — ${esc(survey.ward.name)}` : ""}</div>
       </div>
       <div class="row">
-        <div class="lbl">Annual Base Rate</div>
+        <div class="lbl">Monthly Base Rate</div>
         <div class="val">${esc(baseRateLabel)}</div>
       </div>
       <div class="row">

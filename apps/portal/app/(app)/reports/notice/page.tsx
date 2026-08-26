@@ -27,6 +27,7 @@ import {
 import { buildSelectItems } from "@workspace/ui/lib/select-items"
 
 import { api } from "@/lib/api"
+import { ApiError } from "@workspace/api-client"
 import { generateDemandNoticeHtml } from "./_lib/notice-template"
 
 type Ward = { id: string; name: string; number: number }
@@ -96,8 +97,64 @@ export default function NoticePage() {
       const survey = (
         await api.get<Record<string, unknown>>(`/api/v1/surveys/${row.id}`)
       ).data
+
+      type DuesPayload = {
+        assessmentYear: { name: string }
+        floors: Array<{
+          floorLabel: string
+          usageType: string
+          usageFactor: string
+          construction: string
+          areaSqFt: number
+          rate: number
+          alv: number
+          tax: number
+        }>
+        tax: {
+          propertyTaxPct: number
+          waterTaxPct: number
+          drainageTaxPct: number
+          propertyTax: number
+          waterTax: number
+          drainageTax: number
+          totalDemand: number
+          annualBaseRate: number | null
+          configFound: boolean
+        }
+      }
+
+      let dues: DuesPayload
+      try {
+        dues = (
+          await api.get<DuesPayload>(
+            `/api/v1/public/property-tax/dues/${row.id}`
+          )
+        ).data
+      } catch (err: unknown) {
+        const message =
+          err instanceof ApiError
+            ? err.message
+            : "Published tax rates are not available for this ward. Configure and publish rates on Reports → Tax Rates first."
+        toast.error(message)
+        return
+      }
+
+      if (dues.floors.every((f) => f.rate <= 0) && dues.tax.totalDemand <= 0) {
+        toast.warning(
+          "Tax matrix rates are zero for this property’s zone/construction. Check published rates on Reports → Tax Rates."
+        )
+      }
+
       const logoUrl = `${window.location.origin}/branding/up-government-logo.png`
-      const html = generateDemandNoticeHtml(survey, { logoUrl })
+      const html = generateDemandNoticeHtml(survey, {
+        logoUrl,
+        floors: dues.floors,
+        tax: {
+          ...dues.tax,
+          assessmentYear: dues.assessmentYear.name,
+        },
+        assessmentYear: dues.assessmentYear.name,
+      })
       const w = window.open("", "_blank")
       if (!w) {
         toast.error("Popup blocked. Please allow popups for this site.")

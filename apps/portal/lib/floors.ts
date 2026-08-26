@@ -1,4 +1,7 @@
-export type ParsedFloor = {
+/** Chhata Excel floor blob parse/serialize (mirrors API floors.util). */
+
+export type FloorRow = {
+  id: string
   floorLabel: string
   areaSqFt?: number
   areaSqMeter?: number
@@ -6,14 +9,47 @@ export type ParsedFloor = {
   usageFactor?: string
   buildingType?: string
   sortOrder: number
-  rawSegment: string
 }
 
-/**
- * Parse Chhata Excel "Floors" blobs such as:
- * "Ground Floor - 408 SqFt - 37.90 SqMt || Usage Type - Residential || Usage Factor - Self Occupied || Usage Type - Pakka Building..."
- */
-export function parseFloorsRaw(floorsRaw?: string | null): ParsedFloor[] {
+export const FLOOR_LABELS = [
+  "Basement",
+  "Ground Floor",
+  "First Floor",
+  "Second Floor",
+  "Third Floor",
+  "Fourth Floor",
+  "Terrace",
+] as const
+
+export const FLOOR_USAGE_TYPES = [
+  "Residential",
+  "Commercial",
+  "Mixed",
+  "Open Land",
+  "Under Construction",
+] as const
+
+export const FLOOR_USAGE_FACTORS = [
+  "Self Occupied",
+  "Rented",
+  "Vacant",
+] as const
+
+export const FLOOR_CONSTRUCTION_TYPES = [
+  "Pakka Building with R.C.C Roof or R.B. Roof",
+  "Tin Shed",
+  "Kaccha Building",
+  "Open Land",
+  "Under Construction",
+] as const
+
+const SQ_FT_TO_SQ_M = 0.092903
+
+export function sqFtToSqM(sqFt: number): number {
+  return Math.round(sqFt * SQ_FT_TO_SQ_M * 100) / 100
+}
+
+export function parseFloorsRaw(floorsRaw?: string | null): FloorRow[] {
   if (!floorsRaw?.trim()) return []
 
   const segments = floorsRaw
@@ -48,6 +84,7 @@ export function parseFloorsRaw(floorsRaw?: string | null): ParsedFloor[] {
     buildingType = usageTypeValues[1]
 
     return {
+      id: `floor-${index}-${labelMatch?.[1]?.trim() ?? index}`,
       floorLabel: labelMatch?.[1]?.trim() || `Floor ${index + 1}`,
       areaSqFt: labelMatch?.[2] ? Number(labelMatch[2]) : undefined,
       areaSqMeter: sqmMatch?.[1] ? Number(sqmMatch[1]) : undefined,
@@ -55,14 +92,10 @@ export function parseFloorsRaw(floorsRaw?: string | null): ParsedFloor[] {
       usageFactor,
       buildingType,
       sortOrder: index,
-      rawSegment: segment,
     }
   })
 }
 
-/**
- * Serialize structured floors back to the Chhata Excel "Floors" blob format.
- */
 export function serializeFloorsRaw(
   floors: Array<{
     floorLabel: string
@@ -73,15 +106,14 @@ export function serializeFloorsRaw(
     buildingType?: string
   }>
 ): string {
-  const SQ_FT_TO_SQ_M = 0.092903
   return floors
     .map((floor) => {
       const label = floor.floorLabel.trim() || "Floor"
       const sqFt = floor.areaSqFt ?? 0
       const sqM =
-        floor.areaSqMeter ?? Math.round(sqFt * SQ_FT_TO_SQ_M * 100) / 100
+        floor.areaSqMeter ?? (Number.isFinite(sqFt) ? sqFtToSqM(sqFt) : 0)
       const parts = [
-        `${label} - ${formatFloorNumber(sqFt)} SqFt - ${formatFloorNumber(sqM)} SqMt`,
+        `${label} - ${formatNumber(sqFt)} SqFt - ${formatNumber(sqM)} SqMt`,
       ]
       if (floor.usageType?.trim()) {
         parts.push(`Usage Type - ${floor.usageType.trim()}`)
@@ -97,39 +129,17 @@ export function serializeFloorsRaw(
     .join(", ")
 }
 
-function formatFloorNumber(value: number): string {
+export function sumFloorAreaSqFt(
+  floors: Array<{ areaSqFt?: number | null }>
+): number {
+  return floors.reduce((sum, floor) => {
+    const area = floor.areaSqFt
+    return sum + (typeof area === "number" && Number.isFinite(area) ? area : 0)
+  }, 0)
+}
+
+function formatNumber(value: number): string {
   if (!Number.isFinite(value)) return "0"
   const rounded = Math.round(value * 100) / 100
   return Number.isInteger(rounded) ? String(rounded) : String(rounded)
-}
-
-export function computeDataQuality(input: {
-  mobile?: string | null
-  propertyNo?: string | null
-  parcelNo?: string | null
-  plotAreaSqFt?: number | null
-  totalBuiltUpAreaSqFt?: number | null
-}):
-  | "COMPLETE"
-  | "MISSING_CONTACT"
-  | "MISSING_PROPERTY_NUMBER"
-  | "MISSING_MEASUREMENT"
-  | "NEEDS_REVIEW" {
-  const mobile = (input.mobile ?? "").trim()
-  const hasMobile = /^\d{10}$/.test(mobile)
-  if (!hasMobile) return "MISSING_CONTACT"
-  if (!input.propertyNo?.trim() && !input.parcelNo?.trim()) {
-    return "MISSING_PROPERTY_NUMBER"
-  }
-  if (input.plotAreaSqFt == null && input.totalBuiltUpAreaSqFt == null) {
-    return "MISSING_MEASUREMENT"
-  }
-  if (
-    hasMobile &&
-    (input.propertyNo || input.parcelNo) &&
-    (input.plotAreaSqFt || input.totalBuiltUpAreaSqFt)
-  ) {
-    return "COMPLETE"
-  }
-  return "NEEDS_REVIEW"
 }

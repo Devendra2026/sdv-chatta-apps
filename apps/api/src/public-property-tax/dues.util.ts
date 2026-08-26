@@ -2,7 +2,7 @@ import { taxConfigToRateTable } from "../reports/ward-tax-report-excel"
 import {
   computeFloorAlv,
   computeSurveyExportTax,
-  resolveUsageRateMult,
+  resolveAssessablePct,
   roundMoney,
   taxRateKey,
   toTaxNumber,
@@ -60,6 +60,7 @@ export type TaxConfigForDues = {
   id: string
   version: number
   assessablePct: { toString(): string }
+  commercialAssessablePct?: { toString(): string } | null
   propertyTaxPct: { toString(): string }
   waterTaxPct: { toString(): string }
   drainageTaxPct: { toString(): string }
@@ -93,6 +94,10 @@ export function buildNoticeFloorLines(
 ): NoticeFloorLine[] {
   const zoneCode = mapTaxRateZoneCode(survey.taxRateZone) ?? "BELOW_9M"
   const lines: NoticeFloorLine[] = []
+  const assessableOpts = {
+    residentialPct: rates.assessablePct,
+    commercialPct: rates.commercialAssessablePct,
+  }
 
   for (const floor of survey.floors) {
     const constructionCode = mapConstructionCode(
@@ -103,16 +108,16 @@ export function buildNoticeFloorLines(
       rates.rateByZoneAndConstruction.get(
         taxRateKey(zoneCode, constructionCode)
       ) ?? 0
-    const usageMult = resolveUsageRateMult(
-      floor.usageFactor,
+    const floorAssessablePct = resolveAssessablePct(
+      survey.propertyUse,
       floor.usageType,
-      survey.propertyUse
+      floor.usageFactor,
+      assessableOpts
     )
     const { assessableAlv, propertyTax } = computeFloorAlv(
       areaSqFt,
       annualRate,
-      usageMult,
-      rates.assessablePct,
+      floorAssessablePct,
       rates.propertyTaxPct
     )
     lines.push({
@@ -142,8 +147,7 @@ export function buildNoticeFloorLines(
     const { assessableAlv, propertyTax } = computeFloorAlv(
       area,
       annualRate,
-      1,
-      rates.assessablePct,
+      100,
       rates.propertyTaxPct
     )
     lines.push({
@@ -172,6 +176,8 @@ export function computePublicDuesPayload(
     constructionCode: mapConstructionCode(f.buildingType ?? f.usageType),
     usageResidential: isResidentialUsage(f.usageType, survey.propertyUse),
     areaSqFt: toTaxNumber(f.areaSqFt),
+    usageType: f.usageType,
+    usageFactor: f.usageFactor,
   }))
 
   const summary = computeSurveyExportTax({
@@ -224,6 +230,7 @@ export function computePublicDuesPayload(
       drainageTaxPct: rates.drainageTaxPct,
       penaltyPct: rates.penaltyPct,
       assessablePct: rates.assessablePct,
+      commercialAssessablePct: rates.commercialAssessablePct,
       propertyTax: summary.propertyTax,
       waterTax: summary.waterTax,
       drainageTax: summary.drainageTax,

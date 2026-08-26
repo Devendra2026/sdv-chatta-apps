@@ -24,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@workspace/ui/components/select"
-import { Textarea } from "@workspace/ui/components/textarea"
 import {
   buildSelectItems,
   buildStringSelectItems,
@@ -46,6 +45,8 @@ import {
   YES_NO,
   withCurrentOption,
 } from "@/lib/ward1-catalog"
+
+import { FloorsEditor } from "../_components/floors-editor"
 
 type FormValues = {
   surveyId: string
@@ -265,6 +266,8 @@ export default function SurveyFormPage() {
   })
 
   const control = form.control
+  const plotAreaSqFt = form.watch("plotAreaSqFt")
+  const plinthAreaSqFt = form.watch("plinthAreaSqFt")
 
   return (
     <form
@@ -277,7 +280,9 @@ export default function SurveyFormPage() {
             {isEdit ? "Edit Survey" : "Create Survey"}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Fields follow Ward 1.xlsx column order and pick-lists.
+            {isEdit
+              ? "Update survey details for this property."
+              : "Enter survey details for this property."}
           </p>
         </div>
         <div className="flex gap-2">
@@ -303,7 +308,7 @@ export default function SurveyFormPage() {
 
       <FormSection
         title="Survey & Owner"
-        description="Survey Id → Date of Survey → Owner Name → Owner Father Name → Mobile No → Ward Name → Is Slum."
+        description="Owner identity and survey metadata."
       >
         <TextField
           id="surveyId"
@@ -377,7 +382,10 @@ export default function SurveyFormPage() {
         />
       </FormSection>
 
-      <FormSection title="Parcel" description="Parcel No → Property No.">
+      <FormSection
+        title="Parcel"
+        description="Parcel and property identifiers."
+      >
         <TextField
           id="parcelNo"
           label="Parcel No"
@@ -392,7 +400,7 @@ export default function SurveyFormPage() {
 
       <FormSection
         title="Respondent"
-        description="Respondent Name → Respondent Relationship."
+        description="Person who provided survey answers."
       >
         <TextField
           id="respondentName"
@@ -408,10 +416,7 @@ export default function SurveyFormPage() {
         />
       </FormSection>
 
-      <FormSection
-        title="Address"
-        description="City → Pincode → House No → Street Name → Locality → Colony."
-      >
+      <FormSection title="Address" description="Property location details.">
         <CatalogField
           id="city"
           label="City"
@@ -449,7 +454,7 @@ export default function SurveyFormPage() {
 
       <FormSection
         title="Classification"
-        description="Tax Rate Zone → Property Ownership → Property Use → Commercial → Year of Construction → Situation → Road Type."
+        description="Tax and property classification."
       >
         <CatalogField
           id="taxRateZone"
@@ -504,19 +509,8 @@ export default function SurveyFormPage() {
 
       <FormSection
         title="Floors & Area"
-        description="Floors → Plot Area SqFt/SqMeter → Plinth Area SqFt/SqMeter → Total Built Up Area SqFt/SqMeter."
+        description="Floor summary and area measurements."
       >
-        <div className="sm:col-span-2 lg:col-span-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="floorsRaw">Floors</Label>
-            <Textarea
-              id="floorsRaw"
-              rows={5}
-              placeholder="Ground Floor - 408 SqFt - 37.90 SqMt || Usage Type - Residential || Usage Factor - Self Occupied || Usage Type - Pakka Building with R.C.C Roof or R.B. Roof"
-              {...form.register("floorsRaw")}
-            />
-          </div>
-        </div>
         <TextField
           id="plotAreaSqFt"
           label="Plot Area SqFt"
@@ -553,11 +547,31 @@ export default function SurveyFormPage() {
           inputMode="decimal"
           register={form.register("totalBuiltUpAreaSqMeter")}
         />
+        <Controller
+          name="floorsRaw"
+          control={control}
+          render={({ field }) => (
+            <FloorsEditor
+              value={field.value}
+              onChange={field.onChange}
+              plotAreaSqFt={plotAreaSqFt}
+              plinthAreaSqFt={plinthAreaSqFt}
+              onBuiltUpChange={(sqFt, sqM) => {
+                form.setValue("totalBuiltUpAreaSqFt", sqFt, {
+                  shouldDirty: true,
+                })
+                form.setValue("totalBuiltUpAreaSqMeter", sqM, {
+                  shouldDirty: true,
+                })
+              }}
+            />
+          )}
+        />
       </FormSection>
 
       <FormSection
         title="Municipal Services"
-        description="Is Muncipal Water Supply → Total Water Connection → Water Connection Id/Type → Toilet Type → Is Muncipal Waste Service → Alternate Water → Water Source."
+        description="Utilities and municipal service connections."
       >
         <CatalogField
           id="hasMunicipalWaterSupply"
@@ -607,96 +621,6 @@ export default function SurveyFormPage() {
         />
       </FormSection>
 
-      <details className="group rounded-2xl border bg-card p-4 shadow-(--shadow-premium) ring-1 ring-foreground/8">
-        <summary className="cursor-pointer text-sm font-medium">
-          Additional columns (Ward 2+ workbooks)
-        </summary>
-        <p className="mt-1 mb-4 text-sm text-muted-foreground">
-          Not in Ward 1.xlsx. Kept so Ward 2+ records can still be edited.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <TextField
-            id="remark"
-            label="Remark"
-            register={form.register("remark")}
-          />
-          <TextField
-            id="electricityId"
-            label="Electricity ID"
-            register={form.register("electricityId")}
-          />
-          <TextField
-            id="khasraNo"
-            label="Khasra No"
-            register={form.register("khasraNo")}
-          />
-          <TextField
-            id="registryNo"
-            label="Registry No"
-            register={form.register("registryNo")}
-          />
-          <TextField
-            id="constructedDate"
-            label="Constructed Date"
-            register={form.register("constructedDate")}
-          />
-          <TextField
-            id="ownerAadhaar"
-            label="Owner Aadhaar"
-            register={form.register("ownerAadhaar")}
-          />
-          <CatalogField
-            id="isSameAsProperty"
-            label="Same as property"
-            control={control}
-            name="isSameAsProperty"
-            options={YES_NO}
-          />
-          <TextField
-            id="presentHouseNo"
-            label="Present House No"
-            register={form.register("presentHouseNo")}
-          />
-          <TextField
-            id="presentStreetName"
-            label="Present Street Name"
-            register={form.register("presentStreetName")}
-          />
-          <TextField
-            id="presentLocality"
-            label="Present Locality"
-            register={form.register("presentLocality")}
-          />
-          <TextField
-            id="presentColony"
-            label="Present Colony"
-            register={form.register("presentColony")}
-          />
-          <TextField
-            id="presentCity"
-            label="Present City"
-            register={form.register("presentCity")}
-          />
-          <TextField
-            id="presentPincode"
-            label="Present Pincode"
-            register={form.register("presentPincode")}
-          />
-          <TextField
-            id="exemptionType"
-            label="Exemption Type"
-            register={form.register("exemptionType")}
-          />
-          <CatalogField
-            id="exemptionApplicable"
-            label="Exemption Applicable"
-            control={control}
-            name="exemptionApplicable"
-            options={YES_NO}
-          />
-        </div>
-      </details>
-
       <div className="sticky bottom-0 z-10 flex justify-end gap-2 border-t bg-background/90 py-3 backdrop-blur-sm">
         <Button
           type="submit"
@@ -716,14 +640,18 @@ function FormSection({
   children,
 }: {
   title: string
-  description: string
+  description?: string
   children: React.ReactNode
 }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+        <CardTitle className="text-base font-semibold">{title}</CardTitle>
+        {description ? (
+          <CardDescription className="text-sm text-muted-foreground">
+            {description}
+          </CardDescription>
+        ) : null}
       </CardHeader>
       <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {children}

@@ -11,6 +11,7 @@ function sampleRatesConfig(): TaxConfigForDues {
     id: "cfg1",
     version: 1,
     assessablePct: 80,
+    commercialAssessablePct: 80,
     propertyTaxPct: 10,
     waterTaxPct: 5,
     drainageTaxPct: 3,
@@ -78,6 +79,7 @@ describe("buildNoticeFloorLines", () => {
     }
     const rates = {
       assessablePct: 80,
+      commercialAssessablePct: 80,
       propertyTaxPct: 10,
       waterTaxPct: 5,
       drainageTaxPct: 3,

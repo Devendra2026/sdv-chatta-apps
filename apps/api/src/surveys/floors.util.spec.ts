@@ -1,4 +1,8 @@
-import { computeDataQuality, parseFloorsRaw } from "./floors.util"
+import {
+  computeDataQuality,
+  parseFloorsRaw,
+  serializeFloorsRaw,
+} from "./floors.util"
 
 describe("parseFloorsRaw", () => {
   it("parses multi-floor Chhata blobs", () => {
@@ -18,6 +22,41 @@ describe("parseFloorsRaw", () => {
   it("returns empty for blank input", () => {
     expect(parseFloorsRaw(null)).toEqual([])
     expect(parseFloorsRaw("")).toEqual([])
+  })
+})
+
+describe("serializeFloorsRaw", () => {
+  it("round-trips structured floors to Chhata blob", () => {
+    const raw = serializeFloorsRaw([
+      {
+        floorLabel: "Ground Floor",
+        areaSqFt: 408,
+        areaSqMeter: 37.9,
+        usageType: "Residential",
+        usageFactor: "Self Occupied",
+        buildingType: "Pakka Building with R.C.C Roof or R.B. Roof",
+      },
+      {
+        floorLabel: "First Floor",
+        areaSqFt: 140,
+        areaSqMeter: 13.01,
+        usageType: "Residential",
+        usageFactor: "Self Occupied",
+        buildingType: "Pakka Building with R.C.C Roof or R.B. Roof",
+      },
+    ])
+
+    const floors = parseFloorsRaw(raw)
+    expect(floors).toHaveLength(2)
+    expect(floors[0]?.floorLabel).toBe("Ground Floor")
+    expect(floors[0]?.areaSqFt).toBe(408)
+    expect(floors[0]?.usageType).toBe("Residential")
+    expect(floors[0]?.usageFactor).toBe("Self Occupied")
+    expect(floors[0]?.buildingType).toBe(
+      "Pakka Building with R.C.C Roof or R.B. Roof"
+    )
+    expect(floors[1]?.floorLabel).toBe("First Floor")
+    expect(floors[1]?.areaSqFt).toBe(140)
   })
 })
 

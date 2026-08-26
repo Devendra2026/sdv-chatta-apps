@@ -1,33 +1,62 @@
-/** Pure tax helpers for ward demand reports (ported from edutech validation). */
+/** Pure tax helpers for ward demand reports and citizen dues. */
 
 export function roundMoney(amount: number): number {
   return Math.round(amount * 100) / 100
 }
 
+export type AssessablePctOptions = {
+  residentialPct: number
+  commercialPct: number
+}
+
+/**
+ * Resolve assessable % from property use / floor usage.
+ * Residential → residentialPct; commercial/shop/godown → commercialPct;
+ * open land → 100.
+ */
+export function resolveAssessablePct(
+  propertyUse?: string | null,
+  usageType?: string | null,
+  usageFactor?: string | null,
+  options: AssessablePctOptions = { residentialPct: 80, commercialPct: 80 }
+): number {
+  const key =
+    `${usageFactor ?? ""} ${usageType ?? ""} ${propertyUse ?? ""}`.toLowerCase()
+  if (key.includes("open")) return 100
+  if (
+    key.includes("commercial") ||
+    key.includes("shop") ||
+    key.includes("godown")
+  ) {
+    return options.commercialPct
+  }
+  return options.residentialPct
+}
+
+/** @deprecated Prefer resolveAssessablePct — commercial no longer multiplies rate. */
 export function resolveUsageRateMult(
   usageFactor?: string | null,
   usageType?: string | null,
   propertyUse?: string | null
 ): number {
-  const key =
-    `${usageFactor ?? ""} ${usageType ?? ""} ${propertyUse ?? ""}`.toLowerCase()
-  if (
-    key.includes("commercial") ||
-    key.includes("shop") ||
-    key.includes("godown")
-  )
-    return 2
+  void usageFactor
+  void usageType
+  void propertyUse
   return 1
 }
 
+/**
+ * Floor / plot ALV and house (property) tax.
+ * Matrix rate is monthly ₹/sq ft; ×12 converts to annual gross ALV.
+ * Water and drainage use the same assessable ALV (so they include ×12).
+ */
 export function computeFloorAlv(
   areaSqFt: number,
-  annualRatePerSqFt: number,
-  usageMult: number,
+  monthlyRatePerSqFt: number,
   assessablePct: number,
   propertyTaxPct: number
 ): { grossAlv: number; assessableAlv: number; propertyTax: number } {
-  const grossAlv = roundMoney(areaSqFt * annualRatePerSqFt * usageMult)
+  const grossAlv = roundMoney(areaSqFt * monthlyRatePerSqFt * 12)
   const assessableAlv = roundMoney(grossAlv * (assessablePct / 100))
   const propertyTax = roundMoney(assessableAlv * (propertyTaxPct / 100))
   return { grossAlv, assessableAlv, propertyTax }
@@ -72,6 +101,7 @@ export function toTaxNumber(
 
 export type ExportTaxRateTable = {
   assessablePct: number
+  commercialAssessablePct: number
   propertyTaxPct: number
   waterTaxPct: number
   drainageTaxPct: number
@@ -97,6 +127,8 @@ export type ExportTaxFloorInput = {
   constructionCode: string
   usageResidential: boolean
   areaSqFt: number
+  usageType?: string | null
+  usageFactor?: string | null
 }
 
 export function computeSurveyExportTax(input: {
@@ -121,12 +153,18 @@ export function computeSurveyExportTax(input: {
   }
 
   const {
-    assessablePct,
+    assessablePct: residentialAssessablePct,
+    commercialAssessablePct,
     propertyTaxPct,
     waterTaxPct,
     drainageTaxPct,
     penaltyPct,
   } = input.rates
+
+  const assessableOpts: AssessablePctOptions = {
+    residentialPct: residentialAssessablePct,
+    commercialPct: commercialAssessablePct,
+  }
 
   const floorAreaBySlot = new Array<number>(8).fill(0)
   let propertyTax = 0
@@ -170,12 +208,16 @@ export function computeSurveyExportTax(input: {
       ) ?? 0
     if (annualRate <= 0) continue
 
-    const usageMult = resolveUsageRateMult(null, null, input.propertyUse)
+    const floorAssessablePct = resolveAssessablePct(
+      input.propertyUse,
+      floor.usageType,
+      floor.usageFactor,
+      assessableOpts
+    )
     const { assessableAlv, propertyTax: floorTax } = computeFloorAlv(
       floor.areaSqFt,
       annualRate,
-      usageMult,
-      assessablePct,
+      floorAssessablePct,
       propertyTaxPct
     )
     propertyTax = roundMoney(propertyTax + floorTax)
@@ -208,12 +250,16 @@ export function computeSurveyExportTax(input: {
       input.rates.anyRateByZone.get(zoneCode) ??
       0
     if (annualRate > 0 && area > 0) {
-      const usageMult = resolveUsageRateMult(null, null, input.propertyUse)
+      const floorAssessablePct = resolveAssessablePct(
+        input.propertyUse,
+        null,
+        null,
+        assessableOpts
+      )
       const { assessableAlv, propertyTax: floorTax } = computeFloorAlv(
         area,
         annualRate,
-        usageMult,
-        assessablePct,
+        floorAssessablePct,
         propertyTaxPct
       )
       propertyTax = floorTax
@@ -221,7 +267,9 @@ export function computeSurveyExportTax(input: {
     }
   }
 
-  const includeWater = !openLand && input.hasMunicipalWater !== false
+  // Water and drainage apply for all built properties; only open land is exempt.
+  const includeWater = !openLand
+  const includeDrainage = !openLand
   const { waterTax, drainageTax, penalty, totalAnnualDemand } =
     computeDemandTotals(
       totalAssessableAlv,
@@ -230,7 +278,7 @@ export function computeSurveyExportTax(input: {
       drainageTaxPct,
       penaltyPct,
       includeWater,
-      !openLand
+      includeDrainage
     )
 
   let plotRate: number | string = "-"
@@ -248,8 +296,7 @@ export function computeSurveyExportTax(input: {
       const { propertyTax: pt } = computeFloorAlv(
         plotArea,
         annualRate,
-        1,
-        assessablePct,
+        100,
         propertyTaxPct
       )
       plotRate = annualRate

@@ -151,6 +151,7 @@ export class TaxConfigsService {
         drainageTaxPct: dto.drainageTaxPct,
         penaltyPct: dto.penaltyPct,
         assessablePct: dto.assessablePct,
+        commercialAssessablePct: dto.commercialAssessablePct,
         status: "DRAFT",
       },
       include: this.include,
@@ -247,6 +248,7 @@ export class TaxConfigsService {
           drainageTaxPct: toNumber(source.drainageTaxPct),
           penaltyPct: toNumber(source.penaltyPct),
           assessablePct: toNumber(source.assessablePct),
+          commercialAssessablePct: toNumber(source.commercialAssessablePct),
         },
         actorId
       )
@@ -265,6 +267,7 @@ export class TaxConfigsService {
     )
     const annualRate = cell ? toNumber(cell.annualRatePerSqFt) : 0
     const assessablePct = toNumber(config.assessablePct)
+    const commercialAssessablePct = toNumber(config.commercialAssessablePct)
     const propertyTaxPct = toNumber(config.propertyTaxPct)
     const waterTaxPct = toNumber(config.waterTaxPct)
     const drainageTaxPct = toNumber(config.drainageTaxPct)
@@ -273,7 +276,6 @@ export class TaxConfigsService {
     const { grossAlv, assessableAlv, propertyTax } = computeFloorAlv(
       dto.areaSqFt,
       annualRate,
-      1,
       assessablePct,
       propertyTaxPct
     )
@@ -293,6 +295,7 @@ export class TaxConfigsService {
       rates: {
         annualRate,
         assessablePct,
+        commercialAssessablePct,
         propertyTaxPct,
         waterTaxPct,
         drainageTaxPct,
@@ -332,6 +335,7 @@ export class TaxConfigsService {
         drainageTaxPct: toNumber(config.drainageTaxPct),
         penaltyPct: toNumber(config.penaltyPct),
         assessablePct: toNumber(config.assessablePct),
+        commercialAssessablePct: toNumber(config.commercialAssessablePct),
       },
       cells: config.cells.map((c) => ({
         roadWidthEntryId: c.roadWidthEntryId,

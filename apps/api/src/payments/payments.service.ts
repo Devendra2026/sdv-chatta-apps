@@ -114,11 +114,37 @@ export class PaymentsService {
     return { payment: updated, gateway: result }
   }
 
+  private static readonly MODES_REQUIRING_REFERENCE = new Set<PaymentMode>([
+    PaymentMode.CHEQUE,
+    PaymentMode.DD,
+    PaymentMode.UPI_MANUAL,
+  ])
+
+  private readonly receiptSurveySelect = {
+    id: true,
+    surveyId: true,
+    ownerName: true,
+    ownerFatherName: true,
+    mobile: true,
+    propertyNo: true,
+    parcelNo: true,
+    houseNo: true,
+    streetName: true,
+    locality: true,
+    colony: true,
+    city: true,
+    pincode: true,
+    propertyUse: true,
+    taxRateZone: true,
+    roadType: true,
+    wardId: true,
+  } as const
+
   async createOffline(
     input: {
       amount: number
       paymentMode: PaymentMode
-      surveyId?: string
+      surveyId: string
       wardId?: string
       payerName?: string
       payerMobile?: string
@@ -132,37 +158,220 @@ export class PaymentsService {
     if (input.paymentMode === PaymentMode.ONLINE) {
       throw new BadRequestException("Use online endpoint for gateway payments")
     }
-    const paymentReference = `OFF-${Date.now()}-${randomUUID().slice(0, 8)}`
-    const payment = await this.prisma.payment.create({
-      data: {
-        paymentReference,
-        amount: input.amount,
-        paymentMode: input.paymentMode,
-        status: PaymentStatus.SUCCESS,
-        surveyId: input.surveyId,
-        wardId: input.wardId,
-        payerName: input.payerName,
-        payerMobile: input.payerMobile,
-        receiptNumber: input.receiptNumber ?? paymentReference,
-        collectionDate: input.collectionDate
-          ? new Date(input.collectionDate)
-          : new Date(),
-        chequeDdReference: input.chequeDdReference,
-        remarks: input.remarks,
-        collectedById: user.id,
-        refundableAmount: input.amount,
-      },
+    if (!input.surveyId?.trim()) {
+      throw new BadRequestException({
+        code: "SURVEY_REQUIRED",
+        message: "Select a property/survey before recording offline payment",
+      })
+    }
+    if (
+      PaymentsService.MODES_REQUIRING_REFERENCE.has(input.paymentMode) &&
+      !input.chequeDdReference?.trim()
+    ) {
+      throw new BadRequestException({
+        code: "REFERENCE_REQUIRED",
+        message:
+          "Cheque / DD / UPI reference is required for this payment mode",
+      })
+    }
+
+    const survey = await this.prisma.survey.findUnique({
+      where: { id: input.surveyId },
+      select: this.receiptSurveySelect,
     })
+    if (!survey) {
+      throw new NotFoundException({
+        code: "SURVEY_NOT_FOUND",
+        message: "Property/survey was not found",
+      })
+    }
+
+    const wardId = input.wardId?.trim() || survey.wardId
+    const paymentReference = `OFF-${Date.now()}-${randomUUID().slice(0, 8)}`
+    const receiptNumber = input.receiptNumber?.trim() || paymentReference
+
+    let payment
+    try {
+      payment = await this.prisma.payment.create({
+        data: {
+          paymentReference,
+          amount: input.amount,
+          paymentMode: input.paymentMode,
+          status: PaymentStatus.SUCCESS,
+          surveyId: survey.id,
+          wardId,
+          payerName: input.payerName?.trim() || survey.ownerName,
+          payerMobile: input.payerMobile?.trim() || survey.mobile,
+          receiptNumber,
+          collectionDate: input.collectionDate
+            ? new Date(input.collectionDate)
+            : new Date(),
+          chequeDdReference: input.chequeDdReference?.trim() || null,
+          remarks: input.remarks?.trim() || null,
+          collectedById: user.id,
+          refundableAmount: input.amount,
+        },
+        include: {
+          survey: { select: this.receiptSurveySelect },
+          ward: { select: { id: true, number: true, name: true, code: true } },
+          collectedBy: { select: { id: true, name: true } },
+        },
+      })
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        throw new BadRequestException({
+          code: "RECEIPT_NUMBER_EXISTS",
+          message:
+            "Receipt number already exists. Enter a different receipt number.",
+        })
+      }
+      throw err
+    }
 
     await this.audit.log({
       action: "PAYMENT_OFFLINE_CREATED",
       entity: "Payment",
       entityId: payment.id,
       actorId: user.id,
-      newValue: { paymentReference, amount: input.amount },
+      newValue: {
+        paymentReference,
+        amount: input.amount,
+        surveyId: survey.id,
+        receiptNumber,
+      },
     })
 
-    return payment
+    return this.toStaffReceipt(payment)
+  }
+
+  async getStaffReceipt(paymentId: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        survey: { select: this.receiptSurveySelect },
+        ward: { select: { id: true, number: true, name: true, code: true } },
+        collectedBy: { select: { id: true, name: true } },
+      },
+    })
+    if (!payment) {
+      throw new NotFoundException({
+        code: "PAYMENT_NOT_FOUND",
+        message: "Payment was not found",
+      })
+    }
+    if (payment.status !== PaymentStatus.SUCCESS) {
+      throw new BadRequestException({
+        code: "RECEIPT_NOT_AVAILABLE",
+        message: "Receipt is only available for successful payments",
+      })
+    }
+    return this.toStaffReceipt(payment)
+  }
+
+  private toStaffReceipt(payment: {
+    id: string
+    paymentReference: string
+    receiptNumber: string | null
+    amount: Prisma.Decimal | number
+    currency: string
+    paymentMode: PaymentMode
+    status: PaymentStatus
+    payerName: string | null
+    payerMobile: string | null
+    chequeDdReference: string | null
+    remarks: string | null
+    collectionDate: Date | null
+    createdAt: Date
+    survey: {
+      id: string
+      surveyId: string
+      ownerName: string | null
+      ownerFatherName: string | null
+      mobile: string | null
+      propertyNo: string | null
+      parcelNo: string | null
+      houseNo: string | null
+      streetName: string | null
+      locality: string | null
+      colony: string | null
+      city: string | null
+      pincode: string | null
+      propertyUse: string | null
+      taxRateZone: string | null
+      roadType: string | null
+      wardId: string
+    } | null
+    ward: {
+      id: string
+      number: number
+      name: string
+      code: string
+    } | null
+    collectedBy: { id: string; name: string } | null
+  }) {
+    const survey = payment.survey
+    const addressParts = survey
+      ? [
+          survey.houseNo,
+          survey.streetName,
+          survey.locality,
+          survey.colony,
+          survey.city ?? "Nagar Panchayat Chhata",
+          survey.pincode,
+        ].filter(Boolean)
+      : []
+
+    return {
+      paymentId: payment.id,
+      paymentReference: payment.paymentReference,
+      receiptNumber: payment.receiptNumber ?? payment.paymentReference,
+      amount: Number(payment.amount),
+      currency: payment.currency,
+      paymentMode: payment.paymentMode,
+      status: payment.status,
+      payerName: payment.payerName,
+      payerMobile: payment.payerMobile,
+      chequeDdReference: payment.chequeDdReference,
+      remarks: payment.remarks,
+      collectionDate: (
+        payment.collectionDate ?? payment.createdAt
+      ).toISOString(),
+      collectedBy: payment.collectedBy
+        ? { id: payment.collectedBy.id, name: payment.collectedBy.name }
+        : null,
+      survey: survey
+        ? {
+            id: survey.id,
+            surveyId: survey.surveyId,
+            ownerName: survey.ownerName,
+            ownerFatherName: survey.ownerFatherName,
+            mobile: survey.mobile,
+            propertyNo: survey.propertyNo,
+            parcelNo: survey.parcelNo,
+            houseNo: survey.houseNo,
+            streetName: survey.streetName,
+            locality: survey.locality,
+            colony: survey.colony,
+            city: survey.city,
+            pincode: survey.pincode,
+            propertyUse: survey.propertyUse,
+            taxRateZone: survey.taxRateZone,
+            roadType: survey.roadType,
+            address: addressParts.length > 0 ? addressParts.join(", ") : null,
+          }
+        : null,
+      ward: payment.ward
+        ? {
+            id: payment.ward.id,
+            number: payment.ward.number,
+            name: payment.ward.name,
+            code: payment.ward.code,
+          }
+        : null,
+    }
   }
 
   async handleCallback(payload: Record<string, unknown>) {

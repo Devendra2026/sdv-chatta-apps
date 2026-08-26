@@ -29,7 +29,7 @@ export function DemandNoticeView({ dues }: { dues: PublicPropertyTaxDues }) {
   const totalFloorTax = floors.reduce((s, f) => s + f.tax, 0)
   const baseRateLabel =
     tax.annualBaseRate != null && tax.annualBaseRate > 0
-      ? `₹${money(tax.annualBaseRate)}/sqft/yr`
+      ? `₹${money(tax.annualBaseRate)}/sqft/mo`
       : "—"
 
   return (

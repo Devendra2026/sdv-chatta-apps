@@ -40,6 +40,12 @@ export class UpdateTaxConfigParamsDto {
   assessablePct?: number
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  commercialAssessablePct?: number
+
+  @IsOptional()
   @IsString()
   reason?: string
 }

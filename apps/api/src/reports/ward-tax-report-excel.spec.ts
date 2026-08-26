@@ -28,6 +28,7 @@ describe("ward-tax-report-excel", () => {
   it("builds data row with total tax column", () => {
     const rates: ExportTaxRateTable = {
       assessablePct: 80,
+      commercialAssessablePct: 80,
       propertyTaxPct: 10,
       waterTaxPct: 0,
       drainageTaxPct: 0,

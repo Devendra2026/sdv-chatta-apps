@@ -466,24 +466,25 @@ model ReferenceEntry {
 }
 
 model TaxConfig {
-  id               String          @id @default(cuid())
-  wardId           String
-  ward             Ward            @relation(fields: [wardId], references: [id], onDelete: Cascade)
-  assessmentYearId String
-  assessmentYear   ReferenceEntry  @relation("TaxConfigAssessmentYear", fields: [assessmentYearId], references: [id])
-  status           TaxConfigStatus @default(DRAFT)
-  version          Int             @default(1)
-  effectiveFrom    DateTime?
-  propertyTaxPct   Decimal         @default(10) @db.Decimal(8, 4)
-  waterTaxPct      Decimal         @default(0) @db.Decimal(8, 4)
-  drainageTaxPct   Decimal         @default(0) @db.Decimal(8, 4)
-  penaltyPct       Decimal         @default(0) @db.Decimal(8, 4)
-  assessablePct    Decimal         @default(80) @db.Decimal(8, 4)
-  publishedAt      DateTime?
-  publishedById    String?
-  changeReason     String?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  id                      String          @id @default(cuid())
+  wardId                  String
+  ward                    Ward            @relation(fields: [wardId], references: [id], onDelete: Cascade)
+  assessmentYearId        String
+  assessmentYear          ReferenceEntry  @relation("TaxConfigAssessmentYear", fields: [assessmentYearId], references: [id])
+  status                  TaxConfigStatus @default(DRAFT)
+  version                 Int             @default(1)
+  effectiveFrom           DateTime?
+  propertyTaxPct          Decimal         @default(10) @db.Decimal(8, 4)
+  waterTaxPct             Decimal         @default(7.5) @db.Decimal(8, 4)
+  drainageTaxPct          Decimal         @default(2.5) @db.Decimal(8, 4)
+  penaltyPct              Decimal         @default(0) @db.Decimal(8, 4)
+  assessablePct           Decimal         @default(80) @db.Decimal(8, 4)
+  commercialAssessablePct Decimal         @default(80) @db.Decimal(8, 4)
+  publishedAt             DateTime?
+  publishedById           String?
+  changeReason            String?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
 
   cells    TaxRateCell[]
   versions TaxConfigVersion[]
