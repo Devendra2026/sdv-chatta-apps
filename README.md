@@ -42,6 +42,26 @@ Local Docker ports (avoids clashes with other stacks like `api-survey-local`):
 
 Default admin (seed): `sikarwar2010@gmail.com` / `tarun@0446`
 
+## Production (Dokploy)
+
+Dokploy owns Traefik, TLS, and the Environment tab. Use `docker-compose.prod.yml` (no Caddy, no host ports).
+
+1. Create a **Compose** service. Compose path: `docker-compose.prod.yml`.
+2. Advanced → enable **Isolated Deployments**.
+3. Environment → paste `.env.production.example`, then set real hosts and secrets. Dokploy writes this as `.env`.
+4. Domains (HTTPS / Let's Encrypt):
+
+| Service  | Port   | Host                                               |
+| -------- | ------ | -------------------------------------------------- |
+| `web`    | `3001` | citizen site (`PUBLIC_WEB_URL`)                    |
+| `portal` | `3000` | admin portal (`PUBLIC_PORTAL_URL`)                 |
+| `minio`  | `9000` | object API (`PUBLIC_MINIO_HOST`) — not the console |
+
+5. Google OAuth redirect: `{PUBLIC_PORTAL_URL}/api/auth/callback/google`.
+6. Do not map domains to Postgres, Redis, or MinIO console (`9001`).
+
+`DATABASE_URL` / `REDIS_URL` / internal MinIO are set in Compose from `POSTGRES_*`, `REDIS_PASSWORD`, and `MINIO_*`. Do not point them at `localhost`.
+
 ## Fixtures
 
 - Survey Excel: `fixtures/survey/` (copied from source; originals never modified)
