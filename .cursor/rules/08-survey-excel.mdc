@@ -12,7 +12,7 @@ Support CRUD, search, filter, sort, pagination, bulk, import, export, attachment
 
 ## Excel import flow
 
-Upload → validate → column detect/map → preview → row validate → duplicates → confirm → background job → Postgres → MinIO attachments → import report.
+Upload → validate → column detect/map → preview → row validate → duplicates → confirm → background job → Postgres → disk attachments → import report.
 
 Always report: total, success, failed, warnings, duplicates, inserted, updated, skipped. Never silently discard data.
 
@@ -22,7 +22,7 @@ Real business workbooks: do not overwrite source files, silently transform/drop 
 
 ## Embedded images
 
-Excel → extract → MinIO → `SurveyAttachment` (or equivalent) → associate with survey. If association is unsafe, **warn** — do not guess.
+Excel → extract → disk (`STORAGE_DIR`) → `SurveyAttachment` (or equivalent) → associate with survey. If association is unsafe, **warn** — do not guess.
 
 ## Reports
 

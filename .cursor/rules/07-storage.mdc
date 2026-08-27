@@ -1,0 +1,25 @@
+---
+description: Local disk file storage, signed download URLs, StorageService abstraction
+globs: apps/api/**/*,**/storage/**/*
+alwaysApply: false
+---
+
+# File storage
+
+Survey imports, exports, and attachments are stored on local disk. Do not add a separate object-storage service unless there is an explicit product decision.
+
+## Abstraction
+
+Reuse or extend a single storage service:
+
+```text
+upload · download · delete · exists · getSignedUrl
+```
+
+Metadata in PostgreSQL; binary objects under `STORAGE_DIR` (default `uploads/`). Never store large image binaries in Postgres.
+
+Signed download URLs are HMAC links served by `GET /api/v1/files`. Do not expose the uploads directory publicly.
+
+## Uploads
+
+Validate MIME, size limits, and filenames. Never trust client-provided names or content types.

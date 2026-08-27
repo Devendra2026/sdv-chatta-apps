@@ -40,7 +40,6 @@
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
     "ioredis": "^6.0.0",
-    "minio": "^8.0.7",
     "multer": "^2.2.0",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",

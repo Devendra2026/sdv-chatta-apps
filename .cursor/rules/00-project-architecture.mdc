@@ -16,7 +16,6 @@ Turborepo + pnpm
 ├── apps/web/        # Next.js app (if present — do not invent a second stack)
 ├── packages/ui/     # Shared UI (extend; do not fork)
 ├── PostgreSQL + Prisma
-├── MinIO
 ├── Better Auth
 └── Docker
 ```
@@ -31,7 +30,7 @@ Inspect → Understand → Reuse → Extend → Test
 
 ## Core domains (keep modular)
 
-Survey, Ward, Excel import/export, MinIO files, RBAC, Users, Roles, Permissions, Reports, Payments, Offline collection, Gateway, Refunds, Settlements, Audit.
+Survey, Ward, Excel import/export, local file storage, RBAC, Users, Roles, Permissions, Reports, Payments, Offline collection, Gateway, Refunds, Settlements, Audit.
 
 ## Boundaries
 

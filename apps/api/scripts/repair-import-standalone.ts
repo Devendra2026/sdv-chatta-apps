@@ -7,7 +7,8 @@ import "dotenv/config"
 
 import { DuplicateStrategy, PrismaClient } from "@prisma/client"
 import ExcelJS from "exceljs"
-import * as Minio from "minio"
+import { readFile } from "node:fs/promises"
+import path from "node:path"
 
 import {
   cell,
@@ -24,32 +25,22 @@ import {
 import { computeDataQuality, parseFloorsRaw } from "../src/surveys/floors.util"
 
 const prisma = new PrismaClient()
-
-function storageClient() {
-  return new Minio.Client({
-    endPoint: process.env.MINIO_ENDPOINT ?? "localhost",
-    port: Number(process.env.MINIO_PORT ?? 9010),
-    useSSL: process.env.MINIO_USE_SSL === "true",
-    accessKey: process.env.MINIO_ACCESS_KEY ?? "minioadmin",
-    secretKey: process.env.MINIO_SECRET_KEY ?? "minioadmin",
-  })
-}
+const storageRoot = path.resolve(process.env.STORAGE_DIR ?? "uploads")
 
 async function getObject(key: string): Promise<Buffer> {
-  const client = storageClient()
-  const bucket = process.env.MINIO_BUCKET ?? "chhata-surveys"
-  const stream = await client.getObject(bucket, key)
-  const chunks: Buffer[] = []
-  for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  const normalized = key.replaceAll("\\", "/").replace(/^\/+/, "")
+  if (!normalized || normalized.includes("..")) {
+    throw new Error("Invalid object key")
   }
-  return Buffer.concat(chunks)
+  return readFile(path.join(storageRoot, normalized))
 }
 
 async function main() {
   const jobId = process.argv[2]
   if (!jobId) {
-    console.error("Usage: tsx scripts/repair-import-standalone.ts <importJobId>")
+    console.error(
+      "Usage: tsx scripts/repair-import-standalone.ts <importJobId>"
+    )
     process.exit(1)
   }
 
@@ -100,7 +91,10 @@ async function main() {
       const floorsRaw = cell(values, map.floorsRaw)
       const floors = parseFloorsRaw(floorsRaw)
       const parcelNo = normalizeParcelNo(cell(values, map.parcelNo), surveyId)
-      const propertyNo = normalizePropertyNo(cell(values, map.propertyNo), surveyId)
+      const propertyNo = normalizePropertyNo(
+        cell(values, map.propertyNo),
+        surveyId
+      )
 
       const payload = {
         wardId: ward.id,
@@ -113,7 +107,8 @@ async function main() {
         parcelNo,
         propertyNo,
         respondentName: cell(values, map.respondentName) || null,
-        respondentRelationship: cell(values, map.respondentRelationship) || null,
+        respondentRelationship:
+          cell(values, map.respondentRelationship) || null,
         city: cell(values, map.city) || null,
         pincode: cell(values, map.pincode) || null,
         houseNo: cell(values, map.houseNo) || null,
@@ -132,23 +127,33 @@ async function main() {
         plotAreaSqMeter: parseNumber(cell(values, map.plotAreaSqMeter)),
         plinthAreaSqFt: parseNumber(cell(values, map.plinthAreaSqFt)),
         plinthAreaSqMeter: parseNumber(cell(values, map.plinthAreaSqMeter)),
-        totalBuiltUpAreaSqFt: parseNumber(cell(values, map.totalBuiltUpAreaSqFt)),
+        totalBuiltUpAreaSqFt: parseNumber(
+          cell(values, map.totalBuiltUpAreaSqFt)
+        ),
         totalBuiltUpAreaSqMeter: parseNumber(
           cell(values, map.totalBuiltUpAreaSqMeter)
         ),
-        hasMunicipalWaterSupply: parseBool(cell(values, map.hasMunicipalWaterSupply)),
+        hasMunicipalWaterSupply: parseBool(
+          cell(values, map.hasMunicipalWaterSupply)
+        ),
         hasAlternateWater: parseBool(cell(values, map.hasAlternateWater)),
         waterSourceType: cell(values, map.waterSourceType) || null,
-        totalWaterConnections: parseNumber(cell(values, map.totalWaterConnections)),
+        totalWaterConnections: parseNumber(
+          cell(values, map.totalWaterConnections)
+        ),
         waterConnectionIdType: cell(values, map.waterConnectionIdType) || null,
         toiletType: cell(values, map.toiletType) || null,
-        hasMunicipalWasteService: parseBool(cell(values, map.hasMunicipalWasteService)),
+        hasMunicipalWasteService: parseBool(
+          cell(values, map.hasMunicipalWasteService)
+        ),
         dataQualityStatus: computeDataQuality({
           mobile,
           propertyNo,
           parcelNo,
           plotAreaSqFt: parseNumber(cell(values, map.plotAreaSqFt)),
-          totalBuiltUpAreaSqFt: parseNumber(cell(values, map.totalBuiltUpAreaSqFt)),
+          totalBuiltUpAreaSqFt: parseNumber(
+            cell(values, map.totalBuiltUpAreaSqFt)
+          ),
         }),
         status: "ACTIVE" as const,
       }

@@ -15,7 +15,7 @@ No hard-coded secrets. Maintain `.env.example` without real credentials. Never c
 
 ## Docker
 
-Use existing Docker for Postgres, MinIO, API, portal. Do not replace compose without need.
+Use existing Docker for Postgres, Redis, API, portal. Do not replace compose without need.
 
 ## Testing (minimum for important features)
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { Building2, ChevronDown } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -137,8 +137,15 @@ export function AppSidebar() {
             "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:shadow-none"
           )}
         >
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-            <Building2 className="size-4" />
+          <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-black/10 group-data-[collapsible=icon]:size-8">
+            {/* eslint-disable-next-line @next/next/no-img-element -- official seal from /public */}
+            <img
+              src="/branding/up-government-logo.png"
+              alt="Uttar Pradesh Government"
+              width={40}
+              height={40}
+              className="size-full object-contain p-0.5"
+            />
           </div>
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
             <p className="truncate text-sm font-semibold tracking-tight text-foreground">

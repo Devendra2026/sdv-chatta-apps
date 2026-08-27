@@ -35,7 +35,9 @@ export class SurveysService {
       })
     }
 
-    const ward = await this.prisma.ward.findUnique({ where: { id: dto.wardId } })
+    const ward = await this.prisma.ward.findUnique({
+      where: { id: dto.wardId },
+    })
     if (!ward) {
       throw new NotFoundException({
         code: "WARD_NOT_FOUND",
@@ -105,7 +107,8 @@ export class SurveysService {
     const sortBy = sortable.has(query.sortBy ?? "")
       ? (query.sortBy as string)
       : "parcelNo"
-    const sortOrder: Prisma.SortOrder = query.sortOrder === "desc" ? "desc" : "asc"
+    const sortOrder: Prisma.SortOrder =
+      query.sortOrder === "desc" ? "desc" : "asc"
 
     const orderBy: Prisma.SurveyOrderByWithRelationInput[] =
       sortBy === "parcelNo"
@@ -155,7 +158,11 @@ export class SurveysService {
     return survey
   }
 
-  async findNeighbors(survey: { id: string; wardId: string; surveyId: string }) {
+  async findNeighbors(survey: {
+    id: string
+    wardId: string
+    surveyId: string
+  }) {
     const whereBase = {
       wardId: survey.wardId,
       deletedAt: null,
@@ -290,17 +297,22 @@ export class SurveysService {
 
     if (query.wardId) where.wardId = query.wardId
     if (query.propertyUse) where.propertyUse = query.propertyUse
-    if (query.propertyOwnership) where.propertyOwnership = query.propertyOwnership
+    if (query.propertyOwnership)
+      where.propertyOwnership = query.propertyOwnership
     if (query.taxRateZone) where.taxRateZone = query.taxRateZone
-    if (query.locality) where.locality = { contains: query.locality, mode: "insensitive" }
-    if (query.colony) where.colony = { contains: query.colony, mode: "insensitive" }
+    if (query.locality)
+      where.locality = { contains: query.locality, mode: "insensitive" }
+    if (query.colony)
+      where.colony = { contains: query.colony, mode: "insensitive" }
     if (typeof query.isSlum === "boolean") where.isSlum = query.isSlum
     if (query.commercial) where.commercial = query.commercial
-    if (query.dataQualityStatus) where.dataQualityStatus = query.dataQualityStatus
+    if (query.dataQualityStatus)
+      where.dataQualityStatus = query.dataQualityStatus
 
     if (query.surveyedFrom || query.surveyedTo) {
       where.surveyedAt = {}
-      if (query.surveyedFrom) where.surveyedAt.gte = new Date(query.surveyedFrom)
+      if (query.surveyedFrom)
+        where.surveyedAt.gte = new Date(query.surveyedFrom)
       if (query.surveyedTo) where.surveyedAt.lte = new Date(query.surveyedTo)
     }
 
@@ -320,7 +332,9 @@ export class SurveysService {
     return where
   }
 
-  private toPrismaData(dto: Partial<CreateSurveyDto>): Prisma.SurveyUncheckedCreateInput {
+  private toPrismaData(
+    dto: Partial<CreateSurveyDto>
+  ): Prisma.SurveyUncheckedCreateInput {
     return {
       surveyId: dto.surveyId!,
       wardId: dto.wardId!,
@@ -402,9 +416,9 @@ export class SurveysService {
     }
   }
 
-  async withAttachmentUrls<T extends { attachments?: Array<{ objectKey: string; mimeType: string }> }>(
-    survey: T
-  ) {
+  async withAttachmentUrls<
+    T extends { attachments?: Array<{ objectKey: string; mimeType: string }> },
+  >(survey: T) {
     if (!survey.attachments?.length) return survey
     const attachments = await Promise.all(
       survey.attachments.map(async (a) => {
@@ -436,7 +450,7 @@ export class SurveysService {
         originalFileName: file.originalname,
         mimeType: file.mimetype,
         size: file.size,
-        bucket: process.env.MINIO_BUCKET ?? "chhata-surveys",
+        bucket: process.env.STORAGE_NAME ?? "local",
         uploadedById: user.id,
       },
     })
@@ -447,7 +461,9 @@ export class SurveysService {
       actorId: user.id,
       newValue: { fileName: file.originalname, mimeType: file.mimetype },
     })
-    const url = await this.storage.getSignedUrl(objectKey, 600).catch(() => null)
+    const url = await this.storage
+      .getSignedUrl(objectKey, 600)
+      .catch(() => null)
     return { ...attachment, url }
   }
 

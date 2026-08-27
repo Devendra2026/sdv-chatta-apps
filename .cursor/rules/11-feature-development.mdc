@@ -22,11 +22,11 @@ Repository architecture and conventions win over assumptions. Inspect before cod
 
 ## Never
 
-- Rewrite stack (Prisma, Better Auth, Postgres, MinIO, RBAC, API clients)
+- Rewrite stack (Prisma, Better Auth, Postgres, RBAC, API clients)
 - Duplicate utilities/services/guards/hooks with slightly different names
 - Bypass authz/validation; hardcode secrets; invent API/DB conventions
 - Add packages without checking existing deps; claim done without validation
 
 ## Definition of done
 
-Fits existing architecture · patterns reused · backend + frontend complete · auth + RBAC enforced server-side · Prisma/MinIO correct when needed · validation/errors follow project norms · tests for important paths · lint/typecheck/tests pass for changed scope · no unrelated diffs
+Fits existing architecture · patterns reused · backend + frontend complete · auth + RBAC enforced server-side · Prisma/file storage correct when needed · validation/errors follow project norms · tests for important paths · lint/typecheck/tests pass for changed scope · no unrelated diffs

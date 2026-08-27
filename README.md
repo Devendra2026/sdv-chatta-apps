@@ -5,7 +5,7 @@ Municipal survey, property-data, reporting, RBAC, and payment platform for **Nag
 ## Stack
 
 - `apps/portal` — Next.js citizen/admin portal
-- `apps/api` — NestJS HTTP API (Prisma, Better Auth, BullMQ, MinIO, Atom NDPS)
+- `apps/api` — NestJS HTTP API (Prisma, Better Auth, BullMQ, local file storage, Atom NDPS)
 - `apps/web` — unused scaffold (do not use for product UI)
 - `packages/ui` — shared shadcn/Base UI components
 - `packages/types` / `packages/api-client` — shared types and fetch client
@@ -33,12 +33,10 @@ pnpm dev:portal
 
 Local Docker ports (avoids clashes with other stacks like `api-survey-local`):
 
-| Service       | Host port |
-| ------------- | --------- |
-| Postgres      | `5433`    |
-| Redis         | `6380`    |
-| MinIO API     | `9010`    |
-| MinIO console | `9011`    |
+| Service  | Host port |
+| -------- | --------- |
+| Postgres | `5433`    |
+| Redis    | `6380`    |
 
 Default admin (seed): `sikarwar2010@gmail.com` / `tarun@0446`
 
@@ -51,16 +49,15 @@ Dokploy owns Traefik, TLS, and the Environment tab. Use `docker-compose.prod.yml
 3. Environment → paste `.env.production.example`, then set real hosts and secrets. Dokploy writes this as `.env`.
 4. Domains (HTTPS / Let's Encrypt):
 
-| Service  | Port   | Host                                               |
-| -------- | ------ | -------------------------------------------------- |
-| `web`    | `3001` | citizen site (`PUBLIC_WEB_URL`)                    |
-| `portal` | `3000` | admin portal (`PUBLIC_PORTAL_URL`)                 |
-| `minio`  | `9000` | object API (`PUBLIC_MINIO_HOST`) — not the console |
+| Service  | Port   | Host                               |
+| -------- | ------ | ---------------------------------- |
+| `web`    | `3001` | citizen site (`PUBLIC_WEB_URL`)    |
+| `portal` | `3000` | admin portal (`PUBLIC_PORTAL_URL`) |
 
 5. Google OAuth redirect: `{PUBLIC_PORTAL_URL}/api/auth/callback/google`.
-6. Do not map domains to Postgres, Redis, or MinIO console (`9001`).
+6. Do not map domains to Postgres or Redis.
 
-`DATABASE_URL` / `REDIS_URL` / internal MinIO are set in Compose from `POSTGRES_*`, `REDIS_PASSWORD`, and `MINIO_*`. Do not point them at `localhost`.
+`DATABASE_URL` / `REDIS_URL` are set in Compose from `POSTGRES_*` and `REDIS_PASSWORD`. Do not point them at `localhost`. Survey imports and attachments are stored on the `chhata_uploads` volume (`STORAGE_DIR=/app/uploads`).
 
 ## Fixtures
 

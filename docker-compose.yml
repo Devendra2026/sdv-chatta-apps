@@ -32,42 +32,6 @@ services:
       timeout: 5s
       retries: 10
 
-  minio:
-    image: minio/minio:latest
-    container_name: chhata-minio
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    ports:
-      - "9010:9000"
-      - "9011:9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    volumes:
-      - chhata_minio_data:/data
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-
-  minio-init:
-    image: minio/mc:latest
-    container_name: chhata-minio-init
-    depends_on:
-      minio:
-        condition: service_started
-    entrypoint: >
-      /bin/sh -c "
-      sleep 3;
-      mc alias set local http://minio:9000 minioadmin minioadmin;
-      mc mb -p local/chhata-surveys || true;
-      mc anonymous set none local/chhata-surveys;
-      exit 0;
-      "
-
 volumes:
   chhata_pg_data:
   chhata_redis_data:
-  chhata_minio_data:

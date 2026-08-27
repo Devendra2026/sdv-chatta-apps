@@ -10,9 +10,8 @@
 #   Domains (Let's Encrypt):
 #     web     → PUBLIC_WEB_URL host,    port 3001
 #     portal  → PUBLIC_PORTAL_URL host, port 3000
-#     minio   → PUBLIC_MINIO_HOST host, port 9000  (S3 API, not console)
 #
-# Do not publish Postgres/Redis/MinIO console. Do not add container_name
+# Do not publish Postgres or Redis. Do not add container_name
 # (Isolated Deployments suffixes resources).
 
 services:
@@ -51,40 +50,6 @@ services:
     expose:
       - "6379"
 
-  minio:
-    image: minio/minio:latest
-    restart: unless-stopped
-    env_file: .env
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    volumes:
-      - chhata_minio_data:/data
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
-    expose:
-      - "9000"
-
-  minio-init:
-    image: minio/mc:latest
-    env_file: .env
-    depends_on:
-      minio:
-        condition: service_healthy
-    restart: on-failure
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD";
-        mc mb -p "local/$$MINIO_BUCKET" || true;
-        mc anonymous set none "local/$$MINIO_BUCKET";
-
   api:
     build:
       context: .
@@ -96,27 +61,19 @@ services:
       PORT: "4000"
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
-      MINIO_ENDPOINT: minio
-      MINIO_PORT: "9000"
-      MINIO_USE_SSL: "false"
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-      MINIO_BUCKET: ${MINIO_BUCKET}
-      MINIO_PUBLIC_ENDPOINT: ${PUBLIC_MINIO_HOST}
-      MINIO_PUBLIC_PORT: "443"
-      MINIO_PUBLIC_USE_SSL: "true"
+      STORAGE_DIR: /app/uploads
       CORS_ORIGIN: ${PUBLIC_PORTAL_URL},${PUBLIC_WEB_URL}
       BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
       API_URL: ${PUBLIC_PORTAL_URL}
       PUBLIC_APP_URL: ${PUBLIC_PORTAL_URL}
       ATOM_RETURN_URL: ${PUBLIC_WEB_URL}/propertytax/payment/return
       ATOM_CALLBACK_URL: ${PUBLIC_WEB_URL}/api/v1/payments/gateway/callback
+    volumes:
+      - chhata_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      minio:
         condition: service_healthy
     healthcheck:
       test:
@@ -200,4 +157,4 @@ services:
 volumes:
   chhata_pg_data:
   chhata_redis_data:
-  chhata_minio_data:
+  chhata_uploads:
