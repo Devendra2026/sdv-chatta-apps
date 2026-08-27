@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 RUN apk add --no-cache libc6-compat openssl
 RUN corepack enable && corepack prepare pnpm@11.22.0 --activate
 WORKDIR /app
@@ -16,7 +16,8 @@ COPY --from=pruner /app/out/full/ .
 RUN pnpm --filter api prisma:generate
 RUN pnpm --filter api build
 # Include prisma CLI so migrate deploy works at container start.
-RUN pnpm --filter api deploy /out
+# pnpm 10+ requires --legacy unless inject-workspace-packages is enabled.
+RUN pnpm --filter api deploy --legacy /out
 
 FROM base AS runner
 WORKDIR /app
