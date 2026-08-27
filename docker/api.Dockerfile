@@ -17,7 +17,10 @@ RUN pnpm --filter api prisma:generate
 RUN pnpm --filter api build
 # Include prisma CLI so migrate deploy works at container start.
 # pnpm 10+ requires --legacy unless inject-workspace-packages is enabled.
-RUN pnpm --filter api deploy --legacy /out
+# Skip Prisma's install-time generate: deploy copies the schema after
+# postinstall, which otherwise emits a client with no enums/models.
+RUN PRISMA_SKIP_POSTINSTALL_GENERATE=1 pnpm --filter api deploy --legacy /out
+RUN cd /out && npx prisma generate --schema=prisma/schema.prisma
 
 FROM base AS runner
 WORKDIR /app
