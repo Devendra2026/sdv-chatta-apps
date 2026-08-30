@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const publicPaths = ["/login", "/signup"] // /signup redirects to /login (no self-registration)
+const publicPaths = ["/login", "/signup", "/forgot-password"] // /signup redirects to /login (no self-registration)
 
 function hasAuthSessionCookie(req: NextRequest) {
   return req.cookies
@@ -33,7 +33,9 @@ export default async function proxy(req: NextRequest) {
   if (
     isPublic &&
     hasSession &&
-    (pathname === "/login" || pathname === "/signup")
+    (pathname === "/login" ||
+      pathname === "/signup" ||
+      pathname === "/forgot-password")
   ) {
     return NextResponse.redirect(new URL("/dashboard", req.url))
   }

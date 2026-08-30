@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   ConflictException,
   Controller,
@@ -9,14 +10,20 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common"
+import {
+  ASSIGNABLE_STAFF_ROLE_CODES,
+  type AssignableStaffRoleCode,
+} from "@workspace/types"
 import { hashPassword } from "better-auth/crypto"
 import {
   IsArray,
+  IsBoolean,
   IsEmail,
   IsIn,
   IsOptional,
   IsString,
   MinLength,
+  ValidateIf,
 } from "class-validator"
 
 import { RequirePermission } from "../auth/auth.decorators"
@@ -33,9 +40,15 @@ class CreateUserDto {
   @MinLength(2)
   name!: string
 
+  @ValidateIf((o: CreateUserDto) => !o.initialPassword)
   @IsString()
   @MinLength(8)
-  password!: string
+  password?: string
+
+  @ValidateIf((o: CreateUserDto) => !o.password)
+  @IsString()
+  @MinLength(8)
+  initialPassword?: string
 
   @IsOptional()
   @IsString()
@@ -45,6 +58,10 @@ class CreateUserDto {
   @IsArray()
   @IsString({ each: true })
   roleIds?: string[]
+
+  @IsOptional()
+  @IsIn([...ASSIGNABLE_STAFF_ROLE_CODES])
+  role?: AssignableStaffRoleCode
 }
 
 class UpdateUserDto {
@@ -61,15 +78,63 @@ class UpdateUserDto {
   status?: "ACTIVE" | "INACTIVE" | "SUSPENDED"
 
   @IsOptional()
+  @IsBoolean()
+  active?: boolean
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   roleIds?: string[]
+
+  @IsOptional()
+  @IsIn([...ASSIGNABLE_STAFF_ROLE_CODES])
+  role?: AssignableStaffRoleCode
 }
 
 @Controller("api/v1/users")
 @UseGuards(AuthGuard, PermissionGuard)
 export class UsersController {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async resolveRoleIds(
+    roleIds?: string[],
+    roleCode?: AssignableStaffRoleCode
+  ): Promise<string[]> {
+    if (roleIds?.length) {
+      const roles = await this.prisma.role.findMany({
+        where: { id: { in: roleIds } },
+      })
+      for (const r of roles) {
+        if (
+          !(ASSIGNABLE_STAFF_ROLE_CODES as readonly string[]).includes(r.code)
+        ) {
+          throw new BadRequestException({
+            code: "INVALID_ROLE",
+            message: `Role ${r.code} cannot be assigned via staff provisioning`,
+          })
+        }
+      }
+      return roleIds
+    }
+
+    if (roleCode) {
+      const role = await this.prisma.role.findUnique({
+        where: { code: roleCode },
+      })
+      if (!role) {
+        throw new BadRequestException({
+          code: "INVALID_ROLE",
+          message: `Role ${roleCode} not found`,
+        })
+      }
+      return [role.id]
+    }
+
+    const operator = await this.prisma.role.findUnique({
+      where: { code: "OPERATOR" },
+    })
+    return operator ? [operator.id] : []
+  }
 
   @Get()
   @RequirePermission("user:read")
@@ -106,6 +171,14 @@ export class UsersController {
   @RequirePermission("user:create")
   async create(@Body() dto: CreateUserDto) {
     const email = dto.email.trim().toLowerCase()
+    const plainPassword = dto.password ?? dto.initialPassword
+    if (!plainPassword || plainPassword.length < 8) {
+      throw new BadRequestException({
+        code: "PASSWORD_TOO_SHORT",
+        message: "Initial password must be at least 8 characters",
+      })
+    }
+
     const existing = await this.prisma.user.findUnique({ where: { email } })
     if (existing) {
       throw new ConflictException({
@@ -114,7 +187,8 @@ export class UsersController {
       })
     }
 
-    const hashed = await hashPassword(dto.password)
+    const hashed = await hashPassword(plainPassword)
+    const roleIds = await this.resolveRoleIds(dto.roleIds, dto.role)
 
     const user = await this.prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
@@ -136,14 +210,6 @@ export class UsersController {
           password: hashed,
         },
       })
-
-      let roleIds = dto.roleIds?.filter(Boolean) ?? []
-      if (roleIds.length === 0) {
-        const operator = await tx.role.findUnique({
-          where: { code: "OPERATOR" },
-        })
-        if (operator) roleIds = [operator.id]
-      }
 
       if (roleIds.length) {
         await tx.userRole.createMany({
@@ -173,22 +239,28 @@ export class UsersController {
   @Patch(":id")
   @RequirePermission("user:update")
   async update(@Param("id") id: string, @Body() dto: UpdateUserDto) {
+    const status =
+      dto.active === undefined ? dto.status : dto.active ? "ACTIVE" : "INACTIVE"
+
     await this.prisma.user.update({
       where: { id },
       data: {
         name: dto.name,
         phone: dto.phone,
-        status: dto.status,
+        status,
       },
     })
-    if (dto.roleIds) {
+
+    if (dto.roleIds || dto.role) {
+      const roleIds = await this.resolveRoleIds(dto.roleIds, dto.role)
       await this.prisma.userRole.deleteMany({ where: { userId: id } })
-      if (dto.roleIds.length) {
+      if (roleIds.length) {
         await this.prisma.userRole.createMany({
-          data: dto.roleIds.map((roleId) => ({ userId: id, roleId })),
+          data: roleIds.map((roleId) => ({ userId: id, roleId })),
         })
       }
     }
+
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id },
       include: { userRoles: { include: { role: true } } },

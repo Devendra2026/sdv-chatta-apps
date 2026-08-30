@@ -1,5 +1,5 @@
-import { UnauthorizedException } from "@nestjs/common"
 import type { ExecutionContext } from "@nestjs/common"
+import { UnauthorizedException } from "@nestjs/common"
 
 import { AuthGuard } from "./auth.guard"
 
@@ -7,6 +7,9 @@ jest.mock("better-auth", () => ({
   betterAuth: () => ({
     api: { getSession: async () => null },
   }),
+}))
+jest.mock("better-auth/plugins", () => ({
+  emailOTP: () => ({}),
 }))
 jest.mock("better-auth/adapters/prisma", () => ({
   prismaAdapter: () => ({}),
@@ -100,6 +103,26 @@ describe("AuthGuard", () => {
     const { guard } = createGuard({
       sessionUser: { id: "user-1" },
       dbUser: { ...activeSuperAdmin, status: "INACTIVE" },
+    })
+    await expect(guard.canActivate(httpContext())).rejects.toBeInstanceOf(
+      UnauthorizedException
+    )
+  })
+
+  it("rejects a user without a staff role", async () => {
+    const { guard } = createGuard({
+      sessionUser: { id: "user-1" },
+      dbUser: {
+        ...activeSuperAdmin,
+        userRoles: [
+          {
+            role: {
+              code: "CUSTOM_ROLE",
+              rolePermissions: [],
+            },
+          },
+        ],
+      },
     })
     await expect(guard.canActivate(httpContext())).rejects.toBeInstanceOf(
       UnauthorizedException

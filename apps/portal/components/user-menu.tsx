@@ -1,6 +1,7 @@
 "use client"
 
-import { ChevronDown, LogOut } from "lucide-react"
+import { ChevronDown, KeyRound, LogOut } from "lucide-react"
+import Link from "next/link"
 
 import { Avatar, AvatarFallback } from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
@@ -58,36 +59,43 @@ export function UserMenu() {
           />
         }
       >
-        <Avatar size="default" className="ring-primary/15 ring-2">
-          <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+        <Avatar size="default" className="ring-2 ring-primary/15">
+          <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
             {initials(user?.name, user?.email)}
           </AvatarFallback>
         </Avatar>
         <div className="hidden min-w-0 text-left sm:block">
-          <p className="truncate text-sm font-semibold leading-tight tracking-tight">
+          <p className="truncate text-sm leading-tight font-semibold tracking-tight">
             {name}
           </p>
-          <p className="text-muted-foreground truncate text-xs leading-tight">
+          <p className="truncate text-xs leading-tight text-muted-foreground">
             {roleLabel}
           </p>
         </div>
-        <ChevronDown className="text-muted-foreground hidden size-4 sm:block" />
+        <ChevronDown className="hidden size-4 text-muted-foreground sm:block" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64 rounded-xl">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col gap-1">
-              <p className="text-sm font-semibold leading-none">{name}</p>
-              <p className="text-muted-foreground text-xs leading-none">
+              <p className="text-sm leading-none font-semibold">{name}</p>
+              <p className="text-xs leading-none text-muted-foreground">
                 {email}
               </p>
-              <p className="text-muted-foreground pt-1.5 text-[11px] leading-none">
+              <p className="pt-1.5 text-[11px] leading-none text-muted-foreground">
                 {rolesFull}
               </p>
             </div>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="cursor-pointer"
+          render={<Link href="/settings/profile" />}
+        >
+          <KeyRound className="size-4" />
+          Profile &amp; password
+        </DropdownMenuItem>
         <DropdownMenuItem
           className="cursor-pointer"
           onClick={() => {

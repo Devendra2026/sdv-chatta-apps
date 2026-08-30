@@ -1,15 +1,9 @@
 import type { LucideIcon } from "lucide-react"
 import { ClipboardPen, HardHat, Shield, ShieldCheck } from "lucide-react"
 
-/** Canonical staff roles for Chhata portal (UI + assignment). */
-export const STAFF_ROLE_CODES = [
-  "SUPER_ADMIN",
-  "ADMIN",
-  "CLERK",
-  "OPERATOR",
-] as const
+import { STAFF_ROLE_CODES, type StaffRoleCode } from "@workspace/types"
 
-export type StaffRoleCode = (typeof STAFF_ROLE_CODES)[number]
+export { STAFF_ROLE_CODES, type StaffRoleCode }
 
 export const STAFF_ROLE_META: Record<
   StaffRoleCode,
@@ -28,9 +22,9 @@ export const STAFF_ROLE_META: Record<
     icon: ShieldCheck,
     accent: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
   },
-  ADMIN: {
-    name: "Admin",
-    summary: "Municipal administrator with full operational control.",
+  DEPARTMENT_ADMIN: {
+    name: "Department Admin",
+    summary: "Department administrator with full operational control.",
     access: "Full access",
     icon: Shield,
     accent: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300",

@@ -32,7 +32,7 @@ function createPrismaMock() {
   ]
   const roles = new Map<string, { id: string; code: string }>([
     ["SUPER_ADMIN", { id: "role-super", code: "SUPER_ADMIN" }],
-    ["ADMIN", { id: "role-admin", code: "ADMIN" }],
+    ["DEPARTMENT_ADMIN", { id: "role-dept", code: "DEPARTMENT_ADMIN" }],
     ["CLERK", { id: "role-clerk", code: "CLERK" }],
     ["OPERATOR", { id: "role-operator", code: "OPERATOR" }],
   ])

@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
+import { emailOTP } from "better-auth/plugins"
 
 import { resolveSeedAdminEmail } from "../db/seed-admin-config"
 import { PrismaService } from "../prisma/prisma.service"
@@ -10,8 +11,11 @@ import {
   resolvePublicAppUrl,
   resolveTrustedOrigins,
 } from "./auth-options"
+import { sendOtpEmail } from "./send-otp-email"
 
-export function createAuth(prisma: PrismaService) {
+type BetterAuthInstance = ReturnType<typeof betterAuth>
+
+export function createAuth(prisma: PrismaService): BetterAuthInstance {
   return betterAuth({
     appName: "Nagar Panchayat Chhata",
     baseURL: resolvePublicAppUrl(),
@@ -29,6 +33,18 @@ export function createAuth(prisma: PrismaService) {
     },
     socialProviders: resolveGoogleSocialProvider(),
     trustedOrigins: resolveTrustedOrigins(),
+    plugins: [
+      emailOTP({
+        disableSignUp: true,
+        otpLength: 6,
+        expiresIn: 300,
+        storeOTP: "hashed",
+        allowedAttempts: 5,
+        async sendVerificationOTP({ email, otp, type }) {
+          void sendOtpEmail({ email, otp, type })
+        },
+      }),
+    ],
     user: {
       additionalFields: {
         phone: {
@@ -82,7 +98,7 @@ export function createAuth(prisma: PrismaService) {
         },
       },
     },
-  })
+  }) as unknown as BetterAuthInstance
 }
 
-export type Auth = ReturnType<typeof createAuth>
+export type Auth = BetterAuthInstance

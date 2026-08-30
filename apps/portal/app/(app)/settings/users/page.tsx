@@ -193,7 +193,7 @@ export default function UsersPage() {
     <div className="space-y-4">
       <SettingsPageHeader
         title="Users"
-        description="Provision staff accounts and assign roles. Google sign-in works only for provisioned emails."
+        description="Provision staff accounts, assign roles, and set initial passwords. Super Admin only."
         actions={
           canCreate ? (
             <Button
@@ -370,8 +370,8 @@ export default function UsersPage() {
           <DialogHeader>
             <DialogTitle>Create staff user</DialogTitle>
             <DialogDescription>
-              Sets an initial password and marks the email as verified so Google
-              can link later.
+              Sets an initial password for email sign-in. Assign Department
+              Admin, Clerk, or Operator (Super Admin optional).
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5 py-2">

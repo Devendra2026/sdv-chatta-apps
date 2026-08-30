@@ -245,7 +245,11 @@ const PERMISSIONS: Array<{
 
 const ROLE_PERMISSIONS: Record<string, string[] | "*"> = {
   SUPER_ADMIN: "*",
-  ADMIN: "*",
+  DEPARTMENT_ADMIN: PERMISSIONS.map((p) => p.code).filter(
+    (code) =>
+      !code.startsWith("user:") &&
+      !["role:create", "role:update", "role:delete"].includes(code)
+  ),
   CLERK: [
     "dashboard:read",
     "survey:read",
@@ -287,9 +291,10 @@ const ROLES = [
     isSystem: true,
   },
   {
-    code: "ADMIN",
-    name: "Admin",
-    description: "Municipal administrator with full operational access",
+    code: "DEPARTMENT_ADMIN",
+    name: "Department Admin",
+    description:
+      "Department administrator — operational access; cannot manage users",
     isSystem: true,
   },
   {

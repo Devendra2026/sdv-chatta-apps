@@ -1,37 +1,45 @@
 "use client"
 
-import { Building2 } from "lucide-react"
+import {
+  Building2,
+  ClipboardList,
+  Loader2,
+  Lock,
+  ShieldCheck,
+  Wallet,
+} from "lucide-react"
+import Image from "next/image"
+import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
+import { cn } from "@workspace/ui/lib/utils"
 
 import { authClient } from "@/lib/auth-client"
 
-function GoogleIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden>
-      <path
-        fill="#EA4335"
-        d="M12 10.2v3.6h5.1c-.2 1.2-.9 2.3-1.9 3l3.1 2.4c1.8-1.7 2.9-4.1 2.9-7 0-.7-.1-1.3-.2-1.9H12z"
-      />
-      <path
-        fill="#34A853"
-        d="M6.6 14.3l-.7.5-2.4 1.9C5.1 19.3 8.3 21.2 12 21.2c2.4 0 4.4-.8 5.9-2.2l-3.1-2.4c-.8.6-1.9.9-2.8.9-2.2 0-4-1.5-4.7-3.5z"
-      />
-      <path
-        fill="#4A90E2"
-        d="M3.5 7.3C2.8 8.7 2.4 10.3 2.4 12s.4 3.3 1.1 4.7l3.1-2.4c-.3-.9-.5-1.8-.5-2.3s.2-1.4.5-2.3L3.5 7.3z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M12 5.5c1.3 0 2.5.5 3.4 1.3l2.6-2.6C16.4 2.7 14.4 1.8 12 1.8 8.3 1.8 5.1 3.7 3.5 7.3l3.1 2.4C7.9 7 9.8 5.5 12 5.5z"
-      />
-    </svg>
-  )
-}
+const TRUST_ITEMS = [
+  {
+    icon: ClipboardList,
+    title: "Survey operations",
+    titleHi: "सर्वेक्षण संचालन",
+    description: "Ward-wise property surveys and GIS-linked records",
+  },
+  {
+    icon: Wallet,
+    title: "Payment collection",
+    titleHi: "भुगतान संग्रह",
+    description: "Offline counter and gateway reconciliation",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Secure staff access",
+    titleHi: "सुरक्षित स्टाफ पहुँच",
+    description: "Role-based access for municipal administrators",
+  },
+] as const
 
 function mapAuthErrorMessage(message: string | undefined | null): string {
   const m = (message ?? "").toLowerCase()
@@ -41,9 +49,10 @@ function mapAuthErrorMessage(message: string | undefined | null): string {
     m.includes("not enabled") ||
     m.includes("disabled") ||
     m.includes("account not linked") ||
-    m.includes("user not found")
+    m.includes("user not found") ||
+    m.includes("invalid email or password")
   ) {
-    return "Your account is not provisioned. Contact an administrator."
+    return "Your account is not provisioned or the password is incorrect. Contact an administrator."
   }
   return message?.trim() || "Login failed"
 }
@@ -52,16 +61,24 @@ export default function LoginPage() {
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [loading, setLoading] = React.useState(false)
-  const [googleLoading, setGoogleLoading] = React.useState(false)
+  const [formError, setFormError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search)
+    if (params.get("signedOut") === "1") {
+      toast.success("Signed out")
+      const url = new URL(window.location.href)
+      url.searchParams.delete("signedOut")
+      window.history.replaceState({}, "", url.pathname + url.search)
+    }
     const error =
       params.get("error") ??
       params.get("error_description") ??
       params.get("message")
     if (error) {
-      toast.error(mapAuthErrorMessage(decodeURIComponent(error)))
+      const msg = mapAuthErrorMessage(decodeURIComponent(error))
+      setFormError(msg)
+      toast.error(msg)
       const url = new URL(window.location.href)
       url.searchParams.delete("error")
       url.searchParams.delete("error_description")
@@ -72,146 +89,260 @@ export default function LoginPage() {
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    setFormError(null)
     setLoading(true)
     try {
       const result = await authClient.signIn.email({ email, password })
       if (result.error) {
-        toast.error(mapAuthErrorMessage(result.error.message))
+        const msg = mapAuthErrorMessage(result.error.message)
+        setFormError(msg)
+        toast.error(msg)
         return
       }
       toast.success("Signed in")
       window.location.assign("/dashboard")
     } catch (err) {
-      toast.error(
-        mapAuthErrorMessage(err instanceof Error ? err.message : "Login failed")
+      const msg = mapAuthErrorMessage(
+        err instanceof Error ? err.message : "Login failed"
       )
+      setFormError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
   }
 
-  async function onGoogleSignIn() {
-    setGoogleLoading(true)
-    try {
-      const result = await authClient.signIn.social({
-        provider: "google",
-        callbackURL: "/dashboard",
-        errorCallbackURL: "/login",
-      })
-      if (result.error) {
-        toast.error(mapAuthErrorMessage(result.error.message))
-        setGoogleLoading(false)
-      }
-      // On success Better Auth redirects to Google / callback
-    } catch (err) {
-      toast.error(
-        mapAuthErrorMessage(
-          err instanceof Error ? err.message : "Google sign-in failed"
-        )
-      )
-      setGoogleLoading(false)
-    }
-  }
-
   return (
-    <div className="relative flex min-h-svh overflow-hidden bg-slate-950">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(3,105,161,0.35),transparent_50%),radial-gradient(ellipse_at_bottom_right,rgba(15,23,42,0.9),transparent_45%)]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)] bg-size-[48px_48px] opacity-[0.07]"
-      />
+    <div className="relative min-h-svh overflow-hidden bg-[#F8FAFC]">
+      {/* Tricolor accent — subtle official strip */}
+      <div aria-hidden className="absolute inset-x-0 top-0 z-20 flex h-1">
+        <span className="h-full flex-1 bg-[#FF9933]" />
+        <span className="h-full flex-1 bg-white" />
+        <span className="h-full flex-1 bg-[#138808]" />
+      </div>
 
-      <div className="relative z-10 mx-auto grid w-full max-w-6xl flex-1 items-center gap-10 px-4 py-10 lg:grid-cols-2 lg:gap-16 lg:px-8">
-        <div className="hidden text-slate-100 lg:block">
-          <div className="mb-6 flex size-14 items-center justify-center rounded-2xl bg-sky-600 text-white shadow-lg shadow-sky-900/40">
-            <Building2 className="size-7" />
-          </div>
-          <p className="text-sm font-medium tracking-wide text-sky-300/90 uppercase">
-            Nagar Panchayat Chhata
-          </p>
-          <h1 className="mt-3 max-w-md text-4xl font-semibold tracking-tight text-balance">
-            Survey, property &amp; payment operations
-          </h1>
-          <p className="mt-4 max-w-md text-base leading-relaxed text-slate-300">
-            Secure municipal portal for Mathura ward surveys, offline
-            collection, and gateway payments — built for day-to-day staff use.
-          </p>
-        </div>
+      <div className="grid min-h-svh lg:grid-cols-[1.05fr_0.95fr]">
+        {/* Hero panel */}
+        <section
+          aria-labelledby="login-hero-title"
+          className="relative hidden flex-col justify-between overflow-hidden bg-[#0F172A] px-10 py-14 text-white lg:flex xl:px-14"
+        >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(3,105,161,0.35),transparent_55%),radial-gradient(ellipse_at_80%_100%,rgba(15,23,42,0.9),transparent_50%)]"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 [background-image:linear-gradient(#fff_1px,transparent_1px),linear-gradient(90deg,#fff_1px,transparent_1px)] [background-size:56px_56px] opacity-[0.04]"
+          />
 
-        <div className="mx-auto w-full max-w-md rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-950/20 sm:p-8">
-          <div className="mb-6 lg:hidden">
-            <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-sky-700 text-white">
-              <Building2 className="size-5" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-4">
+              <div className="flex size-[4.5rem] shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-lg ring-2 ring-white/20">
+                <Image
+                  src="/branding/up-government-logo.png"
+                  alt="Uttar Pradesh Government emblem"
+                  width={64}
+                  height={64}
+                  className="size-14 object-contain p-1.5"
+                  priority
+                />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold tracking-[0.2em] text-sky-200/90 uppercase">
+                  Government of Uttar Pradesh
+                </p>
+                <p className="font-[family-name:var(--font-deva)] text-sm text-sky-100/90">
+                  उत्तर प्रदेश सरकार
+                </p>
+              </div>
             </div>
-            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">
-              Nagar Panchayat Chhata
+
+            <div className="mt-12 max-w-lg">
+              <p className="font-[family-name:var(--font-deva)] text-sm font-medium tracking-wide text-sky-200/90">
+                नगर पंचायत छाता · Mathura
+              </p>
+              <h1
+                id="login-hero-title"
+                className="mt-3 font-[family-name:var(--font-auth-display)] text-4xl leading-tight font-semibold tracking-tight text-balance xl:text-[2.75rem]"
+              >
+                Staff portal
+              </h1>
+              <p className="mt-4 text-lg leading-relaxed text-slate-200/95">
+                Survey, property &amp; payment operations
+              </p>
+              <p className="mt-2 font-[family-name:var(--font-deva)] text-base leading-relaxed text-slate-300/90">
+                स्टाफ पोर्टल — सर्वेक्षण, संपत्ति एवं भुगतान संचालन
+              </p>
+            </div>
+          </div>
+
+          <ul className="relative z-10 mt-10 space-y-4">
+            {TRUST_ITEMS.map((item) => (
+              <li
+                key={item.title}
+                className="flex gap-4 rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm transition-colors duration-200 hover:bg-white/[0.08]"
+              >
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-sky-600/20 text-sky-200">
+                  <item.icon className="size-5" aria-hidden />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white">
+                    {item.title}
+                    <span className="mx-2 text-white/30">·</span>
+                    <span className="font-[family-name:var(--font-deva)] font-medium text-sky-100/90">
+                      {item.titleHi}
+                    </span>
+                  </p>
+                  <p className="mt-0.5 text-sm leading-relaxed text-slate-300/85">
+                    {item.description}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <p className="relative z-10 mt-10 text-xs leading-relaxed text-slate-400">
+            Official municipal operations portal for Nagar Panchayat Chhata.
+            Unauthorized access is prohibited and monitored.
+          </p>
+        </section>
+
+        {/* Sign-in panel */}
+        <section className="relative flex flex-col justify-center px-4 py-10 sm:px-8 lg:px-12 xl:px-16">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(3,105,161,0.08),transparent_45%)] lg:hidden"
+          />
+
+          <div className="relative mx-auto w-full max-w-md">
+            {/* Mobile header */}
+            <div className="mb-8 flex items-center gap-3 lg:hidden">
+              <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-md ring-1 ring-slate-200">
+                <Image
+                  src="/branding/up-government-logo.png"
+                  alt="Uttar Pradesh Government emblem"
+                  width={48}
+                  height={48}
+                  className="size-12 object-contain p-1"
+                  priority
+                />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold tracking-[0.15em] text-sky-900 uppercase">
+                  Nagar Panchayat Chhata
+                </p>
+                <p className="font-[family-name:var(--font-deva)] text-sm text-slate-600">
+                  स्टाफ पोर्टल
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200/90 bg-white/95 p-6 shadow-xl ring-1 shadow-slate-900/[0.06] ring-slate-900/[0.03] backdrop-blur-sm sm:p-8">
+              <div className="mb-6 flex items-start gap-3">
+                <div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-800 ring-1 ring-sky-100">
+                  <Building2 className="size-5" aria-hidden />
+                </div>
+                <div>
+                  <h2 className="font-[family-name:var(--font-auth-display)] text-2xl font-semibold tracking-tight text-[#0F172A]">
+                    Sign in
+                  </h2>
+                  <p className="font-[family-name:var(--font-deva)] text-sm text-slate-600">
+                    साइन इन · Staff access only
+                  </p>
+                </div>
+              </div>
+
+              <p className="mb-6 text-sm leading-relaxed text-slate-600">
+                Administrator and municipal staff only. Accounts are provisioned
+                by a Super Admin — no public registration.
+              </p>
+
+              {formError ? (
+                <div
+                  role="alert"
+                  className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800"
+                >
+                  {formError}
+                </div>
+              ) : null}
+
+              <form className="space-y-5" onSubmit={onSubmit} noValidate>
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="font-medium text-[#0F172A]">
+                    Email / ईमेल
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="username"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={loading}
+                    className="h-11 border-slate-200 bg-slate-50/50 transition-colors duration-200 focus-visible:bg-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label
+                      htmlFor="password"
+                      className="font-medium text-[#0F172A]"
+                    >
+                      Password / पासवर्ड
+                    </Label>
+                    <Link
+                      href="/forgot-password"
+                      className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-[#0369A1] transition-colors duration-200 hover:text-sky-950 hover:underline"
+                    >
+                      <Lock className="size-3" aria-hidden />
+                      Forgot password?
+                    </Link>
+                  </div>
+                  <Input
+                    id="password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    disabled={loading}
+                    className="h-11 border-slate-200 bg-slate-50/50 transition-colors duration-200 focus-visible:bg-white"
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className={cn(
+                    "h-11 w-full cursor-pointer bg-[#0369A1] text-base font-semibold shadow-sm",
+                    "transition-colors duration-200 hover:bg-sky-800",
+                    "disabled:cursor-not-allowed disabled:opacity-70"
+                  )}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2
+                        className="mr-2 size-4 animate-spin"
+                        aria-hidden
+                      />
+                      Signing in…
+                    </>
+                  ) : (
+                    "Sign in / साइन इन करें"
+                  )}
+                </Button>
+              </form>
+            </div>
+
+            <p className="mt-6 text-center text-xs leading-relaxed text-slate-500">
+              Need access? Contact your Super Admin to provision a staff
+              account.
             </p>
           </div>
-          <h2 className="text-xl font-semibold tracking-tight text-slate-900">
-            Sign in
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Use your staff account to access the dashboard. New accounts are
-            created by an administrator.
-          </p>
-
-          <form className="mt-6 space-y-4" onSubmit={onSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="username"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="h-10"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="h-10"
-              />
-            </div>
-            <Button
-              type="submit"
-              className="h-10 w-full cursor-pointer bg-sky-700 hover:bg-sky-800"
-              disabled={loading || googleLoading}
-            >
-              {loading ? "Signing in…" : "Sign in"}
-            </Button>
-          </form>
-
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center" aria-hidden>
-              <div className="w-full border-t border-slate-200" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-slate-500">Or</span>
-            </div>
-          </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 w-full cursor-pointer border-slate-300 bg-white text-slate-900 hover:bg-slate-50"
-            disabled={loading || googleLoading}
-            onClick={() => void onGoogleSignIn()}
-          >
-            <GoogleIcon className="mr-2 size-5" />
-            {googleLoading ? "Redirecting…" : "Continue with Google"}
-          </Button>
-        </div>
+        </section>
       </div>
     </div>
   )

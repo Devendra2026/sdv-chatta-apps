@@ -75,7 +75,7 @@ export default function RolesPage() {
       ? STAFF_ROLE_META[selected.code]
       : null
   const isFullAccessRole =
-    selected?.code === "SUPER_ADMIN" || selected?.code === "ADMIN"
+    selected?.code === "SUPER_ADMIN" || selected?.code === "DEPARTMENT_ADMIN"
   const canEditMatrix = canUpdate && !isFullAccessRole
 
   const [draft, setDraft] = React.useState<Set<string>>(new Set())

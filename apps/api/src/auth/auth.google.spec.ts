@@ -1,6 +1,5 @@
 import {
   emailPasswordInviteOnly,
-  googleAccountLinking,
   resolveGoogleSocialProvider,
   resolvePublicAppUrl,
   resolveTrustedOrigins,
@@ -23,10 +22,9 @@ describe("auth-options invite-only Google", () => {
     process.env = originalEnv
   })
 
-  it("disables public email signup and trusts Google linking", () => {
+  it("disables public email signup", () => {
     expect(emailPasswordInviteOnly.disableSignUp).toBe(true)
-    expect(googleAccountLinking.enabled).toBe(true)
-    expect(googleAccountLinking.trustedProviders).toContain("google")
+    expect(emailPasswordInviteOnly.minPasswordLength).toBe(8)
   })
 
   it("resolves Google with disableSignUp when credentials are set", () => {

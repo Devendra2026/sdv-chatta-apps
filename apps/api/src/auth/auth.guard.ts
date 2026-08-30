@@ -4,6 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common"
+import { isStaffRoleCode } from "@workspace/types"
 import { fromNodeHeaders } from "better-auth/node"
 import type { Request } from "express"
 
@@ -66,6 +67,13 @@ export class AuthGuard implements CanActivate {
         )
       ),
     ]
+
+    if (!roles.some((code) => isStaffRoleCode(code))) {
+      throw new UnauthorizedException({
+        code: "UNAUTHORIZED",
+        message: "Staff portal access requires a valid staff role",
+      })
+    }
 
     request.user = {
       id: user.id,

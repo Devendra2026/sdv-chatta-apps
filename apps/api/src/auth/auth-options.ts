@@ -25,8 +25,7 @@ export type GoogleSocialConfig = {
 }
 
 export function resolveGoogleSocialProvider():
-  | { google: GoogleSocialConfig }
-  | Record<string, never> {
+  { google: GoogleSocialConfig } | Record<string, never> {
   const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim()
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim()
   if (!googleClientId || !googleClientSecret) {
@@ -45,6 +44,8 @@ export function resolveGoogleSocialProvider():
 export const emailPasswordInviteOnly = {
   enabled: true as const,
   disableSignUp: true as const,
+  minPasswordLength: 8 as const,
+  maxPasswordLength: 128 as const,
 }
 
 export const googleAccountLinking = {

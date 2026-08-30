@@ -23,7 +23,7 @@ function roleBadge(roles?: string[]): string {
   if (!roles?.length) return "USER"
   const priority: StaffRoleCode[] = [
     "SUPER_ADMIN",
-    "ADMIN",
+    "DEPARTMENT_ADMIN",
     "CLERK",
     "OPERATOR",
   ]

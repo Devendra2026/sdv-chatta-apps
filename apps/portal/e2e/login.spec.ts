@@ -1,18 +1,28 @@
-import { test, expect } from "@playwright/test"
+import { expect, test } from "@playwright/test"
 
 test.describe("portal smoke", () => {
-  test("login page renders", async ({ page }) => {
+  test("login page renders staff sign-in", async ({ page }) => {
     await page.goto("/login")
     await expect(page.getByText("Nagar Panchayat Chhata")).toBeVisible()
-    await expect(page.getByLabel("Email")).toBeVisible()
-    await expect(page.getByLabel("Password")).toBeVisible()
+    await expect(page.getByText(/Staff portal/i)).toBeVisible()
+    await expect(page.getByLabel(/Email/i)).toBeVisible()
+    await expect(page.getByLabel(/Password/i)).toBeVisible()
+    await expect(
+      page.getByRole("link", { name: /Forgot password/i })
+    ).toBeVisible()
     await expect(
       page.getByRole("button", { name: /Continue with Google/i })
-    ).toBeVisible()
+    ).toHaveCount(0)
   })
 
   test("signup redirects to login", async ({ page }) => {
     await page.goto("/signup")
     await expect(page).toHaveURL(/\/login/)
+  })
+
+  test("forgot password page renders", async ({ page }) => {
+    await page.goto("/forgot-password")
+    await expect(page.getByText(/Reset password/i)).toBeVisible()
+    await expect(page.getByLabel(/Email/i)).toBeVisible()
   })
 })
