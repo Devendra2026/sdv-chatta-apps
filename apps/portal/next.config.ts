@@ -21,16 +21,15 @@ const nextConfig: NextConfig = {
     "@workspace/types",
   ],
   async rewrites() {
-    // Filesystem routes win first (/api/portal/*, /api/auth/*). Fallback
-    // proxies remaining /api/* (including nested Better Auth if the catch-all
-    // is absent) after App Router 404 would otherwise apply.
+    const apiProxy = {
+      source: "/api/:path*",
+      destination: `${apiInternal}/api/:path*`,
+    }
+    // afterFiles: unmatched /api/* before 404. fallback: last-chance proxy.
+    // Filesystem routes (/api/portal/*, /api/auth/[...all]) still win.
     return {
-      fallback: [
-        {
-          source: "/api/:path*",
-          destination: `${apiInternal}/api/:path*`,
-        },
-      ],
+      afterFiles: [apiProxy],
+      fallback: [apiProxy],
     }
   },
 }

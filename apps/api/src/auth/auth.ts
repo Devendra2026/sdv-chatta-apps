@@ -14,6 +14,7 @@ export function createAuth(prisma: PrismaService) {
   return betterAuth({
     appName: "Nagar Panchayat Chhata",
     baseURL: resolvePublicAppUrl(),
+    basePath: "/api/auth",
     secret: process.env.BETTER_AUTH_SECRET,
     database: prismaAdapter(prisma, {
       provider: "postgresql",

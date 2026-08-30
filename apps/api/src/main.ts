@@ -1,5 +1,6 @@
 import { Logger, ValidationPipe } from "@nestjs/common"
 import { NestFactory } from "@nestjs/core"
+import { ExpressAdapter } from "@nestjs/platform-express"
 import "dotenv/config"
 import express, {
   type NextFunction,
@@ -8,14 +9,20 @@ import express, {
 } from "express"
 
 import { AppModule } from "./app.module"
+import { AuthService } from "./auth/auth.service"
+import { attachBetterAuthGate } from "./auth/better-auth.express"
 import { AllExceptionsFilter } from "./common/all-exceptions.filter"
 import { RateLimitMiddleware } from "./common/rate-limit.middleware"
 import { RequestLoggingInterceptor } from "./common/request-logging.interceptor"
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const server = express()
+  const authGate = attachBetterAuthGate(server)
+
+  const app = await NestFactory.create(AppModule, new ExpressAdapter(server), {
     bodyParser: false,
   })
+  authGate.bind(app.get(AuthService).auth)
 
   // Better Auth must receive the raw body; JSON + urlencoded for everything else.
   // Atom gateway callback/return often posts application/x-www-form-urlencoded.
