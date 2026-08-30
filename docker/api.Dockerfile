@@ -13,6 +13,10 @@ COPY --from=pruner /app/out/json/ .
 COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 RUN pnpm install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .
+# Prisma 7 prisma.config.ts requires DATABASE_URL even for `generate`.
+# This value is installer-only (runner starts FROM base) and is never used
+# to connect; production DATABASE_URL is injected at container start.
+ENV DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=public"
 RUN pnpm --filter api prisma:generate
 RUN pnpm --filter api build
 # Include prisma CLI so migrate deploy works at container start.
