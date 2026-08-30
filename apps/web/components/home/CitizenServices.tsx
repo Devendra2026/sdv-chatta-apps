@@ -9,15 +9,17 @@ import {
   CreditCard,
   Download,
   Droplet,
+  FileCheck2,
   FileText,
   HelpCircle,
-  ShieldAlert,
   Sparkles,
   Store,
   X,
-  FileCheck2,
 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import React, { useState } from "react"
+
+import { CITIZEN_ONLINE_ROUTES } from "@/lib/citizen-service-routes"
 
 interface ServiceItem {
   id: string
@@ -29,9 +31,11 @@ interface ServiceItem {
   badgeColor: string
   glowColor: string
   pdfName: string
+  href?: string
 }
 
 export default function CitizenServices() {
+  const router = useRouter()
   const [activeService, setActiveService] = useState<ServiceItem | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [downloaded, setDownloaded] = useState(false)
@@ -48,6 +52,7 @@ export default function CitizenServices() {
       glowColor:
         "group-hover:shadow-orange-500/20 group-hover:border-orange-400/50",
       pdfName: "Chhata_Property_Tax_Assessment.pdf",
+      href: CITIZEN_ONLINE_ROUTES.propertyTax,
     },
     {
       id: "water-tax",
@@ -130,10 +135,15 @@ export default function CitizenServices() {
       badgeColor: "bg-red-50 text-red-700 border-red-200/60",
       glowColor: "group-hover:shadow-red-500/20 group-hover:border-red-400/50",
       pdfName: "Civic_Grievance_Form_Chhata.pdf",
+      href: CITIZEN_ONLINE_ROUTES.publicGrievance,
     },
   ]
 
   const handleCardClick = (service: ServiceItem) => {
+    if (service.href) {
+      router.push(service.href)
+      return
+    }
     setActiveService(service)
     setDownloading(false)
     setDownloaded(false)
@@ -177,7 +187,9 @@ export default function CitizenServices() {
             Unified Public Service Forms
           </h2>
           <p className="mt-3 text-sm leading-relaxed font-medium text-slate-600 md:text-base">
-            Download official application forms and documents instantly for offline submission or review at Nagar Panchayat Chhata, Mathura.
+            Search property tax records, pay dues online, and download
+            application forms for other municipal services at Nagar Panchayat
+            Chhata, Mathura.
           </p>
 
           <div className="mt-5 flex items-center justify-center gap-2">
@@ -216,7 +228,7 @@ export default function CitizenServices() {
                     <span
                       className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold tracking-wider uppercase ${service.badgeColor} shadow-2xs`}
                     >
-                      PDF Form
+                      {service.href ? "Online" : "PDF Form"}
                     </span>
                   </div>
 

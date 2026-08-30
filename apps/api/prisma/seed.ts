@@ -1,8 +1,9 @@
-import { PrismaClient } from "@prisma/client"
+import "dotenv/config"
 
 import { seedDatabase } from "../src/db/seed-database"
+import { createPrismaClient } from "../src/prisma/prisma.client"
 
-const prisma = new PrismaClient()
+const prisma = createPrismaClient()
 
 seedDatabase(prisma)
   .catch((error: unknown) => {

@@ -795,8 +795,40 @@ function derivedFloorTotals(floors: FloorRow[]) {
 
 function auditDetails(log: AuditLog) {
   const payload = log.newValue ?? log.oldValue
-  if (!payload) return "—"
-  return Object.entries(payload)
-    .map(([key, value]) => `${key}: ${String(value)}`)
+  if (!payload || typeof payload !== "object") return "—"
+
+  const changes = (payload as { changes?: Array<{ field: string; old?: unknown; new?: unknown; value?: unknown }> }).changes
+  if (Array.isArray(changes) && changes.length > 0) {
+    return changes
+      .map((change) => {
+        const label = auditFieldLabel(change.field)
+        if ("new" in change && change.new !== undefined) {
+          const oldStr =
+            change.old == null || change.old === "" ? "—" : String(change.old)
+          const newStr =
+            change.new == null || change.new === "" ? "—" : String(change.new)
+          return `${label}: ${oldStr} → ${newStr}`
+        }
+        return `${label}: ${String(change.value ?? "—")}`
+      })
+      .join("; ")
+  }
+
+  return Object.entries(payload as Record<string, unknown>)
+    .filter(([key]) => key !== "source")
+    .map(([key, value]) => `${auditFieldLabel(key)}: ${String(value)}`)
     .join(", ")
+}
+
+const AUDIT_FIELD_LABELS: Record<string, string> = {
+  surveyId: "Survey ID",
+  parcelNo: "Parcel No",
+  propertyNo: "Property No",
+  gisUseCode: "GIS Use Code",
+  ownerName: "Owner Name",
+  ownerFatherName: "Owner Father Name",
+}
+
+function auditFieldLabel(field: string): string {
+  return AUDIT_FIELD_LABELS[field] ?? field.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase())
 }

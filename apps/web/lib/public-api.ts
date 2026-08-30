@@ -14,9 +14,15 @@ export class PublicApiError extends Error {
  * Set NEXT_PUBLIC_API_URL only when calling Nest on a separate public host.
  */
 function getBaseUrl(): string {
+  // Browser: same-origin /api/* so Next rewrites proxy to Nest (avoids CORS on :3001).
+  if (typeof window !== "undefined") {
+    return ""
+  }
+  const internal = process.env.API_INTERNAL_URL?.trim()
+  if (internal) return internal.replace(/\/$/, "")
   const configured = process.env.NEXT_PUBLIC_API_URL?.trim()
-  if (!configured) return ""
-  return configured.replace(/\/$/, "")
+  if (configured) return configured.replace(/\/$/, "")
+  return "http://localhost:4000"
 }
 
 async function publicApiRequest<T>(

@@ -1,7 +1,7 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { Eye, Loader2, Printer } from "lucide-react"
+import { ExternalLink, Eye, Loader2, Printer } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
@@ -27,6 +27,7 @@ import {
 import { buildSelectItems } from "@workspace/ui/lib/select-items"
 
 import { api } from "@/lib/api"
+import { citizenPropertyTaxUrl } from "@/lib/citizen-web-url"
 import { ApiError } from "@workspace/api-client"
 import { generateDemandNoticeHtml } from "./_lib/notice-template"
 
@@ -188,6 +189,32 @@ export default function NoticePage() {
 
   return (
     <div className="space-y-4">
+      <Card className="rounded-xl border border-primary/20 bg-primary/5 shadow-sm">
+        <CardContent className="flex flex-col gap-2 pt-(--card-spacing) sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Citizens pay property tax online on the public website. Demand
+            amounts here use the same API calculation as{" "}
+            <span className="font-mono text-xs">/public/property-tax/dues</span>
+            .
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0 cursor-pointer"
+            render={
+              <a
+                href={citizenPropertyTaxUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+              />
+            }
+          >
+            Open citizen pay portal
+            <ExternalLink className="size-3.5" aria-hidden />
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card className="rounded-xl border shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Demand Notice Register</CardTitle>
@@ -282,6 +309,21 @@ export default function NoticePage() {
                         render={<Link href={`/surveys/${row.id}`} />}
                       >
                         <Eye className="size-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="size-7 cursor-pointer p-0"
+                        title="Citizen online pay"
+                        render={
+                          <a
+                            href={citizenPropertyTaxUrl(row.id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          />
+                        }
+                      >
+                        <ExternalLink className="size-3.5" />
                       </Button>
                       <Button
                         variant="ghost"

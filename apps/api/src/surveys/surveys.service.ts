@@ -1,9 +1,11 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common"
 import { Prisma, type Survey } from "@prisma/client"
+import { parseGisSurveyId } from "@workspace/types"
 
 import { AuditService } from "../audit/audit.service"
 import type { AuthUser } from "../auth/auth.decorators"
@@ -15,6 +17,20 @@ import {
   UpdateSurveyDto,
 } from "./dto/survey.dto"
 import { computeDataQuality, parseFloorsRaw } from "./floors.util"
+import {
+  diffSurveyChanges,
+  surveyToAuditSnapshot,
+} from "./survey-audit.util"
+import {
+  assertSurveyIdAvailable,
+  resolveSurveyIdentity,
+  verifySurveyIdMatchesRecord,
+} from "./survey-id.util"
+
+type SurveyIdentityDto = Pick<
+  CreateSurveyDto,
+  "surveyId" | "wardId" | "parcelNo" | "propertyNo" | "gisUseCode"
+>
 
 @Injectable()
 export class SurveysService {
@@ -25,15 +41,13 @@ export class SurveysService {
   ) {}
 
   async create(dto: CreateSurveyDto, user: AuthUser) {
-    const existing = await this.prisma.survey.findUnique({
-      where: { surveyId: dto.surveyId },
-    })
-    if (existing && !existing.deletedAt) {
-      throw new ConflictException({
-        code: "SURVEY_EXISTS",
-        message: `Survey ${dto.surveyId} already exists`,
+    if (!dto.wardId) {
+      throw new BadRequestException({
+        code: "WARD_REQUIRED",
+        message: "Ward is required",
       })
     }
+    this.assertCreateIdentityFields(dto)
 
     const ward = await this.prisma.ward.findUnique({
       where: { id: dto.wardId },
@@ -45,20 +59,42 @@ export class SurveysService {
       })
     }
 
+    const identity = resolveSurveyIdentity(ward, dto)
+    if (
+      dto.surveyId &&
+      dto.surveyId.trim() !== identity.surveyId
+    ) {
+      throw new BadRequestException({
+        code: "SURVEY_ID_MISMATCH",
+        message: `Survey ID must match generated value ${identity.surveyId}`,
+      })
+    }
+
+    const existing = await this.prisma.survey.findUnique({
+      where: { surveyId: identity.surveyId },
+    })
+    if (existing && !existing.deletedAt) {
+      throw new ConflictException({
+        code: "SURVEY_EXISTS",
+        message:
+          "A survey already exists for this ULB, ward, parcel, property and GIS use code.",
+      })
+    }
+
     const floors = parseFloorsRaw(dto.floorsRaw)
     const dataQualityStatus =
       dto.dataQualityStatus ??
       computeDataQuality({
         mobile: dto.mobile,
-        propertyNo: dto.propertyNo,
-        parcelNo: dto.parcelNo,
+        propertyNo: identity.propertyNo,
+        parcelNo: identity.parcelNo,
         plotAreaSqFt: dto.plotAreaSqFt,
         totalBuiltUpAreaSqFt: dto.totalBuiltUpAreaSqFt,
       })
 
     const survey = await this.prisma.survey.create({
       data: {
-        ...this.toPrismaData(dto),
+        ...this.toPrismaCreateData(dto, identity),
         dataQualityStatus,
         createdById: user.id,
         updatedById: user.id,
@@ -83,7 +119,14 @@ export class SurveysService {
       entity: "Survey",
       entityId: survey.id,
       actorId: user.id,
-      newValue: { surveyId: survey.surveyId },
+      newValue: {
+        changes: [
+          { field: "surveyId", old: null, new: survey.surveyId },
+          { field: "parcelNo", old: null, new: survey.parcelNo },
+          { field: "propertyNo", old: null, new: survey.propertyNo },
+          { field: "gisUseCode", old: null, new: identity.gisUseCode },
+        ],
+      },
     })
 
     return survey
@@ -188,49 +231,63 @@ export class SurveysService {
 
   async update(id: string, dto: UpdateSurveyDto, user: AuthUser) {
     const current = await this.findOne(id)
+    const beforeAudit = this.buildAuditState(current)
 
-    if (dto.surveyId && dto.surveyId !== current.surveyId) {
-      const clash = await this.prisma.survey.findUnique({
-        where: { surveyId: dto.surveyId },
+    const targetWardId = dto.wardId ?? current.wardId
+    const ward = await this.prisma.ward.findUnique({
+      where: { id: targetWardId },
+    })
+    if (!ward) {
+      throw new NotFoundException({
+        code: "WARD_NOT_FOUND",
+        message: "Ward not found",
       })
-      if (clash && clash.id !== current.id) {
-        throw new ConflictException({
-          code: "SURVEY_EXISTS",
-          message: `Survey ${dto.surveyId} already exists`,
-        })
-      }
     }
 
-    if (dto.wardId) {
-      const ward = await this.prisma.ward.findUnique({
-        where: { id: dto.wardId },
+    const identityInput = this.mergeIdentityInput(dto, current)
+    const identity = resolveSurveyIdentity(ward, identityInput, current)
+
+    if (
+      dto.surveyId !== undefined &&
+      dto.surveyId.trim() !== identity.surveyId
+    ) {
+      throw new BadRequestException({
+        code: "SURVEY_ID_READ_ONLY",
+        message: "Survey ID is system-generated and cannot be edited directly",
       })
-      if (!ward) {
-        throw new NotFoundException({
-          code: "WARD_NOT_FOUND",
-          message: "Ward not found",
-        })
-      }
     }
 
-    const floorsRaw = dto.floorsRaw ?? current.floorsRaw
+    const floorsRaw =
+      dto.floorsRaw !== undefined ? dto.floorsRaw : current.floorsRaw
     const floors = parseFloorsRaw(floorsRaw)
 
     const survey = await this.prisma.$transaction(async (tx) => {
-      await tx.surveyFloor.deleteMany({ where: { surveyId: current.id } })
+      if (identity.surveyId !== current.surveyId) {
+        await assertSurveyIdAvailable(tx, identity.surveyId, current.id)
+      }
+
+      if (dto.floorsRaw !== undefined) {
+        await tx.surveyFloor.deleteMany({ where: { surveyId: current.id } })
+      }
+
+      const updateData = this.toPrismaUpdateData(dto, current, identity)
+
       return tx.survey.update({
         where: { id: current.id },
         data: {
-          ...this.toPrismaData({ ...dto, floorsRaw: floorsRaw ?? undefined }),
+          ...updateData,
           dataQualityStatus:
             dto.dataQualityStatus ??
             computeDataQuality({
-              mobile: dto.mobile ?? current.mobile,
-              propertyNo: dto.propertyNo ?? current.propertyNo,
-              parcelNo: dto.parcelNo ?? current.parcelNo,
+              mobile:
+                dto.mobile !== undefined ? dto.mobile : current.mobile,
+              propertyNo: identity.propertyNo,
+              parcelNo: identity.parcelNo,
               plotAreaSqFt:
                 dto.plotAreaSqFt ??
-                (current.plotAreaSqFt ? Number(current.plotAreaSqFt) : null),
+                (current.plotAreaSqFt
+                  ? Number(current.plotAreaSqFt)
+                  : null),
               totalBuiltUpAreaSqFt:
                 dto.totalBuiltUpAreaSqFt ??
                 (current.totalBuiltUpAreaSqFt
@@ -238,31 +295,45 @@ export class SurveysService {
                   : null),
             }),
           updatedById: user.id,
-          floors: {
-            create: floors.map((f) => ({
-              floorLabel: f.floorLabel,
-              areaSqFt: f.areaSqFt,
-              areaSqMeter: f.areaSqMeter,
-              usageType: f.usageType,
-              usageFactor: f.usageFactor,
-              buildingType: f.buildingType,
-              sortOrder: f.sortOrder,
-              rawSegment: f.rawSegment,
-            })),
-          },
+          ...(dto.floorsRaw !== undefined
+            ? {
+                floors: {
+                  create: floors.map((f) => ({
+                    floorLabel: f.floorLabel,
+                    areaSqFt: f.areaSqFt,
+                    areaSqMeter: f.areaSqMeter,
+                    usageType: f.usageType,
+                    usageFactor: f.usageFactor,
+                    buildingType: f.buildingType,
+                    sortOrder: f.sortOrder,
+                    rawSegment: f.rawSegment,
+                  })),
+                },
+              }
+            : {}),
         },
         include: this.defaultInclude(),
       })
     })
 
-    await this.audit.log({
-      action: "SURVEY_UPDATED",
-      entity: "Survey",
-      entityId: survey.id,
-      actorId: user.id,
-      oldValue: { surveyId: current.surveyId },
-      newValue: { surveyId: survey.surveyId },
-    })
+    const afterAudit = this.buildAuditState(survey)
+    const auditDiff = diffSurveyChanges(beforeAudit, afterAudit)
+
+    if (auditDiff.changes.length > 0) {
+      await this.audit.log({
+        action: "SURVEY_UPDATED",
+        entity: "Survey",
+        entityId: survey.id,
+        actorId: user.id,
+        oldValue: {
+          changes: auditDiff.changes.map((c) => ({
+            field: c.field,
+            value: c.old,
+          })),
+        } as Prisma.InputJsonValue,
+        newValue: { changes: auditDiff.changes } as Prisma.InputJsonValue,
+      })
+    }
 
     return survey
   }
@@ -287,6 +358,51 @@ export class SurveysService {
     })
 
     return survey
+  }
+
+  private assertCreateIdentityFields(dto: CreateSurveyDto) {
+    if (!dto.parcelNo?.trim()) {
+      throw new BadRequestException({
+        code: "PARCEL_REQUIRED",
+        message: "Parcel number is required",
+      })
+    }
+    if (!dto.propertyNo?.trim()) {
+      throw new BadRequestException({
+        code: "PROPERTY_REQUIRED",
+        message: "Property number is required",
+      })
+    }
+    if (!dto.gisUseCode?.trim()) {
+      throw new BadRequestException({
+        code: "GIS_USE_CODE_REQUIRED",
+        message: "GIS use code is required",
+      })
+    }
+  }
+
+  private mergeIdentityInput(
+    dto: UpdateSurveyDto,
+    current: Survey
+  ): SurveyIdentityDto {
+    const parsed = parseGisSurveyId(current.surveyId)
+    return {
+      surveyId: current.surveyId,
+      wardId: dto.wardId ?? current.wardId,
+      parcelNo: dto.parcelNo ?? current.parcelNo ?? undefined,
+      propertyNo: dto.propertyNo ?? current.propertyNo ?? undefined,
+      gisUseCode: dto.gisUseCode ?? parsed?.gisUseCode,
+    }
+  }
+
+  private buildAuditState(
+    survey: Survey & { wardId: string }
+  ): Record<string, unknown> {
+    const parsed = parseGisSurveyId(survey.surveyId)
+    return surveyToAuditSnapshot(
+      survey as unknown as Record<string, unknown>,
+      { gisUseCode: parsed?.gisUseCode ?? null }
+    )
   }
 
   private buildWhere(query: ListSurveysQueryDto): Prisma.SurveyWhereInput {
@@ -332,12 +448,15 @@ export class SurveysService {
     return where
   }
 
-  private toPrismaData(
-    dto: Partial<CreateSurveyDto>
+  private toPrismaCreateData(
+    dto: CreateSurveyDto,
+    identity: ReturnType<typeof resolveSurveyIdentity>
   ): Prisma.SurveyUncheckedCreateInput {
     return {
-      surveyId: dto.surveyId!,
+      surveyId: identity.surveyId,
       wardId: dto.wardId!,
+      parcelNo: identity.parcelNo,
+      propertyNo: identity.propertyNo,
       surveyedAt: dto.surveyedAt ? new Date(dto.surveyedAt) : undefined,
       ownerName: dto.ownerName,
       ownerFatherName: dto.ownerFatherName,
@@ -345,8 +464,6 @@ export class SurveysService {
       ownerAadhaar: dto.ownerAadhaar,
       isSlum: dto.isSlum ?? false,
       remark: dto.remark,
-      parcelNo: dto.parcelNo,
-      propertyNo: dto.propertyNo,
       electricityId: dto.electricityId,
       khasraNo: dto.khasraNo,
       registryNo: dto.registryNo,
@@ -391,6 +508,84 @@ export class SurveysService {
       hasMunicipalWasteService: dto.hasMunicipalWasteService,
       status: dto.status,
     }
+  }
+
+  private toPrismaUpdateData(
+    dto: UpdateSurveyDto,
+    current: Survey,
+    identity: ReturnType<typeof resolveSurveyIdentity>
+  ): Prisma.SurveyUncheckedUpdateInput {
+    const data: Prisma.SurveyUncheckedUpdateInput = {
+      surveyId: identity.surveyId,
+      parcelNo: identity.parcelNo,
+      propertyNo: identity.propertyNo,
+    }
+
+    const assign = <K extends keyof UpdateSurveyDto>(
+      key: K,
+      transform?: (v: NonNullable<UpdateSurveyDto[K]>) => unknown
+    ) => {
+      if (dto[key] === undefined) return
+      const value = dto[key]
+      ;(data as Record<string, unknown>)[key as string] = transform
+        ? transform(value as NonNullable<UpdateSurveyDto[K]>)
+        : value
+    }
+
+    assign("wardId")
+    assign("surveyedAt", (v) => new Date(v))
+    assign("ownerName")
+    assign("ownerFatherName")
+    assign("mobile")
+    assign("ownerAadhaar")
+    assign("isSlum")
+    assign("remark")
+    assign("electricityId")
+    assign("khasraNo")
+    assign("registryNo")
+    assign("constructedDate")
+    assign("respondentName")
+    assign("respondentRelationship")
+    assign("city")
+    assign("pincode")
+    assign("houseNo")
+    assign("streetName")
+    assign("locality")
+    assign("colony")
+    assign("presentHouseNo")
+    assign("presentStreetName")
+    assign("presentLocality")
+    assign("presentColony")
+    assign("presentCity")
+    assign("presentPincode")
+    assign("isSameAsProperty")
+    assign("taxRateZone")
+    assign("propertyOwnership")
+    assign("propertyUse")
+    assign("commercial")
+    assign("yearOfConstruction")
+    assign("exemptionType")
+    assign("exemptionApplicable")
+    assign("situation")
+    assign("roadType")
+    assign("floorsRaw")
+    assign("plotAreaSqFt")
+    assign("plotAreaSqMeter")
+    assign("plinthAreaSqFt")
+    assign("plinthAreaSqMeter")
+    assign("totalBuiltUpAreaSqFt")
+    assign("totalBuiltUpAreaSqMeter")
+    assign("hasMunicipalWaterSupply")
+    assign("hasAlternateWater")
+    assign("waterSourceType")
+    assign("totalWaterConnections")
+    assign("waterConnectionIdType")
+    assign("toiletType")
+    assign("hasMunicipalWasteService")
+    assign("status")
+
+    void current
+    return data
   }
 
   private defaultInclude() {
@@ -493,3 +688,6 @@ export class SurveysService {
     return { id: attachmentId }
   }
 }
+
+/** Exported for tests and import repair. */
+export { verifySurveyIdMatchesRecord }

@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -31,17 +32,26 @@ export enum DataQualityStatusDto {
 }
 
 export class CreateSurveyDto {
+  @IsOptional()
   @IsString()
   @MinLength(3)
   @MaxLength(100)
-  surveyId!: string
+  surveyId?: string
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z]$/, {
+    message: "GIS use code must be a single letter (A–Z)",
+  })
+  gisUseCode?: string
 
   @IsOptional()
   @IsDateString()
   surveyedAt?: string
 
+  @IsOptional()
   @IsString()
-  wardId!: string
+  wardId?: string
 
   @IsOptional()
   @IsString()
@@ -265,11 +275,14 @@ export class UpdateSurveyDto extends CreateSurveyDto {
   @IsString()
   @MinLength(3)
   @MaxLength(100)
-  declare surveyId: string
+  declare surveyId?: string
 
   @IsOptional()
   @IsString()
-  declare wardId: string
+  @Matches(/^[A-Za-z]$/, {
+    message: "GIS use code must be a single letter (A–Z)",
+  })
+  declare gisUseCode?: string
 }
 
 export class ListSurveysQueryDto {

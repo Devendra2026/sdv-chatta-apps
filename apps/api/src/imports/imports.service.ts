@@ -10,9 +10,14 @@ import ExcelJS from "exceljs"
 import IORedis from "ioredis"
 
 import type { AuthUser } from "../auth/auth.decorators"
+import { AuditService } from "../audit/audit.service"
 import { PrismaService } from "../prisma/prisma.service"
 import { StorageService } from "../storage/storage.service"
 import { computeDataQuality, parseFloorsRaw } from "../surveys/floors.util"
+import {
+  diffSurveyChanges,
+  surveyToAuditSnapshot,
+} from "../surveys/survey-audit.util"
 import {
   cell,
   detectPresetFromHeaders,
@@ -39,7 +44,8 @@ export class ImportsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly storage: StorageService
+    private readonly storage: StorageService,
+    private readonly audit: AuditService
   ) {
     try {
       const connection = new IORedis(
@@ -344,11 +350,14 @@ export class ImportsService {
             continue
           }
           if (job.duplicateStrategy === "UPDATE") {
-            await this.prisma.$transaction(async (tx) => {
+            const beforeAudit = surveyToAuditSnapshot(
+              existing as unknown as Record<string, unknown>
+            )
+            const updatedSurvey = await this.prisma.$transaction(async (tx) => {
               await tx.surveyFloor.deleteMany({
                 where: { surveyId: existing.id },
               })
-              await tx.survey.update({
+              return tx.survey.update({
                 where: { id: existing.id },
                 data: {
                   ...payload,
@@ -367,6 +376,22 @@ export class ImportsService {
                 },
               })
             })
+            const afterAudit = surveyToAuditSnapshot(
+              updatedSurvey as unknown as Record<string, unknown>
+            )
+            const auditDiff = diffSurveyChanges(beforeAudit, afterAudit)
+            if (auditDiff.changes.length > 0) {
+              await this.audit.log({
+                action: "SURVEY_UPDATED",
+                entity: "Survey",
+                entityId: existing.id,
+                actorId: job.createdById ?? undefined,
+                newValue: {
+                  changes: auditDiff.changes,
+                  source: "import",
+                } as Prisma.InputJsonValue,
+              })
+            }
             updated++
             success++
             continue

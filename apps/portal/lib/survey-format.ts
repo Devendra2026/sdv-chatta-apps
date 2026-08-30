@@ -1,7 +1,14 @@
 /** Parcel / property display matching GIS Survey Id `249044-001-000001-001-R`. */
 
+import {
+  formatParcelNo as formatParcelNoShared,
+  formatPropertyNo as formatPropertyNoShared,
+  parseGisSurveyId as parseGisSurveyIdShared,
+} from "@workspace/types"
+
 export const ULB_NAME = "Nagar Panchayat Chhata"
 
+/** Portal-compatible shape (legacy field names). */
 export type GisSurveyParts = {
   ulbCode: string
   wardNo: string
@@ -13,27 +20,25 @@ export type GisSurveyParts = {
 export function parseGisSurveyId(
   surveyId?: string | null
 ): GisSurveyParts | null {
-  if (!surveyId) return null
-  const match = surveyId
-    .trim()
-    .match(/^(\d+)-(\d{3})-(\d+)-(\d+)-([A-Za-z])$/)
-  if (
-    !match?.[1] ||
-    !match[2] ||
-    !match[3] ||
-    !match[4] ||
-    !match[5]
-  ) {
-    return null
-  }
+  const parsed = parseGisSurveyIdShared(surveyId)
+  if (!parsed) return null
   return {
-    ulbCode: match[1],
-    wardNo: match[2],
-    parcelNo: match[3],
-    unitNo: match[4],
-    useLetter: match[5].toUpperCase(),
+    ulbCode: parsed.ulbCode,
+    wardNo: parsed.wardNo,
+    parcelNo: parsed.parcelNo,
+    unitNo: parsed.propertyNo,
+    useLetter: parsed.gisUseCode,
   }
 }
+
+export {
+  CHHATA_ULB_CODE,
+  generateSurveyId,
+  normalizeGisUseCode,
+  normalizeParcelNo,
+  normalizePropertyNo,
+  normalizeWardCode,
+} from "@workspace/types"
 
 export function toNumber(value?: string | number | null): number | null {
   if (value == null || value === "") return null
@@ -95,20 +100,14 @@ export function formatParcelNo(
   parcelNo: string | null | undefined,
   surveyId?: string | null
 ): string {
-  const fromId = surveyId?.match(/^\d+-\d{3}-(\d+)/)?.[1]
-  if (fromId) return fromId
-  const raw = parcelNo?.trim() ?? ""
-  if (/^\d+$/.test(raw)) return raw.padStart(6, "0")
-  return raw || "—"
+  const formatted = formatParcelNoShared(parcelNo, surveyId)
+  return formatted === "—" ? "—" : formatted
 }
 
 export function formatPropertyNo(
   propertyNo: string | null | undefined,
   surveyId?: string | null
 ): string {
-  const fromId = surveyId?.match(/^\d+-\d{3}-\d+-(\d+)/)?.[1]
-  if (fromId) return fromId
-  const raw = propertyNo?.trim() ?? ""
-  if (/^\d+$/.test(raw)) return raw.padStart(3, "0")
-  return raw || "—"
+  const formatted = formatPropertyNoShared(propertyNo, surveyId)
+  return formatted === "—" ? "—" : formatted
 }

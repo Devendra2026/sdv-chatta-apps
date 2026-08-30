@@ -31,6 +31,10 @@ import {
 
 import { api } from "@/lib/api"
 import {
+  generateSurveyId,
+  parseGisSurveyId,
+} from "@/lib/survey-format"
+import {
   CITIES,
   COMMERCIAL_USES,
   PROPERTY_OWNERSHIPS,
@@ -50,6 +54,7 @@ import { FloorsEditor } from "../_components/floors-editor"
 
 type FormValues = {
   surveyId: string
+  gisUseCode: string
   wardId: string
   surveyedAt: string
   ownerName: string
@@ -165,6 +170,7 @@ type SurveyRecord = {
 
 const emptyForm: FormValues = {
   surveyId: "",
+  gisUseCode: "R",
   wardId: "",
   surveyedAt: "",
   ownerName: "",
@@ -249,7 +255,7 @@ export default function SurveyFormPage() {
       if (!values.wardId) {
         throw new Error("Select Ward Name")
       }
-      const body = toPayload(values)
+      const body = toPayload(values, isEdit)
       if (isEdit) {
         return api.patch<{ id: string }>(`/api/v1/surveys/${params.id}`, body)
       }
@@ -260,6 +266,7 @@ export default function SurveyFormPage() {
       await qc.invalidateQueries({ queryKey: ["surveys"] })
       const id = isEdit ? params.id! : res.data.id
       await qc.invalidateQueries({ queryKey: ["survey", id] })
+      await qc.invalidateQueries({ queryKey: ["audit-logs", "Survey", id] })
       router.push(`/surveys/${id}`)
     },
     onError: (err: Error) => toast.error(err.message),
@@ -268,6 +275,36 @@ export default function SurveyFormPage() {
   const control = form.control
   const plotAreaSqFt = form.watch("plotAreaSqFt")
   const plinthAreaSqFt = form.watch("plinthAreaSqFt")
+  const wardId = form.watch("wardId")
+  const parcelNo = form.watch("parcelNo")
+  const propertyNo = form.watch("propertyNo")
+  const gisUseCode = form.watch("gisUseCode")
+
+  const previewSurveyId = React.useMemo(() => {
+    const ward = wards.data?.find((w) => w.id === wardId)
+    if (!ward || !parcelNo.trim() || !propertyNo.trim() || !gisUseCode.trim()) {
+      return isEdit ? form.getValues("surveyId") || "—" : "—"
+    }
+    try {
+      return generateSurveyId({
+        ulbCode: "249044",
+        wardNo: ward.number,
+        parcelNo: parcelNo.trim(),
+        propertyNo: propertyNo.trim(),
+        gisUseCode: gisUseCode.trim(),
+      })
+    } catch {
+      return "—"
+    }
+  }, [
+    wardId,
+    parcelNo,
+    propertyNo,
+    gisUseCode,
+    wards.data,
+    isEdit,
+    form,
+  ])
 
   return (
     <form
@@ -310,13 +347,20 @@ export default function SurveyFormPage() {
         title="Survey & Owner"
         description="Owner identity and survey metadata."
       >
-        <TextField
-          id="surveyId"
-          label="Survey Id"
-          required
-          disabled={isEdit}
-          register={form.register("surveyId", { required: true })}
-        />
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="surveyIdPreview">Survey Id</Label>
+          <Input
+            id="surveyIdPreview"
+            readOnly
+            disabled
+            value={previewSurveyId}
+            className="font-mono text-sm"
+          />
+          <p className="text-xs text-muted-foreground">
+            Generated automatically from ward, parcel, property, and GIS use
+            code.
+          </p>
+        </div>
         <TextField
           id="surveyedAt"
           label="Date of Survey"
@@ -389,12 +433,23 @@ export default function SurveyFormPage() {
         <TextField
           id="parcelNo"
           label="Parcel No"
-          register={form.register("parcelNo")}
+          required={!isEdit}
+          register={form.register("parcelNo", { required: !isEdit })}
         />
         <TextField
           id="propertyNo"
           label="Property No"
-          register={form.register("propertyNo")}
+          register={form.register("propertyNo", { required: !isEdit })}
+        />
+        <TextField
+          id="gisUseCode"
+          label="GIS Use Code"
+          required
+          register={form.register("gisUseCode", {
+            required: true,
+            maxLength: 1,
+            pattern: /^[A-Za-z]$/,
+          })}
         />
       </FormSection>
 
@@ -742,9 +797,11 @@ function toSelectValue(value: string): string | null {
 }
 
 function recordToForm(row: SurveyRecord): FormValues {
+  const parsed = parseGisSurveyId(row.surveyId)
   return {
     ...emptyForm,
     surveyId: row.surveyId ?? "",
+    gisUseCode: parsed?.useLetter ?? "R",
     wardId: row.wardId ?? "",
     surveyedAt: toLocalInput(row.surveyedAt),
     ownerName: row.ownerName ?? "",
@@ -836,10 +893,10 @@ function emptyToUndef(value: string) {
   return trimmed ? trimmed : undefined
 }
 
-function toPayload(values: FormValues) {
-  return {
-    surveyId: values.surveyId.trim(),
+function toPayload(values: FormValues, isEdit: boolean) {
+  const base = {
     wardId: values.wardId,
+    gisUseCode: emptyToUndef(values.gisUseCode),
     surveyedAt: values.surveyedAt
       ? new Date(values.surveyedAt).toISOString()
       : undefined,
@@ -894,4 +951,8 @@ function toPayload(values: FormValues) {
     exemptionApplicable: fromYesNo(values.exemptionApplicable),
     remark: emptyToUndef(values.remark),
   }
+
+  if (isEdit) return base
+
+  return base
 }

@@ -19,6 +19,7 @@ import {
   CardTitle,
 } from "@workspace/ui/components/card"
 
+import { citizenPropertyTaxUrl, getCitizenWebUrl } from "@/lib/citizen-web-url"
 import { SettingsPageHeader } from "../_components/settings-page-header"
 
 export default function SystemSettingsPage() {
@@ -51,7 +52,24 @@ export default function SystemSettingsPage() {
               label="Portal"
               value="Municipal survey & property tax ops"
             />
+            <InfoRow label="Citizen web" value={getCitizenWebUrl()} />
           </CardContent>
+          <CardFooter>
+            <Button
+              className="cursor-pointer"
+              variant="outline"
+              render={
+                <a
+                  href={citizenPropertyTaxUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              }
+            >
+              Property tax (citizen)
+              <ExternalLink className="size-4" aria-hidden />
+            </Button>
+          </CardFooter>
         </Card>
 
         <Card>

@@ -11,8 +11,10 @@ RUN turbo prune portal --docker
 FROM base AS installer
 ARG API_INTERNAL_URL=http://api:4000
 ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_CITIZEN_WEB_URL
 ENV API_INTERNAL_URL=$API_INTERNAL_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_CITIZEN_WEB_URL=$NEXT_PUBLIC_CITIZEN_WEB_URL
 COPY --from=pruner /app/out/json/ .
 COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 RUN pnpm install --frozen-lockfile

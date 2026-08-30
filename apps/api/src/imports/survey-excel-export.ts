@@ -1,11 +1,7 @@
+import { Prisma } from "@prisma/client"
 import ExcelJS from "exceljs"
-import type { Decimal } from "@prisma/client/runtime/library"
 
-import {
-  type ColumnMap,
-  type MappingPreset,
-  getMapping,
-} from "./column-maps"
+import { type ColumnMap, type MappingPreset, getMapping } from "./column-maps"
 
 export const SURVEY_EXPORT_SHEET_NAME = "Survey Data"
 
@@ -169,12 +165,12 @@ export type SurveyExportRecord = {
   situation: string | null
   roadType: string | null
   floorsRaw: string | null
-  plotAreaSqFt: Decimal | null
-  plotAreaSqMeter: Decimal | null
-  plinthAreaSqFt: Decimal | null
-  plinthAreaSqMeter: Decimal | null
-  totalBuiltUpAreaSqFt: Decimal | null
-  totalBuiltUpAreaSqMeter: Decimal | null
+  plotAreaSqFt: Prisma.Decimal | null
+  plotAreaSqMeter: Prisma.Decimal | null
+  plinthAreaSqFt: Prisma.Decimal | null
+  plinthAreaSqMeter: Prisma.Decimal | null
+  totalBuiltUpAreaSqFt: Prisma.Decimal | null
+  totalBuiltUpAreaSqMeter: Prisma.Decimal | null
   hasMunicipalWaterSupply: boolean | null
   hasAlternateWater: boolean | null
   waterSourceType: string | null
@@ -213,7 +209,9 @@ export function formatBoolForExcel(value: boolean | null | undefined): string {
   return ""
 }
 
-export function formatDecimalForExcel(value: Decimal | null | undefined): string {
+export function formatDecimalForExcel(
+  value: Prisma.Decimal | null | undefined
+): string {
   if (value == null) return ""
   return value.toString()
 }
@@ -259,9 +257,17 @@ function applyMappedFields(
   setCell(row, map.roadType, survey.roadType ?? "")
   setCell(row, map.floorsRaw, survey.floorsRaw ?? "")
   setCell(row, map.plotAreaSqFt, formatDecimalForExcel(survey.plotAreaSqFt))
-  setCell(row, map.plotAreaSqMeter, formatDecimalForExcel(survey.plotAreaSqMeter))
+  setCell(
+    row,
+    map.plotAreaSqMeter,
+    formatDecimalForExcel(survey.plotAreaSqMeter)
+  )
   setCell(row, map.plinthAreaSqFt, formatDecimalForExcel(survey.plinthAreaSqFt))
-  setCell(row, map.plinthAreaSqMeter, formatDecimalForExcel(survey.plinthAreaSqMeter))
+  setCell(
+    row,
+    map.plinthAreaSqMeter,
+    formatDecimalForExcel(survey.plinthAreaSqMeter)
+  )
   setCell(
     row,
     map.totalBuiltUpAreaSqFt,
@@ -277,11 +283,7 @@ function applyMappedFields(
     map.hasMunicipalWaterSupply,
     formatBoolForExcel(survey.hasMunicipalWaterSupply)
   )
-  setCell(
-    row,
-    map.totalWaterConnections,
-    survey.totalWaterConnections ?? ""
-  )
+  setCell(row, map.totalWaterConnections, survey.totalWaterConnections ?? "")
   setCell(row, map.waterConnectionIdType, survey.waterConnectionIdType ?? "")
   setCell(row, map.toiletType, survey.toiletType ?? "")
   setCell(
@@ -295,7 +297,8 @@ function applyMappedFields(
     setCell(row, map.electricityId, survey.electricityId ?? "")
   }
   if (map.khasraNo != null) setCell(row, map.khasraNo, survey.khasraNo ?? "")
-  if (map.registryNo != null) setCell(row, map.registryNo, survey.registryNo ?? "")
+  if (map.registryNo != null)
+    setCell(row, map.registryNo, survey.registryNo ?? "")
   if (map.constructedDate != null) {
     setCell(row, map.constructedDate, survey.constructedDate ?? "")
   }
@@ -314,12 +317,17 @@ function applyMappedFields(
   if (map.presentColony != null) {
     setCell(row, map.presentColony, survey.presentColony ?? "")
   }
-  if (map.presentCity != null) setCell(row, map.presentCity, survey.presentCity ?? "")
+  if (map.presentCity != null)
+    setCell(row, map.presentCity, survey.presentCity ?? "")
   if (map.presentPincode != null) {
     setCell(row, map.presentPincode, survey.presentPincode ?? "")
   }
   if (map.isSameAsProperty != null) {
-    setCell(row, map.isSameAsProperty, formatBoolForExcel(survey.isSameAsProperty))
+    setCell(
+      row,
+      map.isSameAsProperty,
+      formatBoolForExcel(survey.isSameAsProperty)
+    )
   }
   if (map.exemptionType != null) {
     setCell(row, map.exemptionType, survey.exemptionType ?? "")
@@ -333,9 +341,17 @@ function applyMappedFields(
   }
 
   if (map.hasAlternateWater != null) {
-    setCell(row, map.hasAlternateWater, formatBoolForExcel(survey.hasAlternateWater))
+    setCell(
+      row,
+      map.hasAlternateWater,
+      formatBoolForExcel(survey.hasAlternateWater)
+    )
   } else if (map.remark != null) {
-    setCell(row, V2_ALTERNATE_WATER_COL, formatBoolForExcel(survey.hasAlternateWater))
+    setCell(
+      row,
+      V2_ALTERNATE_WATER_COL,
+      formatBoolForExcel(survey.hasAlternateWater)
+    )
   }
   if (map.waterSourceType != null) {
     setCell(row, map.waterSourceType, survey.waterSourceType ?? "")

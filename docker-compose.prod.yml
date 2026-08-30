@@ -101,6 +101,7 @@ services:
       args:
         API_INTERNAL_URL: http://api:4000
         NEXT_PUBLIC_APP_URL: ${PUBLIC_PORTAL_URL}
+        NEXT_PUBLIC_CITIZEN_WEB_URL: ${PUBLIC_WEB_URL}
     restart: unless-stopped
     env_file: .env
     environment:
@@ -109,6 +110,7 @@ services:
       HOSTNAME: 0.0.0.0
       API_INTERNAL_URL: http://api:4000
       NEXT_PUBLIC_APP_URL: ${PUBLIC_PORTAL_URL}
+      NEXT_PUBLIC_CITIZEN_WEB_URL: ${PUBLIC_WEB_URL}
     depends_on:
       api:
         condition: service_healthy

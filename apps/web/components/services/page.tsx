@@ -11,13 +11,16 @@ import {
   Droplet,
   FileText,
   HelpCircle,
-  Skull,
-  Store,
-  Sparkles,
-  X,
   MapPin,
+  Skull,
+  Sparkles,
+  Store,
+  X,
 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import React, { useState } from "react"
+
+import { CITIZEN_ONLINE_ROUTES } from "@/lib/citizen-service-routes"
 
 interface ServiceItem {
   id: string
@@ -28,9 +31,11 @@ interface ServiceItem {
   themeColor: string
   badge: string
   pdfName: string
+  href?: string
 }
 
 export default function Services() {
+  const router = useRouter()
   const [activeService, setActiveService] = useState<ServiceItem | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [downloaded, setDownloaded] = useState(false)
@@ -45,6 +50,7 @@ export default function Services() {
       themeColor: "from-blue-600 to-indigo-700",
       badge: "सबसे लोकप्रिय",
       pdfName: "Chhata_Property_Tax_Assessment_Form.pdf",
+      href: CITIZEN_ONLINE_ROUTES.propertyTax,
     },
     {
       id: "water-tax",
@@ -115,10 +121,15 @@ export default function Services() {
       themeColor: "from-red-600 to-rose-800",
       badge: "त्वरित समाधान",
       pdfName: "Chhata_Civic_Grievance_Form.pdf",
+      href: CITIZEN_ONLINE_ROUTES.publicGrievance,
     },
   ]
 
   const handleCardClick = (service: ServiceItem) => {
+    if (service.href) {
+      router.push(service.href)
+      return
+    }
     setActiveService(service)
     setDownloading(false)
     setDownloaded(false)
@@ -215,7 +226,9 @@ export default function Services() {
 
               {/* Footer CTA Hint */}
               <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 text-xs font-bold text-orange-600 transition-transform group-hover:translate-x-1">
-                <span>फॉर्म डाउनलोड करें</span>
+                <span>
+                  {service.href ? "ऑनलाइन पोर्टल खोलें" : "फॉर्म डाउनलोड करें"}
+                </span>
                 <Download className="h-3.5 w-3.5 text-orange-600" />
               </div>
             </m.div>

@@ -5,7 +5,7 @@
  */
 import "dotenv/config"
 
-import { DuplicateStrategy, PrismaClient } from "@prisma/client"
+import { DuplicateStrategy } from "@prisma/client"
 import ExcelJS from "exceljs"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
@@ -22,9 +22,10 @@ import {
   parseSurveyedAt,
   type MappingPreset,
 } from "../src/imports/column-maps"
+import { createPrismaClient } from "../src/prisma/prisma.client"
 import { computeDataQuality, parseFloorsRaw } from "../src/surveys/floors.util"
 
-const prisma = new PrismaClient()
+const prisma = createPrismaClient()
 const storageRoot = path.resolve(process.env.STORAGE_DIR ?? "uploads")
 
 async function getObject(key: string): Promise<Buffer> {

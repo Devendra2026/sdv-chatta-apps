@@ -65,7 +65,8 @@ async function bootstrap() {
     })
   )
 
-  const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:3000"
+  const corsOrigin =
+    process.env.CORS_ORIGIN ?? "http://localhost:3000,http://localhost:3001"
   app.enableCors({
     origin: corsOrigin.split(",").map((o) => o.trim()),
     credentials: true,

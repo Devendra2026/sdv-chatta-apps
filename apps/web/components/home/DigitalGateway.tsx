@@ -11,7 +11,10 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import React from "react"
+
+import { CITIZEN_ONLINE_ROUTES } from "@/lib/citizen-service-routes"
 
 interface DepartmentCard {
   name: string
@@ -22,9 +25,12 @@ interface DepartmentCard {
   badgeColor: string
   glowColor: string
   services: string[]
+  href?: string
 }
 
 export default function DigitalGateway() {
+  const router = useRouter()
+
   const departments: DepartmentCard[] = [
     {
       name: "Public Works Department",
@@ -55,6 +61,7 @@ export default function DigitalGateway() {
         "Mutation of Property",
         "NOC Certification",
       ],
+      href: CITIZEN_ONLINE_ROUTES.propertyTax,
     },
     {
       name: "Water Supply Department",
@@ -171,7 +178,10 @@ export default function DigitalGateway() {
                 duration: 0.5,
                 ease: "easeOut",
               }}
-              className={`rounded-3xl border border-slate-200/90 bg-white/90 shadow-xl shadow-slate-200/50 backdrop-blur-xl ${dept.glowColor} group relative flex flex-col justify-between overflow-hidden p-7 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl`}
+              onClick={() => {
+                if (dept.href) router.push(dept.href)
+              }}
+              className={`rounded-3xl border border-slate-200/90 bg-white/90 shadow-xl shadow-slate-200/50 backdrop-blur-xl ${dept.glowColor} group relative flex flex-col justify-between overflow-hidden p-7 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl ${dept.href ? "cursor-pointer" : ""}`}
             >
               {/* Top ambient color highlight strip inside card */}
               <div

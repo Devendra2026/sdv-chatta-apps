@@ -17,13 +17,14 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: repoRoot,
   transpilePackages: ["@workspace/ui", "@workspace/types"],
   async rewrites() {
-    // Proxy Nest public API under /api/* (same pattern as portal).
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${apiInternal}/api/:path*`,
-      },
-    ]
+    const apiProxy = {
+      source: "/api/:path*",
+      destination: `${apiInternal}/api/:path*`,
+    }
+    return {
+      afterFiles: [apiProxy],
+      fallback: [apiProxy],
+    }
   },
 }
 

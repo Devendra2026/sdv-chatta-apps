@@ -1,5 +1,7 @@
 /** Column index maps for Chhata Excel layouts (0-based). */
 
+import { wardNumberFromSurveyId } from "@workspace/types"
+
 export type ColumnMap = {
   surveyId: number
   surveyedAt: number
@@ -237,29 +239,14 @@ export function extractWardNumber(wardName: string, surveyId: string): number | 
     const n = Number(fromName[1] ?? fromName[2])
     return Number.isFinite(n) ? n : null
   }
-  const fromId = surveyId.match(/^\d+-(\d{3})-/)
-  if (fromId) return Number(fromId[1])
+  const fromId = wardNumberFromSurveyId(surveyId)
+  if (fromId != null) return fromId
   return null
 }
 
-/** Parcel segment from GIS Survey Id `249044-001-000001-001-R`. */
-export function parcelFromSurveyId(surveyId: string): string | null {
-  const match = surveyId.trim().match(/^\d+-\d{3}-(\d+)/)
-  return match?.[1] ?? null
-}
-
-export function normalizeParcelNo(excelValue: string, surveyId: string): string | null {
-  const fromId = parcelFromSurveyId(surveyId)
-  if (fromId) return fromId
-  const digits = excelValue.replace(/\D/g, "")
-  if (!digits) return excelValue || null
-  return digits.padStart(Math.max(6, digits.length), "0")
-}
-
-export function normalizePropertyNo(excelValue: string, surveyId: string): string | null {
-  const match = surveyId.trim().match(/^\d+-\d{3}-\d+-(\d+)/)
-  if (match?.[1]) return match[1]
-  const digits = excelValue.replace(/\D/g, "")
-  if (!digits) return excelValue || null
-  return digits.padStart(Math.max(3, digits.length), "0")
-}
+export {
+  normalizeParcelNoFromExcel as normalizeParcelNo,
+  normalizePropertyNoFromExcel as normalizePropertyNo,
+  parcelFromSurveyId,
+  propertyFromSurveyId,
+} from "@workspace/types"

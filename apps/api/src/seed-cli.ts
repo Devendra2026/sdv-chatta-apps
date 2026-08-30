@@ -1,6 +1,7 @@
-import { PrismaClient } from "@prisma/client"
+import "dotenv/config"
 
 import { seedDatabase } from "./db/seed-database"
+import { createPrismaClient } from "./prisma/prisma.client"
 
 function redactSecrets(value: string): string {
   return value
@@ -9,7 +10,7 @@ function redactSecrets(value: string): string {
 }
 
 async function main() {
-  const prisma = new PrismaClient()
+  const prisma = createPrismaClient()
   try {
     await seedDatabase(prisma)
   } catch (error) {
