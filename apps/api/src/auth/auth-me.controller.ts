@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Patch,
   Post,
   UseGuards,
@@ -62,6 +63,7 @@ export class AuthMeController {
   }
 
   @Get("me")
+  @Header("Cache-Control", "private, no-store")
   @UseGuards(AuthGuard)
   me(@CurrentUser() user: AuthUser) {
     return {

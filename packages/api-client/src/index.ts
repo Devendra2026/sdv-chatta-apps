@@ -34,6 +34,7 @@ export function createApiClient(options: ApiClientOptions) {
       ...init,
       headers,
       credentials: "include",
+      cache: "no-store",
     })
 
     const json = (await response.json().catch(() => null)) as {
@@ -77,6 +78,7 @@ export function createApiClient(options: ApiClientOptions) {
         headers,
         body: form,
         credentials: "include",
+        cache: "no-store",
       })
       const json = (await response.json().catch(() => null)) as {
         success?: boolean

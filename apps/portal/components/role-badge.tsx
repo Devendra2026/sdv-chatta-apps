@@ -34,10 +34,14 @@ function roleBadge(roles?: string[]): string {
 }
 
 export function RoleBadge() {
-  const { user, isLoading } = usePermission()
+  const { user, isLoading, isError } = usePermission()
 
   if (isLoading) {
     return <Skeleton className="hidden h-8 w-44 rounded-full lg:block" />
+  }
+
+  if (isError) {
+    return null
   }
 
   const role = roleBadge(user?.roles)

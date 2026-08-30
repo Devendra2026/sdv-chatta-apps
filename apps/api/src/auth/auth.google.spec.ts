@@ -1,4 +1,5 @@
 import {
+  advancedAuth,
   emailPasswordInviteOnly,
   resolveGoogleSocialProvider,
   resolvePublicAppUrl,
@@ -33,6 +34,16 @@ describe("auth-options invite-only Google", () => {
     expect(social.google?.clientId).toBe("google-client-id")
     expect(resolvePublicAppUrl()).toBe("http://localhost:3000")
     expect(resolveTrustedOrigins()).toEqual(["http://localhost:3000"])
+    expect(advancedAuth.trustedProxyHeaders).toBe(true)
+  })
+
+  it("strips trailing slashes from trusted origins", () => {
+    process.env.CORS_ORIGIN =
+      "https://portal.npchhata.com/,https://npchhata.com/"
+    expect(resolveTrustedOrigins()).toEqual([
+      "https://portal.npchhata.com",
+      "https://npchhata.com",
+    ])
   })
 
   it("omits Google provider when credentials are missing", () => {

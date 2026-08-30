@@ -17,6 +17,7 @@ import { RequestLoggingInterceptor } from "./common/request-logging.interceptor"
 
 async function bootstrap() {
   const server = express()
+  server.set("trust proxy", 1)
   const authGate = attachBetterAuthGate(server)
 
   const app = await NestFactory.create(AppModule, new ExpressAdapter(server), {

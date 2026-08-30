@@ -1,10 +1,7 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@workspace/ui/components/sidebar"
+import { SidebarInset, SidebarProvider } from "@workspace/ui/components/sidebar"
 
 import { AppHeader } from "@/components/app-header"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -12,9 +9,13 @@ import { PermissionProvider } from "@/hooks/use-permission"
 
 async function hasSessionCookie() {
   const jar = await cookies()
-  return (
-    jar.getAll().some((c) => c.name.includes("session") || c.name.includes("better-auth"))
-  )
+  return jar
+    .getAll()
+    .some(
+      (c) =>
+        c.name.includes("better-auth.session_token") ||
+        c.name.includes("session_token")
+    )
 }
 
 export default async function AppLayout({

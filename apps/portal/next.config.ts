@@ -26,7 +26,7 @@ const nextConfig: NextConfig = {
       destination: `${apiInternal}/api/:path*`,
     }
     // afterFiles: unmatched /api/* before 404. fallback: last-chance proxy.
-    // Filesystem routes (/api/portal/*, /api/auth/[...all]) still win.
+    // Filesystem routes win: /api/portal/*, /api/auth/[...all], /api/v1/[...path].
     return {
       afterFiles: [apiProxy],
       fallback: [apiProxy],

@@ -5,8 +5,13 @@
 export function resolveTrustedOrigins(): string[] {
   return (process.env.CORS_ORIGIN ?? "http://localhost:3000")
     .split(",")
-    .map((o) => o.trim())
+    .map((o) => o.trim().replace(/\/+$/, ""))
     .filter(Boolean)
+}
+
+/** Portal (and Traefik) sit in front of Nest; honor forwarded host/proto. */
+export const advancedAuth = {
+  trustedProxyHeaders: true as const,
 }
 
 export function resolvePublicAppUrl(): string {

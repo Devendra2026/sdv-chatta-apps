@@ -6,10 +6,10 @@ export const dynamic = "force-dynamic"
 
 async function handle(
   req: NextRequest,
-  ctx: { params: Promise<{ all: string[] }> }
+  ctx: { params: Promise<{ path: string[] }> }
 ) {
-  const { all } = await ctx.params
-  return proxyToApi(req, `/api/auth/${all.join("/")}${req.nextUrl.search}`)
+  const { path } = await ctx.params
+  return proxyToApi(req, `/api/v1/${path.join("/")}${req.nextUrl.search}`)
 }
 
 export const GET = handle

@@ -5,6 +5,7 @@ import { emailOTP } from "better-auth/plugins"
 import { resolveSeedAdminEmail } from "../db/seed-admin-config"
 import { PrismaService } from "../prisma/prisma.service"
 import {
+  advancedAuth,
   emailPasswordInviteOnly,
   googleAccountLinking,
   resolveGoogleSocialProvider,
@@ -33,6 +34,7 @@ export function createAuth(prisma: PrismaService): BetterAuthInstance {
     },
     socialProviders: resolveGoogleSocialProvider(),
     trustedOrigins: resolveTrustedOrigins(),
+    advanced: advancedAuth,
     plugins: [
       emailOTP({
         disableSignUp: true,

@@ -1,7 +1,7 @@
 "use client"
 
-import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
+import * as React from "react"
 
 import { api, type MeUser } from "@/lib/api"
 
@@ -20,15 +20,20 @@ const PermissionContext = React.createContext<{
   refetch: () => undefined,
 })
 
-export function PermissionProvider({ children }: { children: React.ReactNode }) {
+export function PermissionProvider({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   const query = useQuery({
     queryKey: ["auth", "me"],
     queryFn: async () => {
       const res = await api.get<MeUser>("/api/v1/auth/me")
       return res.data
     },
-    retry: 1,
+    retry: 2,
     staleTime: 30_000,
+    refetchOnMount: "always",
   })
 
   const hasPermission = React.useCallback(
