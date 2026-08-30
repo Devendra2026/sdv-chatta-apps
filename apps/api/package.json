@@ -7,7 +7,7 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main",
-    "start:prod": "prisma migrate deploy && node dist/main",
+    "start:prod": "prisma migrate deploy && node dist/seed-cli.js && node dist/main",
     "start:debug": "nest start --debug --watch",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write \"**/*.{ts,json}\"",

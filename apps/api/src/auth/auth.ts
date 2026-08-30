@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 
+import { resolveSeedAdminEmail } from "../db/seed-admin-config"
 import { PrismaService } from "../prisma/prisma.service"
 import {
   emailPasswordInviteOnly,
@@ -48,9 +49,7 @@ export function createAuth(prisma: PrismaService) {
           after: async (user) => {
             // Safety net for any Better Auth-created users (should be rare with disableSignUp).
             // Admin provisioning assigns roles explicitly in UsersController.
-            const adminEmail = (
-              process.env.SEED_ADMIN_EMAIL ?? "sikarwar2010@gmail.com"
-            ).toLowerCase()
+            const adminEmail = resolveSeedAdminEmail()
 
             const hasSuperAdmin = await prisma.userRole.findFirst({
               where: { role: { code: "SUPER_ADMIN" } },

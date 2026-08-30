@@ -38,7 +38,7 @@ Local Docker ports (avoids clashes with other stacks like `api-survey-local`):
 | Postgres | `5433`    |
 | Redis    | `6380`    |
 
-Default admin (seed): `sikarwar2010@gmail.com` / `tarun@0446`
+Default admin email (local seed, overridable): `SEED_ADMIN_EMAIL` in `apps/api/.env`. Password comes from `SEED_ADMIN_PASSWORD` in that same file — never from source code.
 
 ## Production (Dokploy)
 
@@ -58,6 +58,8 @@ Dokploy owns Traefik, TLS, and the Environment tab. Use `docker-compose.prod.yml
 6. Do not map domains to Postgres or Redis.
 
 `DATABASE_URL` / `REDIS_URL` are set in Compose from `POSTGRES_*` and `REDIS_PASSWORD`. Do not point them at `localhost`. Survey imports and attachments are stored on the `chhata_uploads` volume (`STORAGE_DIR=/app/uploads`).
+
+On each API container start: **migrations** then **idempotent Super Admin seed** then the Nest process. Set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in Dokploy Environment (required in production). The seed uses that same `DATABASE_URL`.
 
 ## Fixtures
 

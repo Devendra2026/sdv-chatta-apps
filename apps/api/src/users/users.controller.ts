@@ -22,9 +22,8 @@ import {
 import { RequirePermission } from "../auth/auth.decorators"
 import { AuthGuard } from "../auth/auth.guard"
 import { PermissionGuard } from "../auth/permission.guard"
+import { CREDENTIAL_ISSUER, CREDENTIAL_PROVIDER_ID } from "../db/credential"
 import { PrismaService } from "../prisma/prisma.service"
-
-const CREDENTIAL_ISSUER = "local:credential"
 
 class CreateUserDto {
   @IsEmail()
@@ -131,7 +130,7 @@ export class UsersController {
       await tx.account.create({
         data: {
           accountId: created.id,
-          providerId: "credential",
+          providerId: CREDENTIAL_PROVIDER_ID,
           issuer: CREDENTIAL_ISSUER,
           userId: created.id,
           password: hashed,

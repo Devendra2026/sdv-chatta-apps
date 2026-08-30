@@ -30,4 +30,5 @@ COPY --from=installer --chown=nestjs:nodejs /out .
 RUN mkdir -p /app/uploads && chown nestjs:nodejs /app/uploads
 USER nestjs
 EXPOSE 4000
-CMD ["sh", "-c", "npx prisma migrate deploy --schema=prisma/schema.prisma && node dist/main.js"]
+# Same DATABASE_URL for migrate, seed, and the API process.
+CMD ["sh", "-c", "echo 'Running database migrations...' && npx prisma migrate deploy --schema=prisma/schema.prisma && node dist/seed-cli.js && node dist/main.js"]
