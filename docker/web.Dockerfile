@@ -15,6 +15,8 @@ COPY --from=pruner /app/out/json/ .
 COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 RUN pnpm install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .
+# Workspace packages export dist/ only; .dockerignore excludes **/dist.
+RUN pnpm --filter @workspace/types build
 # NFT copies @swc/helpers but omits esm/; Next 16 requires those files at runtime.
 RUN pnpm --filter web build \
   && src="$(find /app/node_modules/.pnpm -type d -path '*/@swc+helpers@*/node_modules/@swc/helpers' | head -n 1)" \
