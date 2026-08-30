@@ -1,7 +1,21 @@
 export function toNodeHandler() {
-  return (_req: unknown, res: { statusCode: number; end: (b?: string) => void }) => {
+  return (
+    req: { url?: string; baseUrl?: string; originalUrl?: string },
+    res: {
+      statusCode: number
+      setHeader?: (name: string, value: string) => void
+      end: (b?: string) => void
+    }
+  ) => {
     res.statusCode = 200
-    res.end("{}")
+    res.setHeader?.("content-type", "application/json")
+    res.end(
+      JSON.stringify({
+        url: req.url,
+        baseUrl: req.baseUrl,
+        originalUrl: req.originalUrl,
+      })
+    )
   }
 }
 

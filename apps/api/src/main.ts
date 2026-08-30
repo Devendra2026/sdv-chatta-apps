@@ -21,7 +21,7 @@ async function bootstrap() {
   // Atom gateway callback/return often posts application/x-www-form-urlencoded.
   const bodyLimit = process.env.REQUEST_BODY_LIMIT ?? "25mb"
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.url.startsWith("/api/auth")) {
+    if ((req.originalUrl ?? req.url).startsWith("/api/auth")) {
       return next()
     }
     return express.json({ limit: bodyLimit })(req, res, (err?: unknown) => {
