@@ -18,6 +18,9 @@ COPY --from=pruner /app/out/full/ .
 # to connect; production DATABASE_URL is injected at container start.
 ENV DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=public"
 RUN pnpm --filter api prisma:generate
+# @workspace/types exports dist/ only; .dockerignore excludes **/dist, so
+# compile the workspace package before Nest typechecks those imports.
+RUN pnpm --filter @workspace/types build
 RUN pnpm --filter api build
 # Include prisma CLI so migrate deploy works at container start.
 # pnpm 10+ requires --legacy unless inject-workspace-packages is enabled.
