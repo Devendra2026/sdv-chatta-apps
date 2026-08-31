@@ -15,11 +15,11 @@ export const advancedAuth = {
 }
 
 export function resolvePublicAppUrl(): string {
-  return (
+  const raw =
     process.env.BETTER_AUTH_URL ??
     process.env.PUBLIC_APP_URL ??
     "http://localhost:3000"
-  )
+  return raw.trim().replace(/\/+$/, "")
 }
 
 export type GoogleSocialConfig = {

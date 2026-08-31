@@ -46,6 +46,11 @@ describe("auth-options invite-only Google", () => {
     ])
   })
 
+  it("strips trailing slashes from BETTER_AUTH_URL", () => {
+    process.env.BETTER_AUTH_URL = "https://portal.npchhata.com/"
+    expect(resolvePublicAppUrl()).toBe("https://portal.npchhata.com")
+  })
+
   it("omits Google provider when credentials are missing", () => {
     delete process.env.GOOGLE_CLIENT_ID
     delete process.env.GOOGLE_CLIENT_SECRET

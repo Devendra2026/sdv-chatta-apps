@@ -1,3 +1,5 @@
+import { cookieHeaderFromPairs, resolveForwardedProto } from "@workspace/types"
+import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 
 const HOP_BY_HOP = new Set([
@@ -48,13 +50,31 @@ export async function proxyToApi(
       headers.set(key, value)
     }
   })
+
   const origin =
     req.headers.get("origin") ??
     process.env.NEXT_PUBLIC_APP_URL ??
     req.nextUrl.origin
   headers.set("origin", origin)
   headers.set("x-forwarded-host", req.headers.get("host") ?? "")
-  headers.set("x-forwarded-proto", req.nextUrl.protocol.replace(":", ""))
+  headers.set(
+    "x-forwarded-proto",
+    resolveForwardedProto({
+      forwardedProtoHeader: req.headers.get("x-forwarded-proto"),
+      publicAppUrl: process.env.NEXT_PUBLIC_APP_URL ?? null,
+      originHeader: req.headers.get("origin"),
+      requestProtocol: req.nextUrl.protocol,
+    })
+  )
+
+  const jar = await cookies()
+  const cookieHeader =
+    cookieHeaderFromPairs(jar.getAll()) ?? req.headers.get("cookie")
+  if (cookieHeader) {
+    headers.set("cookie", cookieHeader)
+  } else {
+    headers.delete("cookie")
+  }
 
   const method = req.method.toUpperCase()
   const body =

@@ -17,7 +17,9 @@ export default async function proxy(req: NextRequest) {
 
   // Auth + API must never be redirected — login posts to /api/auth/* via rewrite.
   if (pathname.startsWith("/api/")) {
-    return NextResponse.next()
+    return NextResponse.next({
+      request: { headers: new Headers(req.headers) },
+    })
   }
 
   const signedOut = req.nextUrl.searchParams.get("signedOut") === "1"
