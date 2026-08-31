@@ -2,7 +2,10 @@ import {
   resolveCookieHeaderForProxy,
   resolveForwardedProto,
 } from "@workspace/types"
+import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
+
+import { applyUpstreamSetCookies } from "@/lib/forward-set-cookies"
 
 const HOP_BY_HOP = new Set([
   "connection",
@@ -34,15 +37,10 @@ export function apiInternalUrl() {
 }
 
 /**
- * Forward a portal request to Nest, including the raw Cookie header.
+ * Forward a portal request to Nest, including session cookies.
  *
- * Next.js rewrites to `http://api:4000` can drop `__Secure-` session cookies
- * (production HTTPS). Login still works because `/api/auth` already uses this
- * proxy; `/api/v1/*` (including `/auth/me`) must do the same.
- *
- * Always prefer the browser `Cookie` header over Next's cookie jar. After
- * logout, an empty leftover `better-auth.session_token` in the jar would
- * otherwise hide the new `__Secure-` session cookie.
+ * Next.js rewrites to `http://api:4000` can drop `__Secure-` cookies.
+ * Filesystem routes (`/api/auth`, `/api/v1`) must proxy instead.
  */
 export async function proxyToApi(
   req: NextRequest,
@@ -56,6 +54,7 @@ export async function proxyToApi(
       headers.set(key, value)
     }
   })
+  headers.delete("accept-encoding")
 
   const origin =
     req.headers.get("origin") ??
@@ -63,17 +62,19 @@ export async function proxyToApi(
     req.nextUrl.origin
   headers.set("origin", origin)
   headers.set("x-forwarded-host", req.headers.get("host") ?? "")
-  headers.set(
-    "x-forwarded-proto",
-    resolveForwardedProto({
-      forwardedProtoHeader: req.headers.get("x-forwarded-proto"),
-      publicAppUrl: process.env.NEXT_PUBLIC_APP_URL ?? null,
-      originHeader: req.headers.get("origin"),
-      requestProtocol: req.nextUrl.protocol,
-    })
-  )
+  const proto = resolveForwardedProto({
+    forwardedProtoHeader: req.headers.get("x-forwarded-proto"),
+    publicAppUrl: process.env.NEXT_PUBLIC_APP_URL ?? null,
+    originHeader: req.headers.get("origin"),
+    requestProtocol: req.nextUrl.protocol,
+  })
+  headers.set("x-forwarded-proto", proto)
 
-  const cookieHeader = resolveCookieHeaderForProxy(req.headers.get("cookie"))
+  const jar = await cookies()
+  const cookieHeader = resolveCookieHeaderForProxy(
+    req.headers.get("cookie"),
+    jar.getAll()
+  )
   if (cookieHeader) {
     headers.set("cookie", cookieHeader)
   } else {
@@ -112,15 +113,18 @@ export async function proxyToApi(
     if (key.toLowerCase() === "set-cookie") return
     resHeaders.append(key, value)
   })
-  for (const cookie of upstream.headers.getSetCookie()) {
-    resHeaders.append("set-cookie", cookie)
-  }
   if (!resHeaders.has("cache-control")) {
     resHeaders.set("cache-control", "private, no-store")
   }
 
-  return new NextResponse(upstream.body, {
+  const res = new NextResponse(upstream.body, {
     status: upstream.status,
     headers: resHeaders,
   })
+  applyUpstreamSetCookies(
+    res,
+    upstream.headers.getSetCookie(),
+    proto === "https"
+  )
+  return res
 }

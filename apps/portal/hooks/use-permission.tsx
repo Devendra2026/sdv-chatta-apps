@@ -25,8 +25,10 @@ let signingOutOn401 = false
 
 export function PermissionProvider({
   children,
+  initialUser,
 }: {
   children: React.ReactNode
+  initialUser?: MeUser
 }) {
   const query = useQuery({
     queryKey: ["auth", "me"],
@@ -38,6 +40,7 @@ export function PermissionProvider({
         if (
           err instanceof ApiError &&
           err.status === 401 &&
+          !initialUser &&
           typeof window !== "undefined" &&
           !signingOutOn401
         ) {
@@ -47,31 +50,34 @@ export function PermissionProvider({
         throw err
       }
     },
+    initialData: initialUser,
     retry: (failureCount, error) => {
       if (error instanceof ApiError && error.status === 401) return false
       return failureCount < 2
     },
     staleTime: 30_000,
-    refetchOnMount: "always",
+    refetchOnMount: initialUser ? false : "always",
   })
+
+  const user = query.data ?? initialUser
 
   const hasPermission = React.useCallback(
     (code: string | string[]) => {
-      if (query.isLoading || !query.data) return false
+      if (!user) return false
       const needed = Array.isArray(code) ? code : [code]
-      const perms = query.data.permissions ?? []
-      if (query.data.roles?.includes("SUPER_ADMIN")) return true
+      const perms = user.permissions ?? []
+      if (user.roles?.includes("SUPER_ADMIN")) return true
       return needed.every((c) => perms.includes(c))
     },
-    [query.data, query.isLoading]
+    [user]
   )
 
   return (
     <PermissionContext.Provider
       value={{
-        user: query.data,
-        isLoading: query.isLoading,
-        isError: query.isError,
+        user,
+        isLoading: query.isLoading && !user,
+        isError: query.isError && !user,
         hasPermission,
         can: hasPermission,
         refetch: () => {
@@ -89,6 +95,10 @@ export function usePermission() {
 }
 
 export function useCan(code: string | string[]) {
-  const { can, isLoading, isError } = usePermission()
-  return { allowed: !isLoading && !isError && can(code), isLoading, isError }
+  const { can, isLoading, isError, user } = usePermission()
+  return {
+    allowed: Boolean(user) && can(code),
+    isLoading,
+    isError: isError && !user,
+  }
 }

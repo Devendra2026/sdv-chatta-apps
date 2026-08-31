@@ -85,10 +85,14 @@ export class AuthGuard implements CanActivate {
       permissions,
     }
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    })
+    try {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      })
+    } catch {
+      // Session is valid; do not fail the request if lastLoginAt cannot be written.
+    }
 
     return true
   }

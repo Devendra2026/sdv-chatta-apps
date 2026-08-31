@@ -1,7 +1,7 @@
 import { getSessionCookie } from "better-auth/cookies"
 import { NextRequest, NextResponse } from "next/server"
 
-const publicPaths = ["/login", "/signup", "/forgot-password"] // /signup redirects to /login (no self-registration)
+const publicPaths = ["/login", "/signup", "/forgot-password"]
 
 function hasAuthSessionCookie(req: NextRequest) {
   const token = getSessionCookie(req)
@@ -10,13 +10,6 @@ function hasAuthSessionCookie(req: NextRequest) {
 
 export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
-
-  // Auth + API must never be redirected — login posts to /api/auth/* via rewrite.
-  if (pathname.startsWith("/api/")) {
-    return NextResponse.next({
-      request: { headers: new Headers(req.headers) },
-    })
-  }
 
   const signedOut = req.nextUrl.searchParams.get("signedOut") === "1"
   const isPublic = publicPaths.some(
@@ -44,9 +37,10 @@ export default async function proxy(req: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Run on app pages only. Still include /api in matcher so we can
-     * explicitly pass them through above (avoids accidental future gating).
+     * Pages only. Never run on /api/* — cloning request headers in the
+     * Next.js proxy strips Cookie from Route Handlers, so Nest never
+     * sees the Better Auth session after login.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/|.*\\..*).*)",
   ],
 }

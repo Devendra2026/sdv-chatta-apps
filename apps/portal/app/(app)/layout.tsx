@@ -1,29 +1,28 @@
-import { hasNonEmptySessionCookie } from "@workspace/types"
-import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
-
 import { SidebarInset, SidebarProvider } from "@workspace/ui/components/sidebar"
+import { redirect } from "next/navigation"
+import type { ReactNode } from "react"
 
 import { AppHeader } from "@/components/app-header"
 import { AppSidebar } from "@/components/app-sidebar"
 import { PermissionProvider } from "@/hooks/use-permission"
+import { fetchCurrentUser } from "@/lib/server-session"
 
-async function hasSessionCookie() {
-  const jar = await cookies()
-  return hasNonEmptySessionCookie(jar.getAll())
-}
+export const dynamic = "force-dynamic"
 
 export default async function AppLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: ReactNode
 }) {
-  if (!(await hasSessionCookie())) {
-    redirect("/login")
+  const session = await fetchCurrentUser()
+  if (session.status === "unauthenticated") {
+    redirect("/login?signedOut=1")
   }
 
   return (
-    <PermissionProvider>
+    <PermissionProvider
+      initialUser={session.status === "ok" ? session.user : undefined}
+    >
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>

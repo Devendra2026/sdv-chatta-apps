@@ -4,6 +4,7 @@ import {
   resolveGoogleSocialProvider,
   resolvePublicAppUrl,
   resolveTrustedOrigins,
+  sessionAuth,
 } from "./auth-options"
 
 describe("auth-options invite-only Google", () => {
@@ -40,6 +41,7 @@ describe("auth-options invite-only Google", () => {
       sameSite: "lax",
       httpOnly: true,
     })
+    expect(sessionAuth.cookieCache.enabled).toBe(false)
   })
 
   it("strips trailing slashes from trusted origins", () => {

@@ -47,13 +47,20 @@ describe("proxy-to-api helpers", () => {
     expect(cookieHeaderFromPairs([])).toBeNull()
   })
 
-  it("prefers the raw Cookie header over an incomplete Next cookie jar", () => {
-    expect(
-      resolveCookieHeaderForProxy(
-        "__Secure-better-auth.session_token=new-session",
-        [{ name: "better-auth.session_token", value: "" }]
-      )
-    ).toBe("__Secure-better-auth.session_token=new-session")
+  it("keeps a __Secure- session token even when a leftover empty cookie exists", () => {
+    const header = resolveCookieHeaderForProxy(
+      "__Secure-better-auth.session_token=new-session",
+      [{ name: "better-auth.session_token", value: "" }]
+    )
+    expect(header).toContain("__Secure-better-auth.session_token=new-session")
+  })
+
+  it("does not let an empty leftover overwrite a real session cookie of the same name", () => {
+    const header = resolveCookieHeaderForProxy(
+      "better-auth.session_token=live-token",
+      [{ name: "better-auth.session_token", value: "" }]
+    )
+    expect(header).toBe("better-auth.session_token=live-token")
   })
 
   it("falls back to the cookie jar when the raw header is empty", () => {

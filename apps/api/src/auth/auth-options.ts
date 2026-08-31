@@ -19,6 +19,13 @@ export const advancedAuth = {
   },
 }
 
+export const sessionAuth = {
+  expiresIn: 60 * 60 * 24 * 7,
+  cookieCache: {
+    enabled: false as const,
+  },
+}
+
 export function resolvePublicAppUrl(): string {
   const raw =
     process.env.BETTER_AUTH_URL ??

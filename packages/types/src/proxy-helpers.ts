@@ -6,19 +6,63 @@ export function cookieHeaderFromPairs(pairs: CookiePair[]): string | null {
   return pairs.map(({ name, value }) => `${name}=${value}`).join("; ")
 }
 
+export function parseCookieHeader(
+  header: string | null | undefined
+): CookiePair[] {
+  if (!header?.trim()) return []
+  return header.split(";").flatMap((part) => {
+    const trimmed = part.trim()
+    if (!trimmed) return []
+    const eq = trimmed.indexOf("=")
+    if (eq <= 0) return []
+    return [
+      {
+        name: trimmed.slice(0, eq).trim(),
+        value: trimmed.slice(eq + 1),
+      },
+    ]
+  })
+}
+
+function putCookie(
+  map: Map<string, string>,
+  name: string,
+  value: string
+): void {
+  const existing = map.get(name)
+  if (!existing?.trim() && value.trim()) {
+    map.set(name, value)
+    return
+  }
+  if (!map.has(name)) {
+    map.set(name, value)
+  }
+}
+
 /**
- * Forward the browser Cookie header as-is. Next.js `cookies().getAll()` can
- * omit `__Secure-` cookies or keep an empty leftover `better-auth.session_token`
- * that a non-Secure logout Set-Cookie created — that incomplete jar must not
- * replace the raw header.
+ * Merge the browser Cookie header with Next's cookie jar.
+ * Never let an empty leftover `better-auth.session_token` replace a
+ * non-empty `__Secure-` session cookie.
  */
+export function mergeCookiePairs(
+  rawHeader: string | null | undefined,
+  jarPairs: CookiePair[] = []
+): CookiePair[] {
+  const map = new Map<string, string>()
+  for (const pair of parseCookieHeader(rawHeader)) {
+    putCookie(map, pair.name, pair.value)
+  }
+  for (const pair of jarPairs) {
+    putCookie(map, pair.name, pair.value)
+  }
+  return [...map.entries()].map(([name, value]) => ({ name, value }))
+}
+
 export function resolveCookieHeaderForProxy(
   rawHeader: string | null | undefined,
   jarPairs: CookiePair[] = []
 ): string | null {
-  const raw = rawHeader?.trim()
-  if (raw) return raw
-  return cookieHeaderFromPairs(jarPairs)
+  return cookieHeaderFromPairs(mergeCookiePairs(rawHeader, jarPairs))
 }
 
 export const AUTH_COOKIE_NAMES = [
