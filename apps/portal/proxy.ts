@@ -1,15 +1,11 @@
+import { getSessionCookie } from "better-auth/cookies"
 import { NextRequest, NextResponse } from "next/server"
 
 const publicPaths = ["/login", "/signup", "/forgot-password"] // /signup redirects to /login (no self-registration)
 
 function hasAuthSessionCookie(req: NextRequest) {
-  return req.cookies
-    .getAll()
-    .some(
-      (c) =>
-        c.name.includes("better-auth.session_token") ||
-        c.name.includes("session_token")
-    )
+  const token = getSessionCookie(req)
+  return Boolean(token?.trim())
 }
 
 export default async function proxy(req: NextRequest) {

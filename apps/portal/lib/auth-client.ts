@@ -15,8 +15,15 @@ export const authClient = createAuthClient({
   plugins: [emailOTPClient()],
 })
 
-/** Reliable logout: portal route clears httpOnly cookies, then hard-navigate. */
+/** Reliable logout: Better Auth sign-out, then expire leftover cookies. */
 export async function signOutAndRedirect() {
+  try {
+    await authClient.signOut({
+      fetchOptions: { credentials: "include" },
+    })
+  } catch {
+    // continue — portal route still expires cookies
+  }
   try {
     await fetch("/api/portal/logout", {
       method: "POST",
@@ -24,11 +31,7 @@ export async function signOutAndRedirect() {
       headers: { accept: "application/json" },
     })
   } catch {
-    try {
-      await authClient.signOut()
-    } catch {
-      // ignore — still leave the app
-    }
+    // ignore — still leave the app
   }
   window.location.assign("/login?signedOut=1")
 }

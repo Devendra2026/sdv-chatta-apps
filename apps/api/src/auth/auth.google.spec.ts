@@ -35,6 +35,11 @@ describe("auth-options invite-only Google", () => {
     expect(resolvePublicAppUrl()).toBe("http://localhost:3000")
     expect(resolveTrustedOrigins()).toEqual(["http://localhost:3000"])
     expect(advancedAuth.trustedProxyHeaders).toBe(true)
+    expect(advancedAuth.defaultCookieAttributes).toEqual({
+      path: "/",
+      sameSite: "lax",
+      httpOnly: true,
+    })
   })
 
   it("strips trailing slashes from trusted origins", () => {

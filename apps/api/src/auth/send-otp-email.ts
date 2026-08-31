@@ -68,7 +68,7 @@ export async function sendOtpEmail(
       logger.error(
         "SMTP is not configured; cannot send password-reset OTP in production"
       )
-      return
+      throw new Error("SMTP is not configured")
     }
     logger.warn(
       `[dev] Password-reset OTP for ${params.email}: ${params.otp} (SMTP not configured)`
@@ -78,12 +78,21 @@ export async function sendOtpEmail(
 
   const { subject, text } = buildPasswordResetMessage(params.otp)
 
-  await transport.sendMail({
-    from,
-    to: params.email,
-    subject,
-    text,
-  })
+  try {
+    await transport.sendMail({
+      from,
+      to: params.email,
+      subject,
+      text,
+    })
+  } catch (err) {
+    logger.error(
+      `Failed to send password-reset OTP to ${params.email}: ${
+        err instanceof Error ? err.message : "unknown error"
+      }`
+    )
+    throw err
+  }
 }
 
 export { isSmtpConfigured }

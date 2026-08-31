@@ -39,11 +39,13 @@ describe("sendOtpEmail", () => {
       .spyOn(Logger.prototype, "warn")
       .mockImplementation(() => undefined)
 
-    await sendOtpEmail({
-      email: "staff@example.com",
-      otp: "654321",
-      type: "forget-password",
-    })
+    await expect(
+      sendOtpEmail({
+        email: "staff@example.com",
+        otp: "654321",
+        type: "forget-password",
+      })
+    ).rejects.toThrow("SMTP is not configured")
 
     const output = [...errorSpy.mock.calls, ...warnSpy.mock.calls]
       .flat()

@@ -92,9 +92,23 @@ export default function LoginPage() {
     setFormError(null)
     setLoading(true)
     try {
-      const result = await authClient.signIn.email({ email, password })
+      const result = await authClient.signIn.email({
+        email,
+        password,
+        fetchOptions: { credentials: "include" },
+      })
       if (result.error) {
         const msg = mapAuthErrorMessage(result.error.message)
+        setFormError(msg)
+        toast.error(msg)
+        return
+      }
+      const session = await authClient.getSession({
+        fetchOptions: { credentials: "include" },
+      })
+      if (!session.data?.user) {
+        const msg =
+          "Signed in but the session cookie was not set. Refresh and try again."
         setFormError(msg)
         toast.error(msg)
         return

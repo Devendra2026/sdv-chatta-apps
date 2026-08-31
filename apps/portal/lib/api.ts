@@ -1,4 +1,4 @@
-import { createApiClient } from "@workspace/api-client"
+import { ApiError, createApiClient } from "@workspace/api-client"
 
 /**
  * Empty baseUrl = same-origin requests (portal rewrites /api → Nest).
@@ -10,6 +10,8 @@ export const api = createApiClient({
     ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")
     : "",
 })
+
+export { ApiError }
 
 export type MeUser = {
   id: string

@@ -6,6 +6,7 @@ import {
   Header,
   Patch,
   Post,
+  ServiceUnavailableException,
   UseGuards,
 } from "@nestjs/common"
 import { hashPassword, verifyPassword } from "better-auth/crypto"
@@ -54,9 +55,15 @@ export class AuthMeController {
 
   private async postBetterAuth(path: string, body: Record<string, unknown>) {
     const baseUrl = resolvePublicAppUrl()
+    const url = new URL(baseUrl)
     const request = new Request(`${baseUrl}/api/auth${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        origin: baseUrl,
+        "x-forwarded-host": url.host,
+        "x-forwarded-proto": url.protocol.replace(":", ""),
+      },
       body: JSON.stringify(body),
     })
     return this.authService.auth.handler(request)
@@ -134,11 +141,24 @@ export class AuthMeController {
         "/email-otp/request-password-reset",
         { email }
       )
-      if (!response.ok) {
-        await response.text()
+      if (!response.ok && response.status >= 500) {
+        await response.text().catch(() => undefined)
+        throw new ServiceUnavailableException({
+          code: "EMAIL_UNAVAILABLE",
+          message:
+            "Unable to send email right now. Try again later or contact an administrator.",
+        })
       }
-    } catch {
-      // Always generic response — do not reveal whether email exists.
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err
+      if (err instanceof Error) {
+        throw new ServiceUnavailableException({
+          code: "EMAIL_UNAVAILABLE",
+          message:
+            "Unable to send email right now. Try again later or contact an administrator.",
+        })
+      }
+      // 4xx from Better Auth (unknown email): generic success — do not reveal.
     }
 
     return {

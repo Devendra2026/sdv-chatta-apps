@@ -12,6 +12,11 @@ export function resolveTrustedOrigins(): string[] {
 /** Portal (and Traefik) sit in front of Nest; honor forwarded host/proto. */
 export const advancedAuth = {
   trustedProxyHeaders: true as const,
+  defaultCookieAttributes: {
+    path: "/" as const,
+    sameSite: "lax" as const,
+    httpOnly: true as const,
+  },
 }
 
 export function resolvePublicAppUrl(): string {

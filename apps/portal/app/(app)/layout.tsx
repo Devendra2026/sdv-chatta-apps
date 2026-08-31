@@ -1,3 +1,4 @@
+import { hasNonEmptySessionCookie } from "@workspace/types"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
@@ -9,13 +10,7 @@ import { PermissionProvider } from "@/hooks/use-permission"
 
 async function hasSessionCookie() {
   const jar = await cookies()
-  return jar
-    .getAll()
-    .some(
-      (c) =>
-        c.name.includes("better-auth.session_token") ||
-        c.name.includes("session_token")
-    )
+  return hasNonEmptySessionCookie(jar.getAll())
 }
 
 export default async function AppLayout({

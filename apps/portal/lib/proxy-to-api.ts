@@ -1,5 +1,7 @@
-import { cookieHeaderFromPairs, resolveForwardedProto } from "@workspace/types"
-import { cookies } from "next/headers"
+import {
+  resolveCookieHeaderForProxy,
+  resolveForwardedProto,
+} from "@workspace/types"
 import { NextRequest, NextResponse } from "next/server"
 
 const HOP_BY_HOP = new Set([
@@ -37,6 +39,10 @@ export function apiInternalUrl() {
  * Next.js rewrites to `http://api:4000` can drop `__Secure-` session cookies
  * (production HTTPS). Login still works because `/api/auth` already uses this
  * proxy; `/api/v1/*` (including `/auth/me`) must do the same.
+ *
+ * Always prefer the browser `Cookie` header over Next's cookie jar. After
+ * logout, an empty leftover `better-auth.session_token` in the jar would
+ * otherwise hide the new `__Secure-` session cookie.
  */
 export async function proxyToApi(
   req: NextRequest,
@@ -67,9 +73,7 @@ export async function proxyToApi(
     })
   )
 
-  const jar = await cookies()
-  const cookieHeader =
-    cookieHeaderFromPairs(jar.getAll()) ?? req.headers.get("cookie")
+  const cookieHeader = resolveCookieHeaderForProxy(req.headers.get("cookie"))
   if (cookieHeader) {
     headers.set("cookie", cookieHeader)
   } else {

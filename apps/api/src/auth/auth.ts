@@ -43,7 +43,7 @@ export function createAuth(prisma: PrismaService): BetterAuthInstance {
         storeOTP: "hashed",
         allowedAttempts: 5,
         async sendVerificationOTP({ email, otp, type }) {
-          void sendOtpEmail({ email, otp, type })
+          await sendOtpEmail({ email, otp, type })
         },
       }),
     ],
