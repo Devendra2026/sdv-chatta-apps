@@ -139,18 +139,18 @@ describe("tax-calc", () => {
     expect(r.drainageTax).toBe(8.64)
   })
 
-  it("commercial does not double the rate", () => {
+  it("commercial doubles the matrix rate for tax and ALV", () => {
     const rates = {
       assessablePct: 80,
       commercialAssessablePct: 80,
       propertyTaxPct: 10,
-      waterTaxPct: 0,
-      drainageTaxPct: 0,
+      waterTaxPct: 7.5,
+      drainageTaxPct: 2.5,
       penaltyPct: 0,
       rateByZoneAndConstruction: new Map([
-        [taxRateKey("BELOW_9M", "PAKKA_BUILDING_WITH_RCC_ROOF"), 0.36],
+        [taxRateKey("BELOW_9M", "PAKKA_BUILDING_WITH_RCC_ROOF"), 0.6],
       ]),
-      anyRateByZone: new Map([["BELOW_9M", 0.36]]),
+      anyRateByZone: new Map([["BELOW_9M", 0.6]]),
     }
     const residential = computeSurveyExportTax({
       taxRateZoneCode: "BELOW_9M",
@@ -160,25 +160,31 @@ describe("tax-calc", () => {
           floorKey: "Ground",
           constructionCode: "PAKKA_BUILDING_WITH_RCC_ROOF",
           usageResidential: true,
-          areaSqFt: 100,
+          areaSqFt: 420,
         },
       ],
       rates,
     })
     const commercial = computeSurveyExportTax({
       taxRateZoneCode: "BELOW_9M",
-      propertyUse: "Commercial",
+      propertyUse: "Residential Self",
       floors: [
         {
           floorKey: "Ground",
           constructionCode: "PAKKA_BUILDING_WITH_RCC_ROOF",
           usageResidential: false,
-          areaSqFt: 100,
+          areaSqFt: 420,
           usageType: "Commercial",
         },
       ],
       rates,
     })
-    expect(commercial.propertyTax).toBe(residential.propertyTax)
+    // Residential: 420 × 0.6 × 12 × 80% = 2419.2 → tax 241.92
+    expect(residential.propertyTax).toBe(241.92)
+    // Commercial: 420 × 1.2 × 12 × 80% = 4838.4 → tax 483.84
+    expect(commercial.propertyTax).toBe(483.84)
+    expect(commercial.waterTax).toBe(362.88)
+    expect(commercial.drainageTax).toBe(120.96)
+    expect(commercial.totalDemand).toBe(967.68)
   })
 })

@@ -33,16 +33,36 @@ export function resolveAssessablePct(
   return options.residentialPct
 }
 
-/** @deprecated Prefer resolveAssessablePct — commercial no longer multiplies rate. */
+/**
+ * Commercial / shop / godown usage doubles the matrix monthly rate on demand notices.
+ * Residential and open land keep the published base rate.
+ */
 export function resolveUsageRateMult(
   usageFactor?: string | null,
   usageType?: string | null,
   propertyUse?: string | null
 ): number {
-  void usageFactor
-  void usageType
-  void propertyUse
+  const key =
+    `${usageFactor ?? ""} ${usageType ?? ""} ${propertyUse ?? ""}`.toLowerCase()
+  if (
+    key.includes("commercial") ||
+    key.includes("shop") ||
+    key.includes("godown")
+  ) {
+    return 2
+  }
   return 1
+}
+
+export function resolveEffectiveMonthlyRate(
+  baseRate: number,
+  usageFactor?: string | null,
+  usageType?: string | null,
+  propertyUse?: string | null
+): number {
+  return roundMoney(
+    baseRate * resolveUsageRateMult(usageFactor, usageType, propertyUse)
+  )
 }
 
 /**
@@ -202,11 +222,18 @@ export function computeSurveyExportTax(input: {
       )
     }
 
-    const annualRate =
+    const baseRate =
       input.rates.rateByZoneAndConstruction.get(
         taxRateKey(zoneCode, floor.constructionCode)
       ) ?? 0
-    if (annualRate <= 0) continue
+    if (baseRate <= 0) continue
+
+    const annualRate = resolveEffectiveMonthlyRate(
+      baseRate,
+      floor.usageFactor,
+      floor.usageType,
+      input.propertyUse
+    )
 
     const floorAssessablePct = resolveAssessablePct(
       input.propertyUse,

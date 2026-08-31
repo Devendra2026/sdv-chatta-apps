@@ -3,6 +3,7 @@ import {
   computeFloorAlv,
   computeSurveyExportTax,
   resolveAssessablePct,
+  resolveEffectiveMonthlyRate,
   roundMoney,
   taxRateKey,
   toTaxNumber,
@@ -104,10 +105,16 @@ export function buildNoticeFloorLines(
       floor.buildingType ?? floor.usageType
     )
     const areaSqFt = toTaxNumber(floor.areaSqFt)
-    const annualRate =
+    const baseRate =
       rates.rateByZoneAndConstruction.get(
         taxRateKey(zoneCode, constructionCode)
       ) ?? 0
+    const annualRate = resolveEffectiveMonthlyRate(
+      baseRate,
+      floor.usageFactor,
+      floor.usageType,
+      survey.propertyUse
+    )
     const floorAssessablePct = resolveAssessablePct(
       survey.propertyUse,
       floor.usageType,
@@ -192,9 +199,19 @@ export function computePublicDuesPayload(
   })
 
   const floors = buildNoticeFloorLines(survey, rates)
-  const annualBaseRate =
-    floors.find((f) => f.rate > 0)?.rate ??
-    (typeof summary.plotRate === "number" ? summary.plotRate : null)
+  const annualBaseRate = (() => {
+    for (const floor of survey.floors) {
+      const constructionCode = mapConstructionCode(
+        floor.buildingType ?? floor.usageType
+      )
+      const base =
+        rates.rateByZoneAndConstruction.get(
+          taxRateKey(zoneCode, constructionCode)
+        ) ?? 0
+      if (base > 0) return base
+    }
+    return typeof summary.plotRate === "number" ? summary.plotRate : null
+  })()
 
   return {
     id: survey.id,

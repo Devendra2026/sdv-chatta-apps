@@ -95,4 +95,55 @@ describe("buildNoticeFloorLines", () => {
     expect(lines[0]?.rate).toBe(0.36)
     expect(lines[0]?.tax).toBeGreaterThan(0)
   })
+
+  it("doubles rate on notice for commercial floor usage", () => {
+    const survey: SurveyForDues = {
+      id: "s2",
+      surveyId: "SUR-2",
+      ownerName: "Shyam",
+      mobile: "9876543210",
+      propertyNo: "1",
+      parcelNo: "2",
+      houseNo: "3",
+      streetName: null,
+      locality: "Test",
+      colony: null,
+      city: "Chhata",
+      pincode: null,
+      propertyUse: "Residential Self",
+      taxRateZone: "BELOW_9M",
+      roadType: null,
+      hasMunicipalWaterSupply: true,
+      plotAreaSqFt: null,
+      plinthAreaSqFt: null,
+      totalBuiltUpAreaSqFt: null,
+      ward: { number: 1, name: "Ward 1" },
+      floors: [
+        {
+          floorLabel: "Ground Floor",
+          usageType: "Commercial",
+          usageFactor: "Self Occupied",
+          buildingType: "Pakka Building with R.C.C Roof",
+          areaSqFt: 420,
+        },
+      ],
+    }
+    const rates = {
+      assessablePct: 80,
+      commercialAssessablePct: 80,
+      propertyTaxPct: 10,
+      waterTaxPct: 7.5,
+      drainageTaxPct: 2.5,
+      penaltyPct: 0,
+      rateByZoneAndConstruction: new Map([
+        [taxRateKey("BELOW_9M", "PAKKA_BUILDING_WITH_RCC_ROOF"), 0.6],
+      ]),
+      anyRateByZone: new Map([["BELOW_9M", 0.6]]),
+    }
+    const lines = buildNoticeFloorLines(survey, rates)
+    expect(lines).toHaveLength(1)
+    expect(lines[0]?.rate).toBe(1.2)
+    expect(lines[0]?.alv).toBe(4838.4)
+    expect(lines[0]?.tax).toBe(483.84)
+  })
 })
