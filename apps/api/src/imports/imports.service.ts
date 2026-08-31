@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common"
 import { DuplicateStrategy, ImportJobStatus, Prisma } from "@prisma/client"
+import { resolveImportSurveyId } from "@workspace/types"
 import { Queue } from "bullmq"
 import ExcelJS from "exceljs"
 import IORedis from "ioredis"
@@ -13,6 +14,7 @@ import type { AuthUser } from "../auth/auth.decorators"
 import { AuditService } from "../audit/audit.service"
 import { PrismaService } from "../prisma/prisma.service"
 import { StorageService } from "../storage/storage.service"
+import { getUlbCode } from "../surveys/survey-id.util"
 import { computeDataQuality, parseFloorsRaw } from "../surveys/floors.util"
 import {
   diffSurveyChanges,
@@ -63,7 +65,7 @@ export class ImportsService {
   async createUpload(
     file: Express.Multer.File,
     user: AuthUser,
-    duplicateStrategy: DuplicateStrategy = "SKIP"
+    duplicateStrategy: DuplicateStrategy = "UPDATE"
   ) {
     const objectKey = `imports/${Date.now()}-${file.originalname}`
     await this.storage.putObject(objectKey, file.buffer, file.mimetype)
@@ -232,16 +234,16 @@ export class ImportsService {
         values[col - 1] = excelRow.getCell(col).value
       }
 
-      const surveyId = cell(values, map.surveyId)
-      if (!surveyId) continue
+      const rawSurveyId = cell(values, map.surveyId)
+      if (!rawSurveyId) continue
       processed++
 
       try {
         const wardName = cell(values, map.wardName)
-        const wardNumber = extractWardNumber(wardName, surveyId)
+        const wardNumber = extractWardNumber(wardName, rawSurveyId)
         const ward = wardNumber ? wardByNumber.get(wardNumber) : undefined
         if (!ward) {
-          throw new Error(`Ward not found for ${wardName || surveyId}`)
+          throw new Error(`Ward not found for ${wardName || rawSurveyId}`)
         }
 
         const mobileRaw = cell(values, map.mobile)
@@ -260,10 +262,17 @@ export class ImportsService {
         const totalBuiltUpAreaSqMeter = parseNumber(
           cell(values, map.totalBuiltUpAreaSqMeter)
         )
-        const parcelNo = normalizeParcelNo(cell(values, map.parcelNo), surveyId)
+        const parcelNo = normalizeParcelNo(cell(values, map.parcelNo), rawSurveyId)
         const propertyNo = normalizePropertyNo(
           cell(values, map.propertyNo),
-          surveyId
+          rawSurveyId
+        )
+        const surveyId = resolveImportSurveyId(
+          rawSurveyId,
+          ward.number,
+          parcelNo ?? "",
+          propertyNo ?? "",
+          getUlbCode()
         )
 
         const payload = {
@@ -339,8 +348,12 @@ export class ImportsService {
           status: "ACTIVE" as const,
         }
 
-        const existing = await this.prisma.survey.findUnique({
-          where: { surveyId },
+        const existing = await this.findImportDuplicate({
+          surveyId,
+          rawSurveyId,
+          wardId: ward.id,
+          parcelNo,
+          propertyNo,
         })
 
         if (existing && !existing.deletedAt) {
@@ -423,7 +436,7 @@ export class ImportsService {
           data: {
             importJobId: job.id,
             rowNumber,
-            surveyId: surveyId || null,
+            surveyId: rawSurveyId || null,
             message: err instanceof Error ? err.message : "Import row failed",
             severity: "error",
           },
@@ -451,6 +464,40 @@ export class ImportsService {
         completedAt: new Date(),
       },
     })
+  }
+
+  /** Match existing survey by canonical id, legacy Excel id, or ward+parcel+property. */
+  private async findImportDuplicate(input: {
+    surveyId: string
+    rawSurveyId: string
+    wardId: string
+    parcelNo: string | null
+    propertyNo: string | null
+  }) {
+    const byCanonical = await this.prisma.survey.findUnique({
+      where: { surveyId: input.surveyId },
+    })
+    if (byCanonical && !byCanonical.deletedAt) return byCanonical
+
+    if (input.rawSurveyId !== input.surveyId) {
+      const byRaw = await this.prisma.survey.findUnique({
+        where: { surveyId: input.rawSurveyId },
+      })
+      if (byRaw && !byRaw.deletedAt) return byRaw
+    }
+
+    if (input.parcelNo && input.propertyNo) {
+      return this.prisma.survey.findFirst({
+        where: {
+          wardId: input.wardId,
+          parcelNo: input.parcelNo,
+          propertyNo: input.propertyNo,
+          deletedAt: null,
+        },
+      })
+    }
+
+    return null
   }
 
   async exportSurveys(

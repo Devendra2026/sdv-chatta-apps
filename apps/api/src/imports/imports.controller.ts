@@ -37,7 +37,7 @@ export class ImportsController {
     const data = await this.importsService.createUpload(
       file,
       user,
-      duplicateStrategy ?? "SKIP"
+      duplicateStrategy ?? "UPDATE"
     )
     return { success: true, data }
   }

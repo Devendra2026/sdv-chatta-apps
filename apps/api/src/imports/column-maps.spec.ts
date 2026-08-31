@@ -38,6 +38,8 @@ describe("column-maps", () => {
     expect(extractWardNumber("वार्ड नंबर 2 - शेरगढ रोड़", "")).toBe(2)
     expect(extractWardNumber("", "249044-001-000001-001-R")).toBe(1)
     expect(extractWardNumber("Vijay singh", "249044-001-000001-001-R")).toBe(1)
+    expect(extractWardNumber("वार्ड नंबर 2 - शेरगढ रोड़", "249044-000-000232-006-C")).toBe(2)
+    expect(extractWardNumber("", "249044-000-000232-006-C")).toBeNull()
   })
 
   it("parses sentinels safely", () => {

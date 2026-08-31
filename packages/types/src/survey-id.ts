@@ -127,12 +127,32 @@ export function propertyFromSurveyId(surveyId: string): string | null {
   return parseGisSurveyId(surveyId)?.propertyNo ?? null
 }
 
-/** Ward number from GIS Survey Id segment. */
+/** Ward number from GIS Survey Id segment. Returns null for placeholder `000`. */
 export function wardNumberFromSurveyId(surveyId: string): number | null {
   const parsed = parseGisSurveyId(surveyId)
   if (!parsed) return null
   const n = Number(parsed.wardNo)
-  return Number.isFinite(n) ? n : null
+  if (!Number.isFinite(n) || n === 0) return null
+  return n
+}
+
+/** Resolve canonical survey id for Excel import (ward from file, not placeholder segment). */
+export function resolveImportSurveyId(
+  rawSurveyId: string,
+  wardNumber: number,
+  parcelNo: string,
+  propertyNo: string,
+  ulbCode: string = CHHATA_ULB_CODE
+): string {
+  const parsed = parseGisSurveyId(rawSurveyId)
+  return buildSurveyIdFromRecord({
+    surveyId: rawSurveyId,
+    wardNumber,
+    parcelNo,
+    propertyNo,
+    gisUseCode: parsed?.gisUseCode,
+    ulbCode,
+  })
 }
 
 export function normalizeParcelNoFromExcel(

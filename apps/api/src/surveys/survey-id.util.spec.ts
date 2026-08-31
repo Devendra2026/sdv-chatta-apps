@@ -6,6 +6,8 @@ import {
   normalizePropertyNo,
   normalizeWardCode,
   parseGisSurveyId,
+  resolveImportSurveyId,
+  wardNumberFromSurveyId,
 } from "@workspace/types"
 
 describe("survey-id", () => {
@@ -57,5 +59,31 @@ describe("survey-id", () => {
       gisUseCode: "R",
     })
     expect(surveyId).toBe("249044-001-000131-001-R")
+  })
+
+  it("treats 000 ward segment as placeholder", () => {
+    expect(wardNumberFromSurveyId("249044-000-000232-006-C")).toBeNull()
+    expect(wardNumberFromSurveyId("249044-002-000232-006-C")).toBe(2)
+  })
+
+  it("resolves import survey id using ward from file not Excel placeholder", () => {
+    expect(
+      resolveImportSurveyId(
+        "249044-000-000232-006-C",
+        2,
+        "000232",
+        "006",
+        "249044"
+      )
+    ).toBe("249044-002-000232-006-C")
+    expect(
+      resolveImportSurveyId(
+        "249044-000-000131-001-R",
+        1,
+        "000131",
+        "001",
+        "249044"
+      )
+    ).toBe("249044-001-000131-001-R")
   })
 })
