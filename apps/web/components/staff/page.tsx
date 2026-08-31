@@ -31,26 +31,36 @@ function OfficerRow({ data }: { data: OfficerRowProps }) {
   const [activeTab, setActiveTab] = useState<TabType>("welcome")
 
   return (
-    <div className="grid grid-cols-1 items-start gap-8 border-b border-slate-200/80 pb-16 last:border-0 last:pb-0 lg:grid-cols-12">
+    <div className="grid grid-cols-1 items-start gap-8 border-b border-slate-200/85 pb-16 last:border-0 last:pb-0 lg:grid-cols-12">
       {/* Left Column: Officer Profile Card */}
-      <div className="flex w-full flex-col items-center lg:col-span-4">
+      <div className="flex w-full flex-col items-center lg:col-span-5">
         <m.div
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.4 }}
-          className="group relative w-full max-w-xs overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-6 text-center shadow-xl shadow-slate-200/50"
+          className="group relative w-full overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-6 text-center shadow-xl shadow-slate-200/50 sm:p-8"
         >
           {/* Top Decorative Gradient Accent */}
           <div className="absolute top-0 right-0 left-0 h-1.5 bg-linear-to-r from-orange-500 to-amber-600" />
 
           {/* Role Title Badge */}
-          <div className="mb-4 inline-block rounded-full border border-blue-800 bg-blue-900 px-3.5 py-1 text-[10px] font-black tracking-wider text-white uppercase shadow-sm">
+          <div className="mb-5 inline-block rounded-full border border-blue-800 bg-blue-900 px-4 py-1 text-[11px] font-black tracking-wider text-white uppercase shadow-sm">
             {data.roleTitle}
           </div>
 
+          {/* Officer Image Container - Fixed square/portrait display to look like Image 2 */}
+          <div className="relative mx-auto mb-6 aspect-square w-full max-w-[260px] overflow-hidden rounded-2xl border-2 border-slate-100 bg-slate-100 shadow-inner">
+            <Image
+              src={data.imgSrc}
+              alt={data.name}
+              fill
+              className="object-cover object-top transition-transform duration-500 group-hover:scale-105"
+            />
+          </div>
+
           {/* Name & Designation */}
-          <h3 className="mt-2 font-serif text-xl font-extrabold tracking-tight text-slate-900">
+          <h3 className="mt-2 font-serif text-2xl font-extrabold tracking-tight text-slate-900">
             {data.name}
           </h3>
           <p className="mt-1 text-xs font-bold tracking-widest text-orange-600 uppercase">
@@ -63,7 +73,7 @@ function OfficerRow({ data }: { data: OfficerRowProps }) {
       </div>
 
       {/* Right Column: Dynamic Info Sheet */}
-      <div className="w-full lg:col-span-8">
+      <div className="w-full lg:col-span-7">
         <div className="relative flex flex-col justify-between overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-200/50 md:p-8">
           {/* Tab Selector Header */}
           <div className="scrollbar-none flex gap-2 overflow-x-auto border-b border-slate-100 pb-4">
@@ -185,7 +195,7 @@ function OfficerRow({ data }: { data: OfficerRowProps }) {
                   <p className="text-xs leading-relaxed font-medium text-slate-600 md:text-sm">
                     {data.missionDesc}
                   </p>
-                  <div className="grid grid-cols-1 gap-3 pt-2 md:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2 md:grid-cols-3">
                     {data.missionTargets.map((item) => (
                       <div
                         key={item.title}
@@ -233,9 +243,9 @@ export default function Staff() {
       id: "chairman",
       roleTitle: "निर्वाचित अध्यक्ष",
       designation: "अध्यक्ष (Chairman)",
-      name: "नगर पंचायत अध्यक्ष महोदय/महोदया",
+      name: "Smt. Lakshmi",
       subText: "नगर पंचायत, छाता, मथुरा",
-      imgSrc: "",
+      imgSrc: "/chhatachairman.png",
       term: "",
       status: "",
       welcomeQuote:
@@ -274,9 +284,9 @@ export default function Staff() {
       id: "eo",
       roleTitle: "प्रशासनिक प्रमुख",
       designation: "अधिशासी अधिकारी (EO)",
-      name: "अधिशासी अधिकारी महोदय",
+      name: "Shree Rakesh Mishra",
       subText: "नगर पंचायत, छाता, मथुरा",
-      imgSrc: "",
+      imgSrc: "/eochhata.jpg",
       term: "शासकीय नियुक्ति",
       status: "कार्यकारी प्रमुख",
       welcomeQuote: "पारदर्शी, जवाबदेह और त्वरित नागरिक सेवा के प्रति कटिबद्ध",
@@ -316,7 +326,7 @@ export default function Staff() {
       designation: "मुख्य लिपिक (Head Clerk)",
       name: "मुख्य लिपिक महोदय",
       subText: "नगर पंचायत, छाता, मथुरा",
-      imgSrc: "",
+      imgSrc: "/images/head-clerk.jpg",
       term: "वरिष्ठ प्रशासन",
       status: "रजिस्ट्री प्रभारी",
       welcomeQuote: "कार्यालयीन सुगमता और आपकी सेवा में सदैव तत्पर",

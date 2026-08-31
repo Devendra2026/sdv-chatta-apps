@@ -86,7 +86,7 @@ export default function ChairmanMessage() {
               <div className="relative my-6">
                 <div className="relative mx-auto aspect-4/5 w-full max-w-60 overflow-hidden rounded-2xl border-2 border-slate-700/80 bg-slate-800 shadow-xl transition-all duration-500 group-hover:border-orange-500/50">
                   <Image
-                    src="/chairman.png"
+                    src="/chhatachairman.png"
                     alt="Chairman Nagar Palika Chhata Mathura"
                     fill
                     className="object-cover object-top transition-transform duration-700 group-hover:scale-105"
@@ -99,7 +99,7 @@ export default function ChairmanMessage() {
               {/* Name Details */}
               <div className="mb-2 space-y-1.5">
                 <h3 className="text-xl leading-tight font-black tracking-tight text-white">
-                  Smt. / Sh. Chairman Name
+                  Smt. Lakshmi
                 </h3>
                 <p className="text-xs font-bold tracking-widest text-orange-400 uppercase">
                   Hon'ble Chairman
