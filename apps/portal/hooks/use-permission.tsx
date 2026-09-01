@@ -49,7 +49,9 @@ export function PermissionProvider({
         throw new ApiError(
           "API_UNAVAILABLE",
           health.message,
-          health.status || 502
+          health.status || 502,
+          undefined,
+          "/api/v1/health"
         )
       }
 

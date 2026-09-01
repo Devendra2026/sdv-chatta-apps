@@ -12,6 +12,7 @@ export function formatApiError(
       code: error.code,
       message: error.message,
       status: error.status,
+      path: error.path,
     }, fallback)
   }
 

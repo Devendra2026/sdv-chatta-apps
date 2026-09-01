@@ -12,7 +12,8 @@ export class ApiError extends Error {
     public code: string,
     message: string,
     public status: number,
-    public requestId?: string
+    public requestId?: string,
+    public path?: string
   ) {
     super(message)
     this.name = "ApiError"
@@ -92,7 +93,8 @@ export function createApiClient(options: ApiClientOptions) {
           init.method ?? "GET"
         ),
         response.status,
-        json?.error?.requestId
+        json?.error?.requestId,
+        path
       )
     }
 
@@ -135,7 +137,8 @@ export function createApiClient(options: ApiClientOptions) {
             (response.status === 404 ? "NOT_FOUND" : "REQUEST_FAILED"),
           formatErrorMessage(response.status, json, response.statusText, path, "POST"),
           response.status,
-          json?.error?.requestId
+          json?.error?.requestId,
+          path
         )
       }
       return {

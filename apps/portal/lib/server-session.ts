@@ -14,6 +14,7 @@ export type SessionError = {
   code: string
   message: string
   status: number
+  path?: string
 }
 
 export type CurrentUserResult =
@@ -65,6 +66,7 @@ export async function fetchCurrentUser(): Promise<CurrentUserResult> {
       code: meResult.errorCode ?? "REQUEST_FAILED",
       message: meResult.errorMessage ?? "Could not load session",
       status: meResult.status,
+      path: "/api/v1/auth/me",
     }
 
     if (
@@ -79,6 +81,7 @@ export async function fetchCurrentUser(): Promise<CurrentUserResult> {
           code: health.errorCode ?? "API_UNAVAILABLE",
           message: health.errorMessage ?? error.message,
           status: health.status,
+          path: "/api/v1/health",
         }
       }
     }
@@ -94,6 +97,7 @@ export async function fetchCurrentUser(): Promise<CurrentUserResult> {
         code: "INVALID_SESSION_RESPONSE",
         message: "Session response was invalid",
         status: meResult.status,
+        path: "/api/v1/auth/me",
       },
     }
   }
