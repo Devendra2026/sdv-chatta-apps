@@ -15,9 +15,23 @@ import { StorageModule } from "./storage/storage.module"
 import { SurveysModule } from "./surveys/surveys.module"
 import { TaxConfigsModule } from "./tax-configs/tax-configs.module"
 import { WardsModule } from "./wards/wards.module"
-import { createObserveModule } from "@nestjs/observe";
+import { createObserveModule } from "@nestjs/observe"
+import type { ObserveOptions } from "@nestjs/observe"
 
-export const { ObserveModule, ObserveInstrument } = createObserveModule();
+export const { ObserveModule, ObserveInstrument } = createObserveModule()
+
+function observeOptionsFromEnv(): ObserveOptions | undefined {
+  const appKey = process.env.OBSERVE_APP_KEY?.trim()
+  const appSecret = process.env.OBSERVE_APP_SECRET?.trim()
+  if (!appKey || !appSecret) return undefined
+  return {
+    appKey,
+    appSecret,
+    serviceId: "api",
+  }
+}
+
+const observeOptions = observeOptionsFromEnv()
 
 @Module({
   imports: [
@@ -36,11 +50,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     TaxConfigsModule,
     ReferenceModule,
     PublicPropertyTaxModule,
-    ObserveModule.forRoot({
-      appKey: process.env.OBSERVE_APP_KEY,
-      appSecret: process.env.OBSERVE_APP_SECRET,
-      serviceId: "api",
-    }),
+    ...(observeOptions ? [ObserveModule.forRoot(observeOptions)] : []),
   ],
 })
 export class AppModule {}
