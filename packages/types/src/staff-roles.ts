@@ -1,4 +1,4 @@
-/** Canonical staff portal role codes (Better Auth + RBAC). */
+/** Canonical staff portal role codes (Nest session auth + RBAC). */
 export const STAFF_ROLE_CODES = [
   "SUPER_ADMIN",
   "DEPARTMENT_ADMIN",

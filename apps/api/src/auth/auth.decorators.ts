@@ -5,10 +5,18 @@ import {
 } from "@nestjs/common"
 import type { Request } from "express"
 
+export const IS_PUBLIC_KEY = "is_public"
 export const REQUIRE_PERMISSIONS_KEY = "require_permissions"
+export const REQUIRE_ROLES_KEY = "require_roles"
+
+/** Skip global AuthGuard (login, health, public APIs, gateway callbacks). */
+export const Public = () => SetMetadata(IS_PUBLIC_KEY, true)
 
 export const RequirePermission = (...permissions: string[]) =>
   SetMetadata(REQUIRE_PERMISSIONS_KEY, permissions)
+
+/** Optional role gate (AND). Prefer @RequirePermission for security. */
+export const Roles = (...roles: string[]) => SetMetadata(REQUIRE_ROLES_KEY, roles)
 
 export type AuthUser = {
   id: string

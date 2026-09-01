@@ -5,6 +5,7 @@ import {
 import { isStaffRoleCode } from "@workspace/types"
 import type { Request } from "express"
 
+import { AuditService } from "../audit/audit.service"
 import { PrismaService } from "../prisma/prisma.service"
 import {
   hashPassword,
@@ -23,8 +24,13 @@ export type LoginResult = {
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly sessionService: SessionService
+    private readonly sessionService: SessionService,
+    private readonly audit: AuditService
   ) {}
+
+  private clientIp(req: Request): string | undefined {
+    return req.ip || undefined
+  }
 
   async login(
     email: string,
@@ -40,6 +46,12 @@ export class AuthService {
     })
 
     if (!user?.passwordHash) {
+      await this.audit.log({
+        action: "auth.login_failed",
+        entity: "User",
+        ipAddress: this.clientIp(req),
+        metadata: { email: normalized, reason: "invalid_credentials" },
+      })
       throw new UnauthorizedException({
         code: "INVALID_CREDENTIALS",
         message: "Invalid email or password",
@@ -48,6 +60,13 @@ export class AuthService {
 
     const valid = await verifyPassword(password, user.passwordHash)
     if (!valid) {
+      await this.audit.log({
+        action: "auth.login_failed",
+        entity: "User",
+        entityId: user.id,
+        ipAddress: this.clientIp(req),
+        metadata: { email: normalized, reason: "invalid_credentials" },
+      })
       throw new UnauthorizedException({
         code: "INVALID_CREDENTIALS",
         message: "Invalid email or password",
@@ -55,6 +74,13 @@ export class AuthService {
     }
 
     if (user.status !== "ACTIVE") {
+      await this.audit.log({
+        action: "auth.login_failed",
+        entity: "User",
+        entityId: user.id,
+        ipAddress: this.clientIp(req),
+        metadata: { email: normalized, reason: "user_inactive" },
+      })
       throw new UnauthorizedException({
         code: "USER_INACTIVE",
         message: "User is inactive or suspended",
@@ -63,6 +89,13 @@ export class AuthService {
 
     const roles = user.userRoles.map((ur) => ur.role.code)
     if (!roles.some((code) => isStaffRoleCode(code))) {
+      await this.audit.log({
+        action: "auth.login_failed",
+        entity: "User",
+        entityId: user.id,
+        ipAddress: this.clientIp(req),
+        metadata: { email: normalized, reason: "not_staff" },
+      })
       throw new UnauthorizedException({
         code: "INVALID_CREDENTIALS",
         message: "Invalid email or password",
@@ -86,6 +119,14 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     })
 
+    await this.audit.log({
+      action: "auth.login",
+      entity: "User",
+      entityId: user.id,
+      actorId: user.id,
+      ipAddress: this.clientIp(req),
+    })
+
     return {
       sessionToken: session.token,
       expiresAt: session.expiresAt,
@@ -93,9 +134,15 @@ export class AuthService {
     }
   }
 
-  async logout(req: Request): Promise<void> {
+  async logout(req: Request, actorId?: string): Promise<void> {
     const token = this.sessionService.readSessionToken(req)
     await this.sessionService.deleteSessionByToken(token)
+    await this.audit.log({
+      action: "auth.logout",
+      entity: "User",
+      actorId,
+      ipAddress: this.clientIp(req),
+    })
   }
 
   async getUserPermissions(userId: string): Promise<string[]> {

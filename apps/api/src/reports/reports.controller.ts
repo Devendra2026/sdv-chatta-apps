@@ -1,9 +1,7 @@
-import { Controller, Get, Query, Res, UseGuards } from "@nestjs/common"
+import { Controller, Get, Query, Res } from "@nestjs/common"
 import type { Response } from "express"
 
 import { RequirePermission } from "../auth/auth.decorators"
-import { AuthGuard } from "../auth/auth.guard"
-import { PermissionGuard } from "../auth/permission.guard"
 import {
   buildSurveyExportFilename,
   buildSurveyExportWorkbook,
@@ -20,7 +18,6 @@ import {
 const EXPORT_ROW_LIMIT = 50_000
 
 @Controller("api/v1/reports")
-@UseGuards(AuthGuard, PermissionGuard)
 export class ReportsController {
   constructor(
     private readonly prisma: PrismaService,

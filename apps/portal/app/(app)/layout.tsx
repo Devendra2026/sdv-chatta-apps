@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 
 import { AppHeader } from "@/components/app-header"
 import { AppSidebar } from "@/components/app-sidebar"
+import { RouteAccessGate } from "@/components/route-access-gate"
 import { PermissionProvider } from "@/hooks/use-permission"
 import { fetchCurrentUser } from "@/lib/server-session"
 
@@ -31,7 +32,7 @@ export default async function AppLayout({
         <SidebarInset>
           <AppHeader />
           <div className="flex flex-1 flex-col gap-4 p-4 md:gap-6 md:p-6 lg:p-8">
-            {children}
+            <RouteAccessGate>{children}</RouteAccessGate>
           </div>
         </SidebarInset>
       </SidebarProvider>

@@ -7,7 +7,6 @@ import {
   Post,
   Put,
   Query,
-  UseGuards,
 } from "@nestjs/common"
 
 import {
@@ -15,8 +14,6 @@ import {
   RequirePermission,
   type AuthUser,
 } from "../auth/auth.decorators"
-import { AuthGuard } from "../auth/auth.guard"
-import { PermissionGuard } from "../auth/permission.guard"
 import {
   CopyTaxToWardsDto,
   PublishTaxConfigDto,
@@ -27,7 +24,6 @@ import {
 import { TaxConfigsService } from "./tax-configs.service"
 
 @Controller("api/v1/tax-configs")
-@UseGuards(AuthGuard, PermissionGuard)
 export class TaxConfigsController {
   constructor(private readonly taxConfigsService: TaxConfigsService) {}
 

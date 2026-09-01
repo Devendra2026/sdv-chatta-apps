@@ -2,6 +2,7 @@ import { Controller, Get, Query, StreamableFile } from "@nestjs/common"
 import { IsNotEmpty, IsString } from "class-validator"
 import path from "node:path"
 
+import { Public } from "../auth/auth.decorators"
 import { StorageService } from "./storage.service"
 
 class FileDownloadQueryDto {
@@ -18,6 +19,7 @@ class FileDownloadQueryDto {
   sig!: string
 }
 
+@Public()
 @Controller("api/v1/files")
 export class FilesController {
   constructor(private readonly storage: StorageService) {}

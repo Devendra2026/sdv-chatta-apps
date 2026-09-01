@@ -5,7 +5,7 @@ Municipal survey, property-data, reporting, RBAC, and payment platform for **Nag
 ## Stack
 
 - `apps/portal` — Next.js citizen/admin portal
-- `apps/api` — NestJS HTTP API (Prisma, Better Auth, BullMQ, local file storage, Atom NDPS)
+- `apps/api` — NestJS HTTP API (Prisma, Nest session auth + RBAC, BullMQ, local file storage, Atom NDPS)
 - `apps/web` — unused scaffold (do not use for product UI)
 - `packages/ui` — shared shadcn/Base UI components
 - `packages/types` / `packages/api-client` — shared types and fetch client
@@ -54,7 +54,7 @@ Dokploy owns Traefik, TLS, and the Environment tab. Use `docker-compose.prod.yml
 | `web`    | `3001` | citizen site (`PUBLIC_WEB_URL`)    |
 | `portal` | `3000` | admin portal (`PUBLIC_PORTAL_URL`) |
 
-5. Google OAuth redirect: `{PUBLIC_PORTAL_URL}/api/auth/callback/google`.
+5. Staff auth: portal BFF proxies `/api/v1/auth/*` to Nest; session cookie `chhata_session` (HttpOnly, SameSite=Lax).
 6. Do not map domains to Postgres or Redis.
 
 `DATABASE_URL` / `REDIS_URL` are set in Compose from `POSTGRES_*` and `REDIS_PASSWORD`. Do not point them at `localhost`. Survey imports and attachments are stored on the `chhata_uploads` volume (`STORAGE_DIR=/app/uploads`).

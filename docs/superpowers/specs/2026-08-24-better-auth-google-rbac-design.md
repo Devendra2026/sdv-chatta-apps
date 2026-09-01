@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-24  
 **Status:** Approved  
-**Scope:** Staff authentication on portal; NestJS Better Auth; invite-only Google; admin user provisioning + roles
+**Status:** Superseded — staff auth is Nest-owned `chhata_session` sessions (see `.cursor/rules/05-auth-rbac.mdc`). This document is kept for historical context only.
 
 ## Decisions
 

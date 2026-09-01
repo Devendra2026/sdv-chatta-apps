@@ -87,6 +87,9 @@ describe("Nest session auth (e2e)", () => {
       }
       return []
     }),
+    auditLog: {
+      create: jest.fn(async () => ({})),
+    },
   }
 
   beforeAll(async () => {
@@ -138,6 +141,7 @@ describe("Nest session auth (e2e)", () => {
 
     const logout = await request(app.getHttpServer())
       .post("/api/v1/auth/logout")
+      .set("Origin", "http://localhost:3000")
       .set("Cookie", cookie)
 
     expect(logout.status).toBe(201)

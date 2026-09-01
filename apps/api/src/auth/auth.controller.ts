@@ -10,14 +10,13 @@ import {
   Req,
   Res,
   ServiceUnavailableException,
-  UseGuards,
 } from "@nestjs/common"
 import { IsEmail, IsString, MinLength } from "class-validator"
 import type { Request, Response } from "express"
 
+import { AuditService } from "../audit/audit.service"
 import { PrismaService } from "../prisma/prisma.service"
-import { CurrentUser, type AuthUser } from "./auth.decorators"
-import { AuthGuard } from "./auth.guard"
+import { CurrentUser, Public, type AuthUser } from "./auth.decorators"
 import { AuthService } from "./auth.service"
 import { hashPassword, verifyPassword } from "./password-hash"
 import { assertTrustedOrigin } from "./session-options"
@@ -64,7 +63,8 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly sessionService: SessionService,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService
   ) {}
 
   private guardTrustedOrigin(req: Request): void {
@@ -78,6 +78,7 @@ export class AuthController {
     }
   }
 
+  @Public()
   @Post("login")
   async login(
     @Body() dto: LoginDto,
@@ -97,16 +98,19 @@ export class AuthController {
     }
   }
 
+  @Public()
   @Post("logout")
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    await this.authService.logout(req)
+    this.guardTrustedOrigin(req)
+    const token = this.sessionService.readSessionToken(req)
+    const session = await this.sessionService.findValidSession(token)
+    await this.authService.logout(req, session?.userId)
     this.sessionService.clearSessionCookie(res)
     return { success: true, data: { signedOut: true } }
   }
 
   @Get("me")
   @Header("Cache-Control", "private, no-store")
-  @UseGuards(AuthGuard)
   me(@CurrentUser() user: AuthUser) {
     return {
       success: true,
@@ -115,11 +119,13 @@ export class AuthController {
   }
 
   @Patch("me/password")
-  @UseGuards(AuthGuard)
   async changePassword(
     @CurrentUser() user: AuthUser,
-    @Body() dto: ChangePasswordDto
+    @Body() dto: ChangePasswordDto,
+    @Req() req: Request
   ) {
+    this.guardTrustedOrigin(req)
+
     if (dto.newPassword.length < 8) {
       throw new BadRequestException({
         code: "PASSWORD_TOO_SHORT",
@@ -151,12 +157,21 @@ export class AuthController {
       data: { passwordHash: await hashPassword(dto.newPassword) },
     })
 
+    await this.audit.log({
+      action: "auth.password_change",
+      entity: "User",
+      entityId: user.id,
+      actorId: user.id,
+      ipAddress: req.ip || undefined,
+    })
+
     return {
       success: true,
       data: { changed: true },
     }
   }
 
+  @Public()
   @Post("forgot-password")
   async forgotPasswordRequest(
     @Body() dto: ForgotPasswordRequestDto,
@@ -187,6 +202,7 @@ export class AuthController {
     }
   }
 
+  @Public()
   @Post("forgot-password/verify")
   async forgotPasswordVerify(
     @Body() dto: ForgotPasswordVerifyDto,
@@ -213,6 +229,16 @@ export class AuthController {
       throw new BadRequestException({
         code: "PASSWORD_RESET_FAILED",
         message: "Invalid or expired code. Request a new code and try again.",
+      })
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { email } })
+    if (user) {
+      await this.audit.log({
+        action: "auth.password_reset",
+        entity: "User",
+        entityId: user.id,
+        ipAddress: req.ip || undefined,
       })
     }
 

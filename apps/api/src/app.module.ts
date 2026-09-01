@@ -1,7 +1,11 @@
 import { Module } from "@nestjs/common"
+import { APP_GUARD } from "@nestjs/core"
 
 import { AuditModule } from "./audit/audit.module"
+import { AuthGuard } from "./auth/auth.guard"
 import { AuthModule } from "./auth/auth.module"
+import { PermissionGuard } from "./auth/permission.guard"
+import { RolesGuard } from "./auth/roles.guard"
 import { DashboardModule } from "./dashboard/dashboard.module"
 import { HealthModule } from "./health/health.module"
 import { ImportsModule } from "./imports/imports.module"
@@ -51,6 +55,11 @@ const observeOptions = observeOptionsFromEnv()
     ReferenceModule,
     PublicPropertyTaxModule,
     ...(observeOptions ? [ObserveModule.forRoot(observeOptions)] : []),
+  ],
+  providers: [
+    { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: PermissionGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}

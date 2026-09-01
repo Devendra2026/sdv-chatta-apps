@@ -10,6 +10,7 @@ import { toast } from "sonner"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 
+import { useCan } from "@/hooks/use-permission"
 import { api } from "@/lib/api"
 
 import { printOfflinePaymentReceipt } from "./offline/_lib/receipt-template"
@@ -44,6 +45,7 @@ export default function PaymentsPage() {
   const [page, setPage] = React.useState(1)
   const [printingId, setPrintingId] = React.useState<string | null>(null)
   const pageSize = 20
+  const { allowed: canCollectOffline } = useCan("payment:offline:create")
 
   const query = useQuery({
     queryKey: ["payments", page, pageSize],
@@ -89,12 +91,14 @@ export default function PaymentsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Payments</h1>
-        <Button
-          className="cursor-pointer"
-          render={<Link href="/payments/offline" />}
-        >
-          Offline collection
-        </Button>
+        {canCollectOffline ? (
+          <Button
+            className="cursor-pointer"
+            render={<Link href="/payments/offline" />}
+          >
+            Offline collection
+          </Button>
+        ) : null}
       </div>
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full min-w-[800px] text-sm">

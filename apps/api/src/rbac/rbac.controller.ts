@@ -6,14 +6,15 @@ import {
   Param,
   Patch,
   Post,
-  UseGuards,
 } from "@nestjs/common"
 import { IsArray, IsOptional, IsString, MinLength } from "class-validator"
 
-import { RequirePermission } from "../auth/auth.decorators"
-import { AuthGuard } from "../auth/auth.guard"
-import { PermissionGuard } from "../auth/permission.guard"
-import { PrismaService } from "../prisma/prisma.service"
+import {
+  CurrentUser,
+  RequirePermission,
+  type AuthUser,
+} from "../auth/auth.decorators"
+import { RbacService } from "./rbac.service"
 
 class UpsertRoleDto {
   @IsString()
@@ -34,95 +35,50 @@ class UpsertRoleDto {
 }
 
 @Controller("api/v1/roles")
-@UseGuards(AuthGuard, PermissionGuard)
 export class RolesController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly rbacService: RbacService) {}
 
   @Get()
   @RequirePermission("role:read")
   async list() {
-    const roles = await this.prisma.role.findMany({
-      include: {
-        rolePermissions: { include: { permission: true } },
-        _count: { select: { userRoles: true } },
-      },
-      orderBy: { name: "asc" },
-    })
-    return {
-      success: true,
-      data: roles.map((r) => ({
-        ...r,
-        permissions: r.rolePermissions.map((rp) => rp.permission),
-      })),
-    }
+    const data = await this.rbacService.listRoles()
+    return { success: true, data }
   }
 
   @Post()
   @RequirePermission("role:create")
-  async create(@Body() dto: UpsertRoleDto) {
-    const role = await this.prisma.role.create({
-      data: {
-        code: dto.code.toUpperCase(),
-        name: dto.name,
-        description: dto.description,
-        rolePermissions: dto.permissionIds?.length
-          ? {
-              create: dto.permissionIds.map((permissionId) => ({ permissionId })),
-            }
-          : undefined,
-      },
-      include: { rolePermissions: { include: { permission: true } } },
-    })
+  async create(@Body() dto: UpsertRoleDto, @CurrentUser() actor: AuthUser) {
+    const role = await this.rbacService.createRole(dto, actor)
     return { success: true, data: role }
   }
 
   @Patch(":id")
   @RequirePermission("role:update")
-  async update(@Param("id") id: string, @Body() dto: Partial<UpsertRoleDto>) {
-    if (dto.permissionIds) {
-      await this.prisma.rolePermission.deleteMany({ where: { roleId: id } })
-      await this.prisma.rolePermission.createMany({
-        data: dto.permissionIds.map((permissionId) => ({ roleId: id, permissionId })),
-      })
-    }
-    const role = await this.prisma.role.update({
-      where: { id },
-      data: {
-        name: dto.name,
-        description: dto.description,
-        code: dto.code?.toUpperCase(),
-      },
-      include: { rolePermissions: { include: { permission: true } } },
-    })
+  async update(
+    @Param("id") id: string,
+    @Body() dto: Partial<UpsertRoleDto>,
+    @CurrentUser() actor: AuthUser
+  ) {
+    const role = await this.rbacService.updateRole(id, dto, actor)
     return { success: true, data: role }
   }
 
   @Delete(":id")
   @RequirePermission("role:delete")
-  async remove(@Param("id") id: string) {
-    const role = await this.prisma.role.findUniqueOrThrow({ where: { id } })
-    if (role.isSystem) {
-      return {
-        success: false,
-        error: { code: "SYSTEM_ROLE", message: "System roles cannot be deleted" },
-      }
-    }
-    await this.prisma.role.delete({ where: { id } })
-    return { success: true, data: { id } }
+  async remove(@Param("id") id: string, @CurrentUser() actor: AuthUser) {
+    const data = await this.rbacService.deleteRole(id, actor)
+    return { success: true, data }
   }
 }
 
 @Controller("api/v1/permissions")
-@UseGuards(AuthGuard, PermissionGuard)
 export class PermissionsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly rbacService: RbacService) {}
 
   @Get()
   @RequirePermission("permission:read")
   async list() {
-    const permissions = await this.prisma.permission.findMany({
-      orderBy: [{ resource: "asc" }, { action: "asc" }],
-    })
+    const permissions = await this.rbacService.listPermissions()
     return { success: true, data: permissions }
   }
 }

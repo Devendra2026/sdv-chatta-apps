@@ -4,24 +4,35 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common"
+import { Reflector } from "@nestjs/core"
 import { isStaffRoleCode } from "@workspace/types"
-import type { Request } from "express"
+import type { Request, Response } from "express"
 
 import { PrismaService } from "../prisma/prisma.service"
-import type { AuthUser } from "./auth.decorators"
+import { AuthUser, IS_PUBLIC_KEY } from "./auth.decorators"
 import { SessionService } from "./session.service"
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
+    private readonly reflector: Reflector,
     private readonly sessionService: SessionService,
     private readonly prisma: PrismaService
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ])
+    if (isPublic) {
+      return true
+    }
+
     const request = context
       .switchToHttp()
       .getRequest<Request & { user?: AuthUser }>()
+    const response = context.switchToHttp().getResponse<Response>()
 
     const token = this.sessionService.readSessionToken(request)
     const session = await this.sessionService.findValidSession(token)
@@ -31,6 +42,15 @@ export class AuthGuard implements CanActivate {
         code: "UNAUTHORIZED",
         message: "Authentication required",
       })
+    }
+
+    const refreshed = await this.sessionService.refreshSessionIfNeeded(session)
+    if (refreshed) {
+      this.sessionService.attachSessionCookie(
+        response,
+        refreshed.token,
+        refreshed.expiresAt
+      )
     }
 
     const user = await this.prisma.user.findUnique({

@@ -1,9 +1,11 @@
 import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common"
 
+import { Public } from "../auth/auth.decorators"
 import { CreatePublicPropertyTaxPaymentDto } from "./dto/create-public-payment.dto"
 import { PublicPropertyTaxSearchQueryDto } from "./dto/public-property-tax.dto"
 import { PublicPropertyTaxService } from "./public-property-tax.service"
 
+@Public()
 @Controller("api/v1/public/property-tax")
 export class PublicPropertyTaxController {
   constructor(private readonly service: PublicPropertyTaxService) {}

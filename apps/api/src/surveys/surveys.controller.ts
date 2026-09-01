@@ -9,7 +9,6 @@ import {
   Post,
   Query,
   UploadedFile,
-  UseGuards,
   UseInterceptors,
 } from "@nestjs/common"
 import { FileInterceptor } from "@nestjs/platform-express"
@@ -19,8 +18,7 @@ import {
   RequirePermission,
   type AuthUser,
 } from "../auth/auth.decorators"
-import { AuthGuard } from "../auth/auth.guard"
-import { PermissionGuard } from "../auth/permission.guard"
+import { canReadSurveyPii } from "../auth/auth-permissions"
 import {
   CreateSurveyDto,
   ListSurveysQueryDto,
@@ -37,7 +35,6 @@ const IMAGE_MIME = new Set([
 ])
 
 @Controller("api/v1/surveys")
-@UseGuards(AuthGuard, PermissionGuard)
 export class SurveysController {
   constructor(private readonly surveysService: SurveysService) {}
 
@@ -60,11 +57,7 @@ export class SurveysController {
   async findOne(@Param("id") id: string, @CurrentUser() user: AuthUser) {
     const survey = await this.surveysService.findOne(id)
     const neighbors = await this.surveysService.findNeighbors(survey)
-    const masked = this.surveysService.maskPii(
-      survey,
-      user.permissions.includes("survey:pii:read") ||
-        user.roles.includes("SUPER_ADMIN")
-    )
+    const masked = this.surveysService.maskPii(survey, canReadSurveyPii(user))
     const data = await this.surveysService.withAttachmentUrls(masked)
     return { success: true, data: { ...data, neighbors } }
   }

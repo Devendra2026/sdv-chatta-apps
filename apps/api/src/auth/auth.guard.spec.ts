@@ -1,7 +1,9 @@
 import { UnauthorizedException } from "@nestjs/common"
 import type { ExecutionContext } from "@nestjs/common"
+import { Reflector } from "@nestjs/core"
 
 import { AuthGuard } from "./auth.guard"
+import { IS_PUBLIC_KEY } from "./auth.decorators"
 
 function httpContext(cookieHeader?: string): ExecutionContext {
   return {
@@ -9,11 +11,17 @@ function httpContext(cookieHeader?: string): ExecutionContext {
       getRequest: () => ({
         headers: cookieHeader ? { cookie: cookieHeader } : {},
       }),
+      getResponse: () => ({
+        append: jest.fn(),
+      }),
     }),
+    getHandler: () => ({}),
+    getClass: () => ({}),
   } as ExecutionContext
 }
 
 function createGuard(opts: {
+  isPublic?: boolean
   session?: { userId: string; token: string } | null
   dbUser?: {
     id: string
@@ -28,7 +36,14 @@ function createGuard(opts: {
       }
     }>
   } | null
+  refreshSessionIfNeeded?: jest.Mock
 }) {
+  const reflector = {
+    getAllAndOverride: jest.fn((key: string) => {
+      if (key === IS_PUBLIC_KEY) return opts.isPublic ?? false
+      return undefined
+    }),
+  }
   const sessionService = {
     readSessionToken: jest.fn(() => opts.session?.token),
     findValidSession: jest.fn().mockResolvedValue(
@@ -41,6 +56,10 @@ function createGuard(opts: {
           }
         : null
     ),
+    refreshSessionIfNeeded:
+      opts.refreshSessionIfNeeded ??
+      jest.fn().mockResolvedValue(null),
+    attachSessionCookie: jest.fn(),
   }
   const prisma = {
     user: {
@@ -48,9 +67,14 @@ function createGuard(opts: {
     },
   }
   return {
-    guard: new AuthGuard(sessionService as never, prisma as never),
+    guard: new AuthGuard(
+      reflector as unknown as Reflector,
+      sessionService as never,
+      prisma as never
+    ),
     prisma,
     sessionService,
+    reflector,
   }
 }
 
@@ -71,6 +95,11 @@ const activeSuperAdmin = {
 }
 
 describe("AuthGuard", () => {
+  it("allows @Public() routes without a session", async () => {
+    const { guard } = createGuard({ isPublic: true, session: null })
+    await expect(guard.canActivate(httpContext())).resolves.toBe(true)
+  })
+
   it("rejects a missing session", async () => {
     const { guard } = createGuard({ session: null })
     await expect(guard.canActivate(httpContext())).rejects.toBeInstanceOf(
@@ -126,5 +155,24 @@ describe("AuthGuard", () => {
     await expect(
       guard.canActivate(httpContext("chhata_session=tok"))
     ).resolves.toBe(true)
+  })
+
+  it("refreshes sliding sessions when TTL is low", async () => {
+    const refreshSessionIfNeeded = jest.fn().mockResolvedValue({
+      id: "sess-1",
+      token: "tok",
+      userId: "user-1",
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    })
+    const { guard, sessionService } = createGuard({
+      session: { userId: "user-1", token: "tok" },
+      dbUser: activeSuperAdmin,
+      refreshSessionIfNeeded,
+    })
+
+    await guard.canActivate(httpContext("chhata_session=tok"))
+
+    expect(refreshSessionIfNeeded).toHaveBeenCalled()
+    expect(sessionService.attachSessionCookie).toHaveBeenCalled()
   })
 })

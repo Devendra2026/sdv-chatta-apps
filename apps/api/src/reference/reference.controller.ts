@@ -1,12 +1,9 @@
-import { Controller, Get, Query, UseGuards } from "@nestjs/common"
+import { Controller, Get, Query } from "@nestjs/common"
 
 import { RequirePermission } from "../auth/auth.decorators"
-import { AuthGuard } from "../auth/auth.guard"
-import { PermissionGuard } from "../auth/permission.guard"
 import { PrismaService } from "../prisma/prisma.service"
 
 @Controller("api/v1/reference-entries")
-@UseGuards(AuthGuard, PermissionGuard)
 export class ReferenceController {
   constructor(private readonly prisma: PrismaService) {}
 

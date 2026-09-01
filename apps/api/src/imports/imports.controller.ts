@@ -6,7 +6,6 @@ import {
   Post,
   Query,
   UploadedFile,
-  UseGuards,
   UseInterceptors,
 } from "@nestjs/common"
 import { FileInterceptor } from "@nestjs/platform-express"
@@ -17,12 +16,9 @@ import {
   RequirePermission,
   type AuthUser,
 } from "../auth/auth.decorators"
-import { AuthGuard } from "../auth/auth.guard"
-import { PermissionGuard } from "../auth/permission.guard"
 import { ImportsService } from "./imports.service"
 
 @Controller("api/v1/imports")
-@UseGuards(AuthGuard, PermissionGuard)
 export class ImportsController {
   constructor(private readonly importsService: ImportsService) {}
 
@@ -74,7 +70,6 @@ export class ImportsController {
 }
 
 @Controller("api/v1/exports")
-@UseGuards(AuthGuard, PermissionGuard)
 export class ExportsController {
   constructor(private readonly importsService: ImportsService) {}
 

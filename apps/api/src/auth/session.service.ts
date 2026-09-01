@@ -9,6 +9,7 @@ import {
   OTP_TTL_SECONDS,
   PASSWORD_RESET_IDENTIFIER_PREFIX,
   SESSION_COOKIE_NAME,
+  SESSION_REFRESH_THRESHOLD_SECONDS,
   SESSION_TTL_SECONDS,
 } from "./session.constants"
 import {
@@ -67,6 +68,29 @@ export class SessionService {
   async deleteSessionByToken(token: string | undefined): Promise<void> {
     if (!token?.trim()) return
     await this.prisma.session.deleteMany({ where: { token: token.trim() } })
+  }
+
+  async revokeAllUserSessions(userId: string): Promise<void> {
+    await this.prisma.session.deleteMany({ where: { userId } })
+  }
+
+  /**
+   * Sliding refresh: when TTL is under the threshold, extend to a full 7-day window.
+   * Returns the updated session when refreshed, otherwise null.
+   */
+  async refreshSessionIfNeeded(
+    session: SessionRecord
+  ): Promise<SessionRecord | null> {
+    const remainingMs = session.expiresAt.getTime() - Date.now()
+    if (remainingMs >= SESSION_REFRESH_THRESHOLD_SECONDS * 1000) {
+      return null
+    }
+
+    const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000)
+    return this.prisma.session.update({
+      where: { id: session.id },
+      data: { expiresAt },
+    })
   }
 
   readSessionToken(req: Request): string | undefined {

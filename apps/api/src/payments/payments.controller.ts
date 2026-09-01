@@ -6,7 +6,6 @@ import {
   Post,
   Query,
   Res,
-  UseGuards,
 } from "@nestjs/common"
 import { PaymentMode, PaymentStatus } from "@prisma/client"
 import { Type } from "class-transformer"
@@ -22,11 +21,10 @@ import type { Response } from "express"
 
 import {
   CurrentUser,
+  Public,
   RequirePermission,
   type AuthUser,
 } from "../auth/auth.decorators"
-import { AuthGuard } from "../auth/auth.guard"
-import { PermissionGuard } from "../auth/permission.guard"
 import { PaymentsService } from "./payments.service"
 
 class CreateOnlineDto {
@@ -103,7 +101,6 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post("online")
-  @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission("payment:create")
   async createOnline(
     @Body() dto: CreateOnlineDto,
@@ -114,7 +111,6 @@ export class PaymentsController {
   }
 
   @Post("offline")
-  @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission("payment:offline:create")
   async createOffline(
     @Body() dto: CreateOfflineDto,
@@ -124,6 +120,7 @@ export class PaymentsController {
     return { success: true, data }
   }
 
+  @Public()
   @Post("gateway/callback")
   async callback(@Body() body: Record<string, unknown>) {
     const data = await this.paymentsService.handleCallback(body ?? {})
@@ -131,6 +128,7 @@ export class PaymentsController {
   }
 
   /** Atom (or sandbox) browser return — process payload and 302 to citizen web. */
+  @Public()
   @Post("gateway/return")
   async gatewayReturnPost(
     @Body() body: Record<string, unknown>,
@@ -142,6 +140,7 @@ export class PaymentsController {
     return res.redirect(302, data.redirectUrl)
   }
 
+  @Public()
   @Get("gateway/return")
   async gatewayReturnGet(
     @Query() query: Record<string, string | undefined>,
@@ -152,7 +151,6 @@ export class PaymentsController {
   }
 
   @Post(":id/requery")
-  @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission("payment:requery")
   async requery(@Param("id") id: string, @CurrentUser() user: AuthUser) {
     const data = await this.paymentsService.requery(id, user)
@@ -160,7 +158,6 @@ export class PaymentsController {
   }
 
   @Post(":id/refund")
-  @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission("refund:create")
   async refund(
     @Param("id") id: string,
@@ -177,7 +174,6 @@ export class PaymentsController {
   }
 
   @Get()
-  @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission("payment:read")
   async list(
     @Query("page") page?: string,
@@ -197,7 +193,6 @@ export class PaymentsController {
   }
 
   @Get("refunds")
-  @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission("refund:read")
   async refunds() {
     const data = await this.paymentsService.listRefunds()
@@ -205,7 +200,6 @@ export class PaymentsController {
   }
 
   @Get("settlements")
-  @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission("settlement:read")
   async settlements() {
     const data = await this.paymentsService.listSettlements()
@@ -213,7 +207,6 @@ export class PaymentsController {
   }
 
   @Get(":id/receipt")
-  @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission("payment:read")
   async staffReceipt(@Param("id") id: string) {
     const data = await this.paymentsService.getStaffReceipt(id)
@@ -221,7 +214,6 @@ export class PaymentsController {
   }
 
   @Post("settlements/ingest")
-  @UseGuards(AuthGuard, PermissionGuard)
   @RequirePermission("settlement:read")
   async ingestSettlement(@Body() body: Record<string, unknown>) {
     const data = await this.paymentsService.ingestSettlement(body)
