@@ -8,7 +8,7 @@ import express, {
   type Response,
 } from "express"
 
-import { AppModule } from "./app.module"
+import { AppModule, ObserveInstrument } from "./app.module"
 import { AuthService } from "./auth/auth.service"
 import { attachBetterAuthGate } from "./auth/better-auth.express"
 import { AllExceptionsFilter } from "./common/all-exceptions.filter"
@@ -22,6 +22,7 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, new ExpressAdapter(server), {
     bodyParser: false,
+    instrument: ObserveInstrument,
   })
   authGate.bind(app.get(AuthService).auth)
 
