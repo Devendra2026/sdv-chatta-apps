@@ -7,6 +7,7 @@ import "dotenv/config"
 
 import { DuplicateStrategy } from "@prisma/client"
 import ExcelJS from "exceljs"
+import { resolveImportSurveyId } from "@workspace/types"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 
@@ -24,6 +25,7 @@ import {
 } from "../src/imports/column-maps"
 import { createPrismaClient } from "../src/prisma/prisma.client"
 import { computeDataQuality, parseFloorsRaw } from "../src/surveys/floors.util"
+import { getUlbCode } from "../src/surveys/survey-id.util"
 
 const prisma = createPrismaClient()
 const storageRoot = path.resolve(process.env.STORAGE_DIR ?? "uploads")
@@ -78,26 +80,34 @@ async function main() {
       values[col - 1] = excelRow.getCell(col).value
     }
 
-    const surveyId = cell(values, map.surveyId)
-    if (!surveyId) continue
+    const rawSurveyId = cell(values, map.surveyId)
+    if (!rawSurveyId) continue
 
     try {
       const wardName = cell(values, map.wardName)
-      const wardNumber = extractWardNumber(wardName, surveyId)
+      const wardNumber = extractWardNumber(wardName, rawSurveyId)
       const ward = wardNumber ? wardByNumber.get(wardNumber) : undefined
-      if (!ward) throw new Error(`Ward not found for ${wardName || surveyId}`)
+      if (!ward) throw new Error(`Ward not found for ${wardName || rawSurveyId}`)
 
       const mobileRaw = cell(values, map.mobile)
       const mobile = !mobileRaw || mobileRaw === "0" ? "" : mobileRaw
       const floorsRaw = cell(values, map.floorsRaw)
       const floors = parseFloorsRaw(floorsRaw)
-      const parcelNo = normalizeParcelNo(cell(values, map.parcelNo), surveyId)
+      const parcelNo = normalizeParcelNo(cell(values, map.parcelNo), rawSurveyId)
       const propertyNo = normalizePropertyNo(
         cell(values, map.propertyNo),
-        surveyId
+        rawSurveyId
+      )
+      const surveyId = resolveImportSurveyId(
+        rawSurveyId,
+        ward.number,
+        parcelNo ?? "",
+        propertyNo ?? "",
+        getUlbCode()
       )
 
       const payload = {
+        surveyId,
         wardId: ward.id,
         surveyedAt: parseSurveyedAt(cell(values, map.surveyedAt)),
         ownerName: cell(values, map.ownerName) || null,
@@ -159,7 +169,21 @@ async function main() {
         status: "ACTIVE" as const,
       }
 
-      const existing = await prisma.survey.findUnique({ where: { surveyId } })
+      const existing =
+        (await prisma.survey.findUnique({ where: { surveyId } })) ??
+        (rawSurveyId !== surveyId
+          ? await prisma.survey.findUnique({ where: { surveyId: rawSurveyId } })
+          : null) ??
+        (parcelNo && propertyNo
+          ? await prisma.survey.findFirst({
+              where: {
+                wardId: ward.id,
+                parcelNo,
+                propertyNo,
+                deletedAt: null,
+              },
+            })
+          : null)
       if (!existing || existing.deletedAt) {
         skipped++
         continue
@@ -189,7 +213,7 @@ async function main() {
       updated++
     } catch (err) {
       failed++
-      console.error(`Row ${rowNumber} (${surveyId}):`, err)
+      console.error(`Row ${rowNumber} (${rawSurveyId}):`, err)
     }
   }
 

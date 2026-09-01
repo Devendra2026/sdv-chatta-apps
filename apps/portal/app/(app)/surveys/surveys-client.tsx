@@ -41,7 +41,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { usePermission } from "@/hooks/use-permission"
 import { api } from "@/lib/api"
-import { formatParcelNo } from "@/lib/survey-format"
+import { formatParcelNo, formatSurveyId } from "@/lib/survey-format"
 
 type SurveyRow = {
   id: string
@@ -50,6 +50,7 @@ type SurveyRow = {
   ownerFatherName: string | null
   mobile: string | null
   parcelNo: string | null
+  propertyNo: string | null
   status: string
   ward: { number: number; name: string }
 }
@@ -277,8 +278,15 @@ export default function SurveysClientPage() {
         }),
         columnHelper.accessor("surveyId", {
           header: "Survey ID",
-          cell: ({ getValue }) => (
-            <span className="font-medium tabular-nums">{getValue()}</span>
+          cell: ({ row, getValue }) => (
+            <span className="font-medium tabular-nums">
+              {formatSurveyId({
+                surveyId: getValue(),
+                wardNumber: row.original.ward.number,
+                parcelNo: row.original.parcelNo,
+                propertyNo: row.original.propertyNo,
+              })}
+            </span>
           ),
         }),
         columnHelper.accessor((row) => row.ward.number, {

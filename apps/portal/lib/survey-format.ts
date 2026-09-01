@@ -1,6 +1,7 @@
 /** Parcel / property display matching GIS Survey Id `249044-001-000001-001-R`. */
 
 import {
+  buildSurveyIdFromRecord,
   formatParcelNo as formatParcelNoShared,
   formatPropertyNo as formatPropertyNoShared,
   parseGisSurveyId as parseGisSurveyIdShared,
@@ -33,12 +34,34 @@ export function parseGisSurveyId(
 
 export {
   CHHATA_ULB_CODE,
+  buildSurveyIdFromRecord,
   generateSurveyId,
   normalizeGisUseCode,
   normalizeParcelNo,
   normalizePropertyNo,
   normalizeWardCode,
 } from "@workspace/types"
+
+/** Display canonical survey id (ward from record, not placeholder `000` in stored id). */
+export function formatSurveyId(input: {
+  surveyId: string
+  wardNumber: number
+  parcelNo?: string | null
+  propertyNo?: string | null
+}): string {
+  try {
+    const parsed = parseGisSurveyIdShared(input.surveyId)
+    return buildSurveyIdFromRecord({
+      surveyId: input.surveyId,
+      wardNumber: input.wardNumber,
+      parcelNo: input.parcelNo,
+      propertyNo: input.propertyNo,
+      gisUseCode: parsed?.gisUseCode,
+    })
+  } catch {
+    return input.surveyId
+  }
+}
 
 export function toNumber(value?: string | number | null): number | null {
   if (value == null || value === "") return null

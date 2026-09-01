@@ -23,6 +23,7 @@ import {
 } from "./survey-audit.util"
 import {
   assertSurveyIdAvailable,
+  repairSurveyIdIfNeeded,
   resolveSurveyIdentity,
   verifySurveyIdMatchesRecord,
 } from "./survey-id.util"
@@ -176,8 +177,10 @@ export class SurveysService {
       }),
     ])
 
+    const canonicalItems = await this.ensureCanonicalSurveyIds(items)
+
     return {
-      items,
+      items: canonicalItems,
       meta: {
         page,
         pageSize,
@@ -198,7 +201,7 @@ export class SurveysService {
         message: "Survey not found",
       })
     }
-    return survey
+    return this.ensureCanonicalSurveyId(survey)
   }
 
   async findNeighbors(survey: {
@@ -683,6 +686,46 @@ export class SurveysService {
       oldValue: { fileName: attachment.originalFileName },
     })
     return { id: attachmentId }
+  }
+
+  private async ensureCanonicalSurveyIds<
+    T extends {
+      id: string
+      surveyId: string
+      parcelNo: string | null
+      propertyNo: string | null
+      ward: { number: number }
+    },
+  >(surveys: T[]): Promise<T[]> {
+    const repaired: T[] = []
+    for (const survey of surveys) {
+      repaired.push(await this.ensureCanonicalSurveyId(survey))
+    }
+    return repaired
+  }
+
+  private async ensureCanonicalSurveyId<
+    T extends {
+      id: string
+      surveyId: string
+      parcelNo: string | null
+      propertyNo: string | null
+      ward: { number: number }
+    },
+  >(survey: T): Promise<T> {
+    const surveyId = await repairSurveyIdIfNeeded(
+      this.prisma,
+      survey,
+      survey.ward.number
+    )
+    if (surveyId === survey.surveyId) return survey
+    const parsed = parseGisSurveyId(surveyId)
+    return {
+      ...survey,
+      surveyId,
+      parcelNo: parsed?.parcelNo ?? survey.parcelNo,
+      propertyNo: parsed?.propertyNo ?? survey.propertyNo,
+    }
   }
 }
 

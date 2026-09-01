@@ -67,6 +67,41 @@ export function resolveSurveyIdentity(
   return { parcelNo, propertyNo, gisUseCode, surveyId, ulbCode }
 }
 
+export type SurveyIdRecord = {
+  id: string
+  surveyId: string
+  parcelNo: string | null
+  propertyNo: string | null
+  deletedAt?: Date | null
+}
+
+/** Canonical GIS survey id from ward + parcel/property (ignores placeholder `000` ward segment). */
+export function getExpectedSurveyIdFromRecord(
+  survey: Pick<SurveyIdRecord, "surveyId" | "parcelNo" | "propertyNo">,
+  wardNumber: number
+): string {
+  const parsed = parseGisSurveyId(survey.surveyId)
+  return buildSurveyIdFromRecord({
+    surveyId: survey.surveyId,
+    wardNumber,
+    parcelNo: survey.parcelNo,
+    propertyNo: survey.propertyNo,
+    gisUseCode: parsed?.gisUseCode,
+    ulbCode: getUlbCode(),
+  })
+}
+
+export function surveyIdNeedsRepair(
+  survey: Pick<SurveyIdRecord, "surveyId" | "parcelNo" | "propertyNo">,
+  wardNumber: number
+): boolean {
+  try {
+    return survey.surveyId !== getExpectedSurveyIdFromRecord(survey, wardNumber)
+  } catch {
+    return false
+  }
+}
+
 export function verifySurveyIdMatchesRecord(
   surveyId: string,
   wardNumber: number,
@@ -82,6 +117,35 @@ export function verifySurveyIdMatchesRecord(
     ulbCode: getUlbCode(),
   })
   return expected === surveyId
+}
+
+/** Repair legacy Excel placeholder ward segments (e.g. `249044-000-...` → `249044-001-...`). */
+export async function repairSurveyIdIfNeeded(
+  tx: Prisma.TransactionClient,
+  survey: SurveyIdRecord,
+  wardNumber: number
+): Promise<string> {
+  if (!surveyIdNeedsRepair(survey, wardNumber)) {
+    return survey.surveyId
+  }
+
+  const expected = getExpectedSurveyIdFromRecord(survey, wardNumber)
+  const parsed = parseGisSurveyId(expected)
+  const clash = await tx.survey.findUnique({ where: { surveyId: expected } })
+  if (clash && clash.id !== survey.id && !clash.deletedAt) {
+    return survey.surveyId
+  }
+
+  await tx.survey.update({
+    where: { id: survey.id },
+    data: {
+      surveyId: expected,
+      parcelNo: parsed?.parcelNo ?? survey.parcelNo,
+      propertyNo: parsed?.propertyNo ?? survey.propertyNo,
+    },
+  })
+
+  return expected
 }
 
 export async function assertSurveyIdAvailable(

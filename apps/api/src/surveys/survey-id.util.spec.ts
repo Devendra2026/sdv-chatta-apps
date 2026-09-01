@@ -10,6 +10,11 @@ import {
   wardNumberFromSurveyId,
 } from "@workspace/types"
 
+import {
+  getExpectedSurveyIdFromRecord,
+  surveyIdNeedsRepair,
+} from "./survey-id.util"
+
 describe("survey-id", () => {
   it("formats GIS survey id with zero-padding (Test 6)", () => {
     expect(
@@ -85,5 +90,33 @@ describe("survey-id", () => {
         "249044"
       )
     ).toBe("249044-001-000131-001-R")
+  })
+
+  it("detects legacy placeholder ward segments that need repair", () => {
+    const legacy = {
+      surveyId: "249044-000-000179-001-R",
+      parcelNo: "000179",
+      propertyNo: "001",
+    }
+    expect(surveyIdNeedsRepair(legacy, 1)).toBe(true)
+    expect(getExpectedSurveyIdFromRecord(legacy, 1)).toBe(
+      "249044-001-000179-001-R"
+    )
+    expect(surveyIdNeedsRepair(legacy, 2)).toBe(true)
+    expect(getExpectedSurveyIdFromRecord(legacy, 2)).toBe(
+      "249044-002-000179-001-R"
+    )
+  })
+
+  it("leaves already canonical survey ids unchanged", () => {
+    const canonical = {
+      surveyId: "249044-001-000001-001-R",
+      parcelNo: "000001",
+      propertyNo: "001",
+    }
+    expect(surveyIdNeedsRepair(canonical, 1)).toBe(false)
+    expect(getExpectedSurveyIdFromRecord(canonical, 1)).toBe(
+      "249044-001-000001-001-R"
+    )
   })
 })
