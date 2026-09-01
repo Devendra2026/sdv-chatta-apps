@@ -1,5 +1,7 @@
 export type ApiClientOptions = {
-  baseUrl: string
+  baseUrl?: string
+  resolveBaseUrl?: () => string
+  credentials?: RequestCredentials
   getHeaders?: () => HeadersInit | Promise<HeadersInit>
 }
 
@@ -15,7 +17,32 @@ export class ApiError extends Error {
   }
 }
 
+/** Alias used by citizen web (apps/web). */
+export const PublicApiError = ApiError
+
+function resolveRequestBaseUrl(options: ApiClientOptions): string {
+  if (options.resolveBaseUrl) {
+    return options.resolveBaseUrl().replace(/\/$/, "")
+  }
+  const configured = options.baseUrl?.trim()
+  return configured ? configured.replace(/\/$/, "") : ""
+}
+
+function formatErrorMessage(
+  status: number,
+  json: { error?: { message?: string } } | null,
+  fallback: string
+): string {
+  if (json?.error?.message) return json.error.message
+  if (status === 429) {
+    return "Too many requests. Please wait a moment and try again."
+  }
+  return fallback || "Request failed"
+}
+
 export function createApiClient(options: ApiClientOptions) {
+  const credentials = options.credentials ?? "include"
+
   async function request<T>(
     path: string,
     init: RequestInit = {}
@@ -30,10 +57,10 @@ export function createApiClient(options: ApiClientOptions) {
       new Headers(extra).forEach((value, key) => headers.set(key, value))
     }
 
-    const response = await fetch(`${options.baseUrl}${path}`, {
+    const response = await fetch(`${resolveRequestBaseUrl(options)}${path}`, {
       ...init,
       headers,
-      credentials: "include",
+      credentials,
       cache: "no-store",
     })
 
@@ -47,7 +74,7 @@ export function createApiClient(options: ApiClientOptions) {
     if (!response.ok || json?.success === false) {
       throw new ApiError(
         json?.error?.code ?? "REQUEST_FAILED",
-        json?.error?.message ?? response.statusText,
+        formatErrorMessage(response.status, json, response.statusText),
         response.status,
         json?.error?.requestId
       )
@@ -73,11 +100,11 @@ export function createApiClient(options: ApiClientOptions) {
       if (extra) {
         new Headers(extra).forEach((value, key) => headers.set(key, value))
       }
-      const response = await fetch(`${options.baseUrl}${path}`, {
+      const response = await fetch(`${resolveRequestBaseUrl(options)}${path}`, {
         method: "POST",
         headers,
         body: form,
-        credentials: "include",
+        credentials,
         cache: "no-store",
       })
       const json = (await response.json().catch(() => null)) as {
@@ -89,7 +116,7 @@ export function createApiClient(options: ApiClientOptions) {
       if (!response.ok || json?.success === false) {
         throw new ApiError(
           json?.error?.code ?? "REQUEST_FAILED",
-          json?.error?.message ?? response.statusText,
+          formatErrorMessage(response.status, json, response.statusText),
           response.status,
           json?.error?.requestId
         )
@@ -114,3 +141,34 @@ export function createApiClient(options: ApiClientOptions) {
 }
 
 export type ApiClient = ReturnType<typeof createApiClient>
+
+function resolvePublicBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    return ""
+  }
+  const internal = process.env.API_INTERNAL_URL?.trim()
+  if (internal) return internal.replace(/\/$/, "")
+  const configured = process.env.NEXT_PUBLIC_API_URL?.trim()
+  if (configured) return configured.replace(/\/$/, "")
+  return "http://localhost:4000"
+}
+
+/** Citizen web client — same-origin /api in browser, API_INTERNAL_URL on server. */
+export function createPublicApiClient() {
+  return createApiClient({
+    credentials: "omit",
+    resolveBaseUrl: resolvePublicBaseUrl,
+  })
+}
+
+const publicClient = createPublicApiClient()
+
+export async function publicApiGet<T>(path: string): Promise<T> {
+  const { data } = await publicClient.get<T>(path)
+  return data
+}
+
+export async function publicApiPost<T>(path: string, body: unknown): Promise<T> {
+  const { data } = await publicClient.post<T>(path, body)
+  return data
+}

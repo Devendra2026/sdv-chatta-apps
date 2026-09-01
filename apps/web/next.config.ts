@@ -15,8 +15,11 @@ const repoRoot = path.join(
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: repoRoot,
-  transpilePackages: ["@workspace/ui", "@workspace/types"],
+  transpilePackages: ["@workspace/ui", "@workspace/types", "@workspace/api-client"],
   async rewrites() {
+    // Production Atom gateway callbacks use ATOM_CALLBACK_URL on PUBLIC_WEB_URL;
+    // server-to-server POSTs to /api/v1/payments/gateway/callback are proxied
+    // here to API_INTERNAL_URL (Nest PaymentsController).
     const apiProxy = {
       source: "/api/:path*",
       destination: `${apiInternal}/api/:path*`,

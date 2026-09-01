@@ -1,10 +1,10 @@
 FROM node:22-alpine AS base
 RUN apk add --no-cache libc6-compat
-RUN corepack enable && corepack prepare pnpm@11.22.0 --activate
+RUN corepack enable && corepack prepare pnpm@11.25.0 --activate
 WORKDIR /app
 
 FROM base AS pruner
-RUN npm install --global turbo@2.10.11
+RUN npm install --global turbo@2.10.12
 COPY . .
 RUN turbo prune portal --docker
 

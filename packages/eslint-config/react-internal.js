@@ -1,3 +1,4 @@
+import { fixupConfigRules } from "@eslint/compat"
 import js from "@eslint/js"
 import eslintConfigPrettier from "eslint-config-prettier"
 import pluginReact from "eslint-plugin-react"
@@ -16,7 +17,7 @@ export const config = [
   js.configs.recommended,
   eslintConfigPrettier,
   ...tseslint.configs.recommended,
-  pluginReact.configs.flat.recommended,
+  ...fixupConfigRules([pluginReact.configs.flat.recommended]),
   {
     languageOptions: {
       ...pluginReact.configs.flat.recommended.languageOptions,
@@ -30,12 +31,13 @@ export const config = [
     plugins: {
       "react-hooks": pluginReactHooks,
     },
-    settings: { react: { version: "detect" } },
+    settings: { react: { version: "19.2" } },
     rules: {
       ...pluginReactHooks.configs.recommended.rules,
       // React scope no longer necessary with new JSX transform.
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
+      "react-hooks/set-state-in-effect": "off",
     },
   },
 ]

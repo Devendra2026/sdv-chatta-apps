@@ -617,12 +617,9 @@ export class SurveysService {
     if (!survey.attachments?.length) return survey
     const attachments = await Promise.all(
       survey.attachments.map(async (a) => {
-        let url: string | null = null
-        try {
-          url = await this.storage.getSignedUrl(a.objectKey, 600)
-        } catch {
-          url = null
-        }
+        const url = await this.storage
+          .getSignedUrl(a.objectKey, 600)
+          .catch(() => null)
         return { ...a, url }
       })
     )
@@ -635,7 +632,7 @@ export class SurveysService {
     user: AuthUser
   ) {
     const current = await this.findOne(surveyId)
-    const safeName = file.originalname.replace(/[^\w.\-]+/g, "_").slice(0, 180)
+    const safeName = file.originalname.replace(/[^\w.-]+/g, "_").slice(0, 180)
     const objectKey = `surveys/${current.id}/${Date.now()}-${safeName}`
     await this.storage.putObject(objectKey, file.buffer, file.mimetype)
     const attachment = await this.prisma.surveyAttachment.create({

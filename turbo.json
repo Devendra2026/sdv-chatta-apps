@@ -3,6 +3,7 @@
   "ui": "tui",
   "globalEnv": [
     "PORT",
+    "NODE_ENV",
     "CORS_ORIGIN",
     "BETTER_AUTH_URL",
     "BETTER_AUTH_SECRET",
@@ -11,7 +12,39 @@
     "GOOGLE_CLIENT_SECRET",
     "SEED_ADMIN_EMAIL",
     "SEED_ADMIN_NAME",
-    "SEED_ADMIN_PASSWORD"
+    "SEED_ADMIN_PASSWORD",
+    "DATABASE_URL",
+    "REDIS_URL",
+    "API_INTERNAL_URL",
+    "NEXT_PUBLIC_API_URL",
+    "NEXT_PUBLIC_APP_URL",
+    "NEXT_PUBLIC_CITIZEN_WEB_URL",
+    "STORAGE_DIR",
+    "PAYMENT_PROVIDER",
+    "REQUEST_BODY_LIMIT",
+    "OBSERVE_APP_KEY",
+    "OBSERVE_APP_SECRET",
+    "SMTP_HOST",
+    "SMTP_FROM",
+    "ATOM_RETURN_URL",
+    "ATOM_CALLBACK_URL",
+    "ATOM_GATEWAY_RETURN_URL",
+    "ATOM_BASE_URL",
+    "ATOM_MERCH_ID",
+    "ATOM_PASSWORD",
+    "ATOM_API_SECRET_KEY",
+    "ATOM_AES_REQUEST_KEY",
+    "ATOM_AES_REQUEST_IV",
+    "ATOM_AES_RESPONSE_KEY",
+    "ATOM_AES_RESPONSE_IV",
+    "ATOM_PRODUCT",
+    "ATOM_AUTH_URL",
+    "ATOM_CHECKOUT_ENV",
+    "ATOM_CHECKOUT_CDN",
+    "STORAGE_SIGNING_SECRET",
+    "STORAGE_NAME",
+    "ULB_CODE",
+    "IMPORT_MAX_FILE_SIZE_MB"
   ],
   "tasks": {
     "build": {
@@ -59,10 +92,10 @@
       "persistent": true
     },
     "test": {
-      "cache": false,
-      "persistent": true
+      "cache": false
     },
     "e2e": {
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     }

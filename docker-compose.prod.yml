@@ -71,6 +71,9 @@ services:
       API_URL: ${PUBLIC_PORTAL_URL}
       PUBLIC_APP_URL: ${PUBLIC_PORTAL_URL}
       ATOM_RETURN_URL: ${PUBLIC_WEB_URL}/propertytax/payment/return
+      # Atom server-to-server POST hits the citizen web domain; Next.js rewrites
+      # /api/* to the internal API (see apps/web/next.config.ts). Nest handles
+      # POST /api/v1/payments/gateway/callback on the API container.
       ATOM_CALLBACK_URL: ${PUBLIC_WEB_URL}/api/v1/payments/gateway/callback
     volumes:
       - chhata_uploads:/app/uploads

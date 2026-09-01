@@ -28,9 +28,7 @@ export function parseFloorsRaw(floorsRaw?: string | null): ParsedFloor[] {
     const labelMatch = head.match(/^(.+?)\s*-\s*([\d.]+)\s*SqFt/i)
     const sqmMatch = head.match(/([\d.]+)\s*SqMt/i)
 
-    let usageType: string | undefined
     let usageFactor: string | undefined
-    let buildingType: string | undefined
     const usageTypeValues: string[] = []
 
     for (const part of parts.slice(1)) {
@@ -44,8 +42,8 @@ export function parseFloorsRaw(floorsRaw?: string | null): ParsedFloor[] {
       if (factor?.[1]) usageFactor = factor[1].trim()
     }
 
-    usageType = usageTypeValues[0]
-    buildingType = usageTypeValues[1]
+    const usageType = usageTypeValues[0]
+    const buildingType = usageTypeValues[1]
 
     return {
       floorLabel: labelMatch?.[1]?.trim() || `Floor ${index + 1}`,

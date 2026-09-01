@@ -24,8 +24,9 @@
     "@workspace/types": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "typescript": "^5.9.3"
+    "typescript": "catalog:"
   }
 }

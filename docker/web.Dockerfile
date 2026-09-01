@@ -1,10 +1,10 @@
 FROM node:22-alpine AS base
 RUN apk add --no-cache libc6-compat
-RUN corepack enable && corepack prepare pnpm@11.22.0 --activate
+RUN corepack enable && corepack prepare pnpm@11.25.0 --activate
 WORKDIR /app
 
 FROM base AS pruner
-RUN npm install --global turbo@2.10.11
+RUN npm install --global turbo@2.10.12
 COPY . .
 RUN turbo prune web --docker
 
@@ -17,6 +17,7 @@ RUN pnpm install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .
 # Workspace packages export dist/ only; .dockerignore excludes **/dist.
 RUN pnpm --filter @workspace/types build
+RUN pnpm --filter @workspace/api-client build
 # NFT copies @swc/helpers but omits esm/; Next 16 requires those files at runtime.
 RUN pnpm --filter web build \
   && src="$(find /app/node_modules/.pnpm -type d -path '*/@swc+helpers@*/node_modules/@swc/helpers' | head -n 1)" \

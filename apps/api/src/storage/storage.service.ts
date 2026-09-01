@@ -40,7 +40,7 @@ export class StorageService implements OnModuleInit {
   async putObject(
     objectKey: string,
     buffer: Buffer,
-    _mimeType: string
+    _mimeType?: string
   ): Promise<string> {
     await this.ensureBucket()
     const filePath = this.resolveObjectPath(objectKey)

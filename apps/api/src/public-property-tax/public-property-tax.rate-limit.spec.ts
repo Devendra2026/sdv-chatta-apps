@@ -1,15 +1,13 @@
-import { RateLimitMiddleware } from "../common/rate-limit.middleware"
+import { getRateLimitMax, RateLimitMiddleware } from "../common/rate-limit.middleware"
 
 describe("rate limit for public property tax", () => {
   it("uses a lower cap for public property-tax paths", () => {
     const path = "/api/v1/public/property-tax/search"
-    const max = path.includes("/public/property-tax")
-      ? 30
-      : path.includes("/payments/gateway/")
-        ? 120
-        : 300
-    expect(max).toBe(30)
-    // Ensure middleware module still imports cleanly
+    expect(getRateLimitMax(path)).toBe(30)
     expect(RateLimitMiddleware).toBeDefined()
+  })
+
+  it("uses a higher cap for gateway paths", () => {
+    expect(getRateLimitMax("/api/v1/payments/gateway/callback")).toBe(120)
   })
 })

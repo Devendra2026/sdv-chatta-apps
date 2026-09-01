@@ -195,7 +195,7 @@ export function computeSurveyExportTax(input: {
 
   const slotForFloor = (floorKey: string, residential: boolean): number => {
     const key = floorKey.toLowerCase()
-    let base = 0
+    let base: number
     if (key.includes("basement")) base = 0
     else if (key.includes("ground")) base = 2
     else if (key.includes("first")) base = 4
