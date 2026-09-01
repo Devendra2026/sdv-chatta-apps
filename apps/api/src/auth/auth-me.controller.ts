@@ -73,6 +73,7 @@ export class AuthMeController {
   @Header("Cache-Control", "private, no-store")
   @UseGuards(AuthGuard)
   me(@CurrentUser() user: AuthUser) {
+    // Staff portal session + RBAC. Better Auth sessions live at /api/auth/*.
     return {
       success: true,
       data: user,

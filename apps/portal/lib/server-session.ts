@@ -49,6 +49,8 @@ export async function fetchCurrentUser(): Promise<CurrentUserResult> {
     host,
   }
 
+  // Nest AuthMeController — session user plus RBAC roles/permissions.
+  // Do not use Better Auth GET /api/auth/get-session here; it has no permissions.
   const meResult = await fetchPortalApi({
     ...fetchOptions,
     path: "/api/v1/auth/me",

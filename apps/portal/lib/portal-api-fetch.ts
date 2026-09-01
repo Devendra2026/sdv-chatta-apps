@@ -1,3 +1,5 @@
+import { describeHttpFailure } from "@workspace/types"
+
 const RETRY_BACKOFF_MS = [200, 500]
 
 export function apiInternalUrl() {
@@ -99,9 +101,17 @@ export async function fetchPortalApi(
       const json = (await response.json().catch(() => null)) as PortalApiJson | null
       if (!response.ok) {
         const parsed = json?.error
-        const errorCode = parsed?.code ?? "REQUEST_FAILED"
-        const errorMessage =
-          parsed?.message ?? response.statusText ?? "Request failed"
+        const errorCode =
+          parsed?.code ??
+          (response.status === 404 ? "NOT_FOUND" : "REQUEST_FAILED")
+        const errorMessage = describeHttpFailure({
+          status: response.status,
+          bodyMessage: parsed?.message,
+          statusText: response.statusText,
+          method,
+          path: options.path,
+          host: apiHost,
+        })
         console.warn("[portal-api-fetch]", {
           path: options.path,
           status: response.status,

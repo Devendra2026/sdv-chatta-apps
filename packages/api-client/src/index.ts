@@ -1,3 +1,5 @@
+import { describeHttpFailure } from "@workspace/types"
+
 export type ApiClientOptions = {
   baseUrl?: string
   resolveBaseUrl?: () => string
@@ -31,13 +33,20 @@ function resolveRequestBaseUrl(options: ApiClientOptions): string {
 function formatErrorMessage(
   status: number,
   json: { error?: { message?: string } } | null,
-  fallback: string
+  fallback: string,
+  path: string,
+  method = "GET"
 ): string {
-  if (json?.error?.message) return json.error.message
   if (status === 429) {
     return "Too many requests. Please wait a moment and try again."
   }
-  return fallback || "Request failed"
+  return describeHttpFailure({
+    status,
+    bodyMessage: json?.error?.message,
+    statusText: fallback,
+    method,
+    path,
+  })
 }
 
 export function createApiClient(options: ApiClientOptions) {
@@ -73,8 +82,15 @@ export function createApiClient(options: ApiClientOptions) {
 
     if (!response.ok || json?.success === false) {
       throw new ApiError(
-        json?.error?.code ?? "REQUEST_FAILED",
-        formatErrorMessage(response.status, json, response.statusText),
+        json?.error?.code ??
+          (response.status === 404 ? "NOT_FOUND" : "REQUEST_FAILED"),
+        formatErrorMessage(
+          response.status,
+          json,
+          response.statusText,
+          path,
+          init.method ?? "GET"
+        ),
         response.status,
         json?.error?.requestId
       )
@@ -115,8 +131,9 @@ export function createApiClient(options: ApiClientOptions) {
       } | null
       if (!response.ok || json?.success === false) {
         throw new ApiError(
-          json?.error?.code ?? "REQUEST_FAILED",
-          formatErrorMessage(response.status, json, response.statusText),
+          json?.error?.code ??
+            (response.status === 404 ? "NOT_FOUND" : "REQUEST_FAILED"),
+          formatErrorMessage(response.status, json, response.statusText, path, "POST"),
           response.status,
           json?.error?.requestId
         )

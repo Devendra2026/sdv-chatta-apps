@@ -26,10 +26,12 @@ export async function checkApiHealth(): Promise<ApiHealthResult> {
     }
 
     const message =
-      json?.error?.message ??
+      json?.error?.message?.trim() ||
       (response.status === 502 || response.status === 503
         ? "API is unavailable"
-        : response.statusText || "Health check failed")
+        : response.status === 404
+          ? "Not found: GET /api/v1/health"
+          : response.statusText || "Health check failed")
 
     return {
       ok: false,
