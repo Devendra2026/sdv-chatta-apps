@@ -1,5 +1,9 @@
+"use client"
+
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
+
+import { Skeleton } from "@workspace/ui/components/skeleton"
 
 import { usePermission } from "@/hooks/use-permission"
 import {
@@ -7,12 +11,36 @@ import {
   userHasRoutePermission,
 } from "@/lib/route-permissions"
 
+function AccessDenied() {
+  return (
+    <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center">
+      <p className="text-lg font-medium">Access denied</p>
+      <p className="text-sm text-muted-foreground">
+        You do not have permission to view this page.
+      </p>
+    </div>
+  )
+}
+
+function RouteAccessLoading() {
+  return (
+    <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3">
+      <Skeleton className="h-8 w-48 rounded-lg" />
+      <Skeleton className="h-4 w-64 rounded-md" />
+    </div>
+  )
+}
+
 export function RouteAccessGate({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const { user, isLoading } = usePermission()
 
-  if (isLoading || !user) {
-    return children
+  if (isLoading) {
+    return <RouteAccessLoading />
+  }
+
+  if (!user) {
+    return <AccessDenied />
   }
 
   const required = getRequiredPermissionForPath(pathname)
@@ -23,14 +51,7 @@ export function RouteAccessGate({ children }: { children: ReactNode }) {
   )
 
   if (!allowed) {
-    return (
-      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center">
-        <p className="text-lg font-medium">Access denied</p>
-        <p className="text-sm text-muted-foreground">
-          You do not have permission to view this page.
-        </p>
-      </div>
-    )
+    return <AccessDenied />
   }
 
   return children
