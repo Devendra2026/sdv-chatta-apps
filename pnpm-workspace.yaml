@@ -19,9 +19,12 @@ allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
   '@swc/core': true
+  argon2: set this to true or false
   esbuild: false
   msgpackr-extract: false
   msw: false
   prisma: true
   sharp: true
   unrs-resolver: true
+
+onlyBuiltDependencies: argon2

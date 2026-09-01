@@ -18,7 +18,7 @@ import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { authClient } from "@/lib/auth-client"
+import { api } from "@/lib/api"
 
 const TRUST_ITEMS = [
   {
@@ -92,27 +92,10 @@ export default function LoginPage() {
     setFormError(null)
     setLoading(true)
     try {
-      const result = await authClient.signIn.email({
+      await api.post<{ userId: string }>("/api/v1/auth/login", {
         email,
         password,
-        fetchOptions: { credentials: "include" },
       })
-      if (result.error) {
-        const msg = mapAuthErrorMessage(result.error.message)
-        setFormError(msg)
-        toast.error(msg)
-        return
-      }
-      const session = await authClient.getSession({
-        fetchOptions: { credentials: "include" },
-      })
-      if (!session.data?.user) {
-        const msg =
-          "Signed in but the session cookie was not set. Refresh and try again."
-        setFormError(msg)
-        toast.error(msg)
-        return
-      }
       toast.success("Signed in")
       window.location.assign("/dashboard")
     } catch (err) {

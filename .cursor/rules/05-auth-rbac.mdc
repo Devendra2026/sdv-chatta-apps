@@ -1,5 +1,5 @@
 ---
-description: Better Auth authentication and permission-based RBAC
+description: Nest session authentication and permission-based RBAC
 globs: apps/api/**/*,apps/portal/**/*,apps/web/**/*,packages/**/*
 alwaysApply: false
 ---
@@ -8,13 +8,13 @@ alwaysApply: false
 
 ## Authentication
 
-Use **Better Auth** only. Do not invent a second auth/session system.
+Use **Nest-owned HttpOnly session cookies** only (`chhata_session` in Postgres `Session`). Do not invent a second auth/session system.
 
 ```text
-Better Auth → Session → Authenticated User → RBAC
+POST /api/v1/auth/login → Session row + cookie → AuthGuard → RBAC
 ```
 
-Never expose auth secrets to the browser or `NEXT_PUBLIC_*`.
+Portal is a same-origin BFF (`/api/*` → Nest). Never expose `SESSION_SECRET` to the browser or `NEXT_PUBLIC_*`.
 
 ## Authorization
 

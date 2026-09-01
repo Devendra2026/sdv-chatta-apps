@@ -13,14 +13,12 @@ function appendExpiredAuthCookies(res: NextResponse, req: NextRequest) {
 }
 
 /**
- * Portal-owned logout: sign out through the same Nest proxy as login (so
- * x-forwarded-proto / Origin match HTTPS cookies), forward Better Auth
- * Set-Cookie, then expire leftover secure and non-secure session cookies.
+ * Portal logout: Nest sign-out via BFF, forward Set-Cookie, expire legacy cookies.
  */
 export async function POST(req: NextRequest) {
   let upstreamCookies: string[] = []
   try {
-    const proxied = await proxyToApi(req, "/api/auth/sign-out")
+    const proxied = await proxyToApi(req, "/api/v1/auth/logout")
     upstreamCookies = proxied.headers.getSetCookie()
   } catch {
     // Still clear local cookies even if API is down

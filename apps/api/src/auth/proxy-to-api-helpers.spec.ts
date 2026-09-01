@@ -74,14 +74,12 @@ describe("proxy-to-api helpers", () => {
 
   it("describeCookieForwardingState never includes cookie values", () => {
     const state = describeCookieForwardingState({
-      rawHeader: "__Secure-better-auth.session_token=secret-token",
-      forwardedHeader: "__Secure-better-auth.session_token=secret-token",
+      rawHeader: "chhata_session=secret-token",
+      forwardedHeader: "chhata_session=secret-token",
     })
     expect(state.hasRawCookieHeader).toBe(true)
     expect(state.hasSessionCookie).toBe(true)
-    expect(state.parsedCookieNames).toEqual([
-      "__Secure-better-auth.session_token",
-    ])
+    expect(state.parsedCookieNames).toEqual(["chhata_session"])
     expect(JSON.stringify(state)).not.toContain("secret-token")
   })
 
@@ -93,22 +91,21 @@ describe("proxy-to-api helpers", () => {
     ).toBe("__Secure-better-auth.session_token=abc123")
   })
 
-  it("ignores empty leftover session cookies when detecting a session", () => {
+  it("ignores empty session cookies when detecting a session", () => {
     expect(
-      hasNonEmptySessionCookie([
-        { name: "better-auth.session_token", value: "" },
-      ])
+      hasNonEmptySessionCookie([{ name: "chhata_session", value: "" }])
     ).toBe(false)
     expect(
-      hasNonEmptySessionCookie([
-        { name: "__Secure-better-auth.session_token", value: "abc123" },
-      ])
+      hasNonEmptySessionCookie([{ name: "chhata_session", value: "abc123" }])
     ).toBe(true)
   })
 
-  it("collects chunked better-auth cookies from the request", () => {
+  it("collects chhata_session and legacy better-auth cookies on logout", () => {
     expect(collectAuthCookieNames(["better-auth.session_token.0"])).toContain(
-      "better-auth.session_token.0"
+      "chhata_session"
+    )
+    expect(collectAuthCookieNames(["better-auth.session_token.0"])).toContain(
+      "better-auth.session_token"
     )
   })
 

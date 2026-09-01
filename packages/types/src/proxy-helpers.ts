@@ -1,6 +1,9 @@
 export type CookiePair = { name: string; value: string }
 
-/** Rebuild a Cookie header from parsed pairs (includes __Secure- names). */
+/** Staff session cookie set by Nest (no __Secure- prefix). */
+export const SESSION_COOKIE_NAME = "chhata_session"
+
+/** Rebuild a Cookie header from parsed pairs. */
 export function cookieHeaderFromPairs(pairs: CookiePair[]): string | null {
   if (pairs.length === 0) return null
   return pairs.map(({ name, value }) => `${name}=${value}`).join("; ")
@@ -39,11 +42,7 @@ function putCookie(
   }
 }
 
-/**
- * Merge the browser Cookie header with Next's cookie jar.
- * Never let an empty leftover `better-auth.session_token` replace a
- * non-empty `__Secure-` session cookie.
- */
+/** Merge the browser Cookie header with Next's cookie jar. */
 export function mergeCookiePairs(
   rawHeader: string | null | undefined,
   jarPairs: CookiePair[] = []
@@ -58,11 +57,7 @@ export function mergeCookiePairs(
   return [...map.entries()].map(([name, value]) => ({ name, value }))
 }
 
-/**
- * Build the Cookie header to send upstream.
- * Empty leftover values (e.g. `better-auth.session_token=`) are omitted so
- * they cannot shadow a live `__Secure-` session cookie.
- */
+/** Build the Cookie header to send upstream; omit empty values. */
 export function resolveCookieHeaderForProxy(
   rawHeader: string | null | undefined,
   jarPairs: CookiePair[] = []
@@ -98,7 +93,8 @@ export function describeCookieForwardingState(opts: {
   }
 }
 
-export const AUTH_COOKIE_NAMES = [
+/** Legacy Better Auth cookie names — expire on logout if still present. */
+export const LEGACY_AUTH_COOKIE_NAMES = [
   "better-auth.session_token",
   "better-auth.session_data",
   "better-auth.dont_remember",
@@ -109,18 +105,12 @@ export const AUTH_COOKIE_NAMES = [
   "__Secure-better-auth.account_data",
 ] as const
 
-export function isAuthCookieName(name: string): boolean {
-  return (
-    name.includes("better-auth") ||
-    name.includes("session_token") ||
-    name.includes("session_data")
-  )
-}
-
 export function collectAuthCookieNames(existingNames: string[]): string[] {
-  const names = new Set<string>(AUTH_COOKIE_NAMES)
+  const names = new Set<string>([SESSION_COOKIE_NAME, ...LEGACY_AUTH_COOKIE_NAMES])
   for (const name of existingNames) {
-    if (isAuthCookieName(name)) names.add(name)
+    if (name.includes("better-auth") || name === SESSION_COOKIE_NAME) {
+      names.add(name)
+    }
   }
   return [...names]
 }
@@ -130,7 +120,6 @@ export type AuthCookieExpiryVariant = {
   secure: boolean
 }
 
-/** Match Secure / HttpOnly combinations so leftover cookies actually expire. */
 export function authCookieExpiryVariants(
   name: string
 ): AuthCookieExpiryVariant[] {
@@ -172,10 +161,7 @@ export function hasNonEmptySessionCookie(
   pairs: Array<{ name: string; value: string }>
 ): boolean {
   return pairs.some(
-    (c) =>
-      (c.name.includes("better-auth.session_token") ||
-        c.name.includes("session_token")) &&
-      c.value.trim().length > 0
+    (c) => c.name === SESSION_COOKIE_NAME && c.value.trim().length > 0
   )
 }
 

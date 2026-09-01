@@ -9,8 +9,6 @@ import express, {
 } from "express"
 
 import { AppModule, ObserveInstrument } from "./app.module"
-import { AuthService } from "./auth/auth.service"
-import { attachBetterAuthGate } from "./auth/better-auth.express"
 import { AllExceptionsFilter } from "./common/all-exceptions.filter"
 import { RateLimitMiddleware } from "./common/rate-limit.middleware"
 import { RequestLoggingInterceptor } from "./common/request-logging.interceptor"
@@ -18,21 +16,14 @@ import { RequestLoggingInterceptor } from "./common/request-logging.interceptor"
 async function bootstrap() {
   const server = express()
   server.set("trust proxy", 1)
-  const authGate = attachBetterAuthGate(server)
 
   const app = await NestFactory.create(AppModule, new ExpressAdapter(server), {
     bodyParser: false,
     instrument: ObserveInstrument,
   })
-  authGate.bind(app.get(AuthService).auth)
 
-  // Better Auth must receive the raw body; JSON + urlencoded for everything else.
-  // Atom gateway callback/return often posts application/x-www-form-urlencoded.
   const bodyLimit = process.env.REQUEST_BODY_LIMIT ?? "25mb"
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if ((req.originalUrl ?? req.url).startsWith("/api/auth")) {
-      return next()
-    }
     return express.json({ limit: bodyLimit })(req, res, (err?: unknown) => {
       if (err) return next(err as Error)
       return express.urlencoded({ extended: true, limit: bodyLimit })(

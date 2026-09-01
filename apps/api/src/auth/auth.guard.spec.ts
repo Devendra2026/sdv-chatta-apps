@@ -1,33 +1,20 @@
-import type { ExecutionContext } from "@nestjs/common"
 import { UnauthorizedException } from "@nestjs/common"
+import type { ExecutionContext } from "@nestjs/common"
 
 import { AuthGuard } from "./auth.guard"
 
-jest.mock("better-auth", () => ({
-  betterAuth: () => ({
-    api: { getSession: async () => null },
-  }),
-}))
-jest.mock("better-auth/plugins", () => ({
-  emailOTP: () => ({}),
-}))
-jest.mock("better-auth/adapters/prisma", () => ({
-  prismaAdapter: () => ({}),
-}))
-jest.mock("better-auth/node", () => ({
-  fromNodeHeaders: () => ({}),
-}))
-
-function httpContext(): ExecutionContext {
+function httpContext(cookieHeader?: string): ExecutionContext {
   return {
     switchToHttp: () => ({
-      getRequest: () => ({ headers: {} }),
+      getRequest: () => ({
+        headers: cookieHeader ? { cookie: cookieHeader } : {},
+      }),
     }),
   } as ExecutionContext
 }
 
 function createGuard(opts: {
-  sessionUser?: { id: string } | null
+  session?: { userId: string; token: string } | null
   dbUser?: {
     id: string
     email: string
@@ -42,26 +29,28 @@ function createGuard(opts: {
     }>
   } | null
 }) {
-  const authService = {
-    auth: {
-      api: {
-        getSession: jest
-          .fn()
-          .mockResolvedValue(
-            opts.sessionUser ? { user: opts.sessionUser } : null
-          ),
-      },
-    },
+  const sessionService = {
+    readSessionToken: jest.fn(() => opts.session?.token),
+    findValidSession: jest.fn().mockResolvedValue(
+      opts.session
+        ? {
+            id: "sess-1",
+            token: opts.session.token,
+            userId: opts.session.userId,
+            expiresAt: new Date(Date.now() + 60_000),
+          }
+        : null
+    ),
   }
   const prisma = {
     user: {
       findUnique: jest.fn().mockResolvedValue(opts.dbUser ?? null),
-      update: jest.fn().mockResolvedValue({}),
     },
   }
   return {
-    guard: new AuthGuard(authService as never, prisma as never),
+    guard: new AuthGuard(sessionService as never, prisma as never),
     prisma,
+    sessionService,
   }
 }
 
@@ -83,7 +72,7 @@ const activeSuperAdmin = {
 
 describe("AuthGuard", () => {
   it("rejects a missing session", async () => {
-    const { guard } = createGuard({ sessionUser: null })
+    const { guard } = createGuard({ session: null })
     await expect(guard.canActivate(httpContext())).rejects.toBeInstanceOf(
       UnauthorizedException
     )
@@ -91,27 +80,27 @@ describe("AuthGuard", () => {
 
   it("rejects a nonexistent user", async () => {
     const { guard } = createGuard({
-      sessionUser: { id: "missing" },
+      session: { userId: "missing", token: "tok" },
       dbUser: null,
     })
-    await expect(guard.canActivate(httpContext())).rejects.toBeInstanceOf(
-      UnauthorizedException
-    )
+    await expect(
+      guard.canActivate(httpContext("chhata_session=tok"))
+    ).rejects.toBeInstanceOf(UnauthorizedException)
   })
 
   it("rejects an inactive user", async () => {
     const { guard } = createGuard({
-      sessionUser: { id: "user-1" },
+      session: { userId: "user-1", token: "tok" },
       dbUser: { ...activeSuperAdmin, status: "INACTIVE" },
     })
-    await expect(guard.canActivate(httpContext())).rejects.toBeInstanceOf(
-      UnauthorizedException
-    )
+    await expect(
+      guard.canActivate(httpContext("chhata_session=tok"))
+    ).rejects.toBeInstanceOf(UnauthorizedException)
   })
 
   it("rejects a user without a staff role", async () => {
     const { guard } = createGuard({
-      sessionUser: { id: "user-1" },
+      session: { userId: "user-1", token: "tok" },
       dbUser: {
         ...activeSuperAdmin,
         userRoles: [
@@ -124,17 +113,18 @@ describe("AuthGuard", () => {
         ],
       },
     })
-    await expect(guard.canActivate(httpContext())).rejects.toBeInstanceOf(
-      UnauthorizedException
-    )
+    await expect(
+      guard.canActivate(httpContext("chhata_session=tok"))
+    ).rejects.toBeInstanceOf(UnauthorizedException)
   })
 
   it("allows an active Super Admin", async () => {
-    const { guard, prisma } = createGuard({
-      sessionUser: { id: "user-1" },
+    const { guard } = createGuard({
+      session: { userId: "user-1", token: "tok" },
       dbUser: activeSuperAdmin,
     })
-    await expect(guard.canActivate(httpContext())).resolves.toBe(true)
-    expect(prisma.user.update).toHaveBeenCalled()
+    await expect(
+      guard.canActivate(httpContext("chhata_session=tok"))
+    ).resolves.toBe(true)
   })
 })

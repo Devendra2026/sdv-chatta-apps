@@ -1,10 +1,10 @@
-import { getSessionCookie } from "better-auth/cookies"
+import { SESSION_COOKIE_NAME } from "@workspace/types"
 import { NextRequest, NextResponse } from "next/server"
 
 const publicPaths = ["/login", "/signup", "/forgot-password"]
 
 function hasAuthSessionCookie(req: NextRequest) {
-  const token = getSessionCookie(req)
+  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value
   return Boolean(token?.trim())
 }
 
@@ -39,7 +39,7 @@ export const config = {
     /*
      * Pages only. Never run on /api/* — cloning request headers in the
      * Next.js proxy strips Cookie from Route Handlers, so Nest never
-     * sees the Better Auth session after login.
+     * sees the session after login.
      */
     "/((?!_next/static|_next/image|favicon.ico|api/|.*\\..*).*)",
   ],

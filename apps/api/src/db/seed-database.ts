@@ -1,8 +1,7 @@
 import type { PrismaClient } from "@prisma/client"
-import { hashPassword as defaultHashPassword } from "better-auth/crypto"
 import { PERMISSIONS as PERMISSION_CODES } from "@workspace/types"
 
-import { CREDENTIAL_ISSUER, CREDENTIAL_PROVIDER_ID } from "./credential"
+import { hashPassword } from "../auth/password-hash"
 import { seedReferenceCatalogs } from "./reference-catalogs-seed"
 import { resolveSeedAdminConfig } from "./seed-admin-config"
 
@@ -166,7 +165,7 @@ export async function seedDatabase(
   options: SeedOptions = {}
 ) {
   const env = options.env ?? process.env
-  const hashPassword = options.hashPassword ?? defaultHashPassword
+  const hashPasswordFn = options.hashPassword ?? hashPassword
   const logger = options.logger ?? defaultLogger
   const adminConfig = resolveSeedAdminConfig(env)
 
@@ -251,12 +250,14 @@ export async function seedDatabase(
       name: adminConfig.name,
       emailVerified: true,
       status: "ACTIVE",
+      passwordHash: await hashPasswordFn(adminConfig.password),
     },
     create: {
       email: adminConfig.email,
       name: adminConfig.name,
       emailVerified: true,
       status: "ACTIVE",
+      passwordHash: await hashPasswordFn(adminConfig.password),
     },
   })
 
@@ -277,36 +278,6 @@ export async function seedDatabase(
       roleId: superAdminRole.id,
     },
   })
-
-  const hashed = await hashPassword(adminConfig.password)
-
-  const existingAccount = await prisma.account.findFirst({
-    where: {
-      userId: admin.id,
-      providerId: CREDENTIAL_PROVIDER_ID,
-    },
-  })
-
-  if (!existingAccount) {
-    await prisma.account.create({
-      data: {
-        accountId: admin.id,
-        providerId: CREDENTIAL_PROVIDER_ID,
-        issuer: CREDENTIAL_ISSUER,
-        userId: admin.id,
-        password: hashed,
-      },
-    })
-  } else {
-    await prisma.account.update({
-      where: { id: existingAccount.id },
-      data: {
-        accountId: admin.id,
-        issuer: CREDENTIAL_ISSUER,
-        password: hashed,
-      },
-    })
-  }
 
   logger.info("Database initialization completed.")
   logger.info(`Super Admin email: ${adminConfig.email}`)

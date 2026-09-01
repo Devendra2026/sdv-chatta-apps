@@ -2,22 +2,35 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Header,
   Patch,
   Post,
+  Req,
+  Res,
   ServiceUnavailableException,
   UseGuards,
 } from "@nestjs/common"
-import { hashPassword, verifyPassword } from "better-auth/crypto"
 import { IsEmail, IsString, MinLength } from "class-validator"
+import type { Request, Response } from "express"
 
-import { CREDENTIAL_ISSUER, CREDENTIAL_PROVIDER_ID } from "../db/credential"
 import { PrismaService } from "../prisma/prisma.service"
-import { resolvePublicAppUrl } from "./auth-options"
 import { CurrentUser, type AuthUser } from "./auth.decorators"
 import { AuthGuard } from "./auth.guard"
 import { AuthService } from "./auth.service"
+import { hashPassword, verifyPassword } from "./password-hash"
+import { assertTrustedOrigin } from "./session-options"
+import { SessionService } from "./session.service"
+
+class LoginDto {
+  @IsEmail()
+  email!: string
+
+  @IsString()
+  @MinLength(8)
+  password!: string
+}
 
 class ChangePasswordDto {
   @IsString()
@@ -47,33 +60,54 @@ class ForgotPasswordVerifyDto {
 }
 
 @Controller("api/v1/auth")
-export class AuthMeController {
+export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly sessionService: SessionService,
     private readonly prisma: PrismaService
   ) {}
 
-  private async postBetterAuth(path: string, body: Record<string, unknown>) {
-    const baseUrl = resolvePublicAppUrl()
-    const url = new URL(baseUrl)
-    const request = new Request(`${baseUrl}/api/auth${path}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        origin: baseUrl,
-        "x-forwarded-host": url.host,
-        "x-forwarded-proto": url.protocol.replace(":", ""),
-      },
-      body: JSON.stringify(body),
-    })
-    return this.authService.auth.handler(request)
+  private guardTrustedOrigin(req: Request): void {
+    try {
+      assertTrustedOrigin(req.headers.origin)
+    } catch {
+      throw new ForbiddenException({
+        code: "INVALID_ORIGIN",
+        message: "Request origin is not allowed",
+      })
+    }
+  }
+
+  @Post("login")
+  async login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response
+  ) {
+    this.guardTrustedOrigin(req)
+    const result = await this.authService.login(dto.email, dto.password, req)
+    this.sessionService.attachSessionCookie(
+      res,
+      result.sessionToken,
+      result.expiresAt
+    )
+    return {
+      success: true,
+      data: { userId: result.userId },
+    }
+  }
+
+  @Post("logout")
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    await this.authService.logout(req)
+    this.sessionService.clearSessionCookie(res)
+    return { success: true, data: { signedOut: true } }
   }
 
   @Get("me")
   @Header("Cache-Control", "private, no-store")
   @UseGuards(AuthGuard)
   me(@CurrentUser() user: AuthUser) {
-    // Staff portal session + RBAC. Better Auth sessions live at /api/auth/*.
     return {
       success: true,
       data: user,
@@ -93,27 +127,18 @@ export class AuthMeController {
       })
     }
 
-    const account = await this.prisma.account.findFirst({
-      where: {
-        userId: user.id,
-        providerId: CREDENTIAL_PROVIDER_ID,
-        issuer: CREDENTIAL_ISSUER,
-        password: { not: null },
-      },
+    const dbUser = await this.prisma.user.findUnique({
+      where: { id: user.id },
     })
 
-    if (!account?.password) {
+    if (!dbUser?.passwordHash) {
       throw new BadRequestException({
         code: "CREDENTIAL_ACCOUNT_NOT_FOUND",
         message: "No password account found for this user",
       })
     }
 
-    const valid = await verifyPassword({
-      hash: account.password,
-      password: dto.currentPassword,
-    })
-
+    const valid = await verifyPassword(dto.currentPassword, dbUser.passwordHash)
     if (!valid) {
       throw new BadRequestException({
         code: "INVALID_PASSWORD",
@@ -121,10 +146,9 @@ export class AuthMeController {
       })
     }
 
-    const hashed = await hashPassword(dto.newPassword)
-    await this.prisma.account.update({
-      where: { id: account.id },
-      data: { password: hashed },
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: await hashPassword(dto.newPassword) },
     })
 
     return {
@@ -134,32 +158,24 @@ export class AuthMeController {
   }
 
   @Post("forgot-password")
-  async forgotPasswordRequest(@Body() dto: ForgotPasswordRequestDto) {
+  async forgotPasswordRequest(
+    @Body() dto: ForgotPasswordRequestDto,
+    @Req() req: Request
+  ) {
+    this.guardTrustedOrigin(req)
     const email = dto.email.trim().toLowerCase()
 
     try {
-      const response = await this.postBetterAuth(
-        "/email-otp/request-password-reset",
-        { email }
-      )
-      if (!response.ok && response.status >= 500) {
-        await response.text().catch(() => undefined)
-        throw new ServiceUnavailableException({
-          code: "EMAIL_UNAVAILABLE",
-          message:
-            "Unable to send email right now. Try again later or contact an administrator.",
-        })
-      }
+      await this.sessionService.requestPasswordResetOtp(email)
     } catch (err) {
-      if (err instanceof ServiceUnavailableException) throw err
-      if (err instanceof Error) {
+      if (err instanceof Error && err.message === "SMTP is not configured") {
         throw new ServiceUnavailableException({
           code: "EMAIL_UNAVAILABLE",
           message:
             "Unable to send email right now. Try again later or contact an administrator.",
         })
       }
-      // 4xx from Better Auth (unknown email): generic success — do not reveal.
+      // Generic success — do not reveal whether the email exists.
     }
 
     return {
@@ -172,27 +188,28 @@ export class AuthMeController {
   }
 
   @Post("forgot-password/verify")
-  async forgotPasswordVerify(@Body() dto: ForgotPasswordVerifyDto) {
+  async forgotPasswordVerify(
+    @Body() dto: ForgotPasswordVerifyDto,
+    @Req() req: Request
+  ) {
+    this.guardTrustedOrigin(req)
     const email = dto.email.trim().toLowerCase()
 
     try {
-      const response = await this.postBetterAuth("/email-otp/reset-password", {
+      await this.sessionService.verifyPasswordResetOtp(
         email,
-        otp: dto.code.trim(),
-        password: dto.newPassword,
-      })
-
-      if (!response.ok) {
-        const detail = await response.text()
+        dto.code,
+        dto.newPassword,
+        hashPassword
+      )
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "OTP_INVALID"
+      if (code === "TOO_MANY_ATTEMPTS") {
         throw new BadRequestException({
           code: "PASSWORD_RESET_FAILED",
-          message: detail.includes("TOO_MANY_ATTEMPTS")
-            ? "Too many attempts. Request a new code."
-            : "Invalid or expired code. Request a new code and try again.",
+          message: "Too many attempts. Request a new code.",
         })
       }
-    } catch (err) {
-      if (err instanceof BadRequestException) throw err
       throw new BadRequestException({
         code: "PASSWORD_RESET_FAILED",
         message: "Invalid or expired code. Request a new code and try again.",

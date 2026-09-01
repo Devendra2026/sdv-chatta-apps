@@ -21,7 +21,6 @@
     "@workspace/api-client": "workspace:*",
     "@workspace/types": "workspace:*",
     "@workspace/ui": "workspace:*",
-    "better-auth": "^1.7.2",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.37.0",
     "next": "catalog:",

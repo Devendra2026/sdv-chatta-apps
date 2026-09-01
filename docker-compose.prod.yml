@@ -69,9 +69,8 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       STORAGE_DIR: /app/uploads
       CORS_ORIGIN: ${PUBLIC_PORTAL_URL},${PUBLIC_WEB_URL}
-      BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
-      API_URL: ${PUBLIC_PORTAL_URL}
       PUBLIC_APP_URL: ${PUBLIC_PORTAL_URL}
+      SESSION_SECRET: ${SESSION_SECRET}
       ATOM_RETURN_URL: ${PUBLIC_WEB_URL}/propertytax/payment/return
       # Atom server-to-server POST hits the citizen web domain; Next.js rewrites
       # /api/* to the internal API (see apps/web/next.config.ts). Nest handles

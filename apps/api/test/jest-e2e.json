@@ -4,21 +4,15 @@
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "transform": {
-    "^.+\\.(t|j)sx?$": [
-      "ts-jest",
+    "^.+\\.(t|j)s$": [
+      "@swc/jest",
       {
-        "tsconfig": {
-          "module": "commonjs",
-          "esModuleInterop": true
-        },
-        "useESM": false
+        "jsc": {
+          "parser": { "syntax": "typescript", "decorators": true },
+          "transform": { "legacyDecorator": true, "decoratorMetadata": true }
+        }
       }
     ]
   },
-  "moduleNameMapper": {
-    "^better-auth/node$": "<rootDir>/mocks/better-auth-node.ts",
-    "^better-auth/adapters/prisma$": "<rootDir>/mocks/better-auth-prisma.ts",
-    "^better-auth$": "<rootDir>/mocks/better-auth.ts",
-    "^better-auth/crypto$": "<rootDir>/mocks/better-auth-crypto.ts"
-  }
+  "transformIgnorePatterns": ["node_modules/(?!(.*@nestjs|rxjs))"]
 }

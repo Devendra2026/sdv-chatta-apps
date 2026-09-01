@@ -14,7 +14,6 @@ import {
   ASSIGNABLE_STAFF_ROLE_CODES,
   type AssignableStaffRoleCode,
 } from "@workspace/types"
-import { hashPassword } from "better-auth/crypto"
 import {
   IsArray,
   IsBoolean,
@@ -26,10 +25,10 @@ import {
   ValidateIf,
 } from "class-validator"
 
+import { hashPassword } from "../auth/password-hash"
 import { RequirePermission } from "../auth/auth.decorators"
 import { AuthGuard } from "../auth/auth.guard"
 import { PermissionGuard } from "../auth/permission.guard"
-import { CREDENTIAL_ISSUER, CREDENTIAL_PROVIDER_ID } from "../db/credential"
 import { PrismaService } from "../prisma/prisma.service"
 
 class CreateUserDto {
@@ -198,16 +197,7 @@ export class UsersController {
           phone: dto.phone?.trim() || null,
           emailVerified: true,
           status: "ACTIVE",
-        },
-      })
-
-      await tx.account.create({
-        data: {
-          accountId: created.id,
-          providerId: CREDENTIAL_PROVIDER_ID,
-          issuer: CREDENTIAL_ISSUER,
-          userId: created.id,
-          password: hashed,
+          passwordHash: hashed,
         },
       })
 

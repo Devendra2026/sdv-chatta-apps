@@ -6,7 +6,7 @@ datasource db {
   provider = "postgresql"
 }
 
-// ─── Better Auth ───────────────────────────────────────────────
+// ─── Staff auth (Nest-owned sessions) ────────────────────────
 
 model User {
   id            String     @id @default(cuid())
@@ -15,13 +15,13 @@ model User {
   emailVerified Boolean    @default(false)
   image         String?
   phone         String?
+  passwordHash  String?
   status        UserStatus @default(ACTIVE)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   lastLoginAt   DateTime?
 
   sessions            Session[]
-  accounts            Account[]
   userRoles           UserRole[]
   auditLogs           AuditLog[]         @relation("AuditActor")
   surveysCreated      Survey[]           @relation("SurveyCreatedBy")
@@ -55,29 +55,6 @@ model Session {
   @@map("session")
 }
 
-model Account {
-  id                    String    @id @default(cuid())
-  accountId             String
-  providerId            String
-  /// Better Auth 1.7+ account identity scope (credential => "local:credential")
-  issuer                String
-  userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessToken           String?
-  refreshToken          String?
-  idToken               String?
-  accessTokenExpiresAt  DateTime?
-  refreshTokenExpiresAt DateTime?
-  scope                 String?
-  password              String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@unique([issuer, accountId])
-  @@index([userId])
-  @@map("account")
-}
-
 model Verification {
   id         String   @id @default(cuid())
   identifier String
@@ -86,6 +63,7 @@ model Verification {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@index([identifier])
   @@map("verification")
 }
 

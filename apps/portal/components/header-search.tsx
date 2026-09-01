@@ -29,7 +29,7 @@ export function HeaderSearch({ className }: { className?: string }) {
     function onKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented || event.repeat) return
       const isMod = event.metaKey || event.ctrlKey
-      if (!isMod || event.key.toLowerCase() !== "k") return
+      if (!isMod || !event.key || event.key.toLowerCase() !== "k") return
       event.preventDefault()
       if (window.matchMedia("(min-width: 768px)").matches) {
         inputRef.current?.focus()
@@ -50,16 +50,16 @@ export function HeaderSearch({ className }: { className?: string }) {
         <label htmlFor="header-survey-search" className="sr-only">
           Search surveys
         </label>
-        <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           ref={inputRef}
           id="header-survey-search"
-          className="bg-muted/70 border-transparent h-10 w-full max-w-xl rounded-xl pr-16 pl-10 shadow-none transition-colors duration-200 focus-visible:bg-card focus-visible:border-ring"
+          className="h-10 w-full max-w-xl rounded-xl border-transparent bg-muted/70 pr-16 pl-10 shadow-none transition-colors duration-200 focus-visible:border-ring focus-visible:bg-card"
           placeholder="Search surveys, parcels, wards…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <kbd className="bg-background text-muted-foreground pointer-events-none absolute top-1/2 right-2.5 hidden -translate-y-1/2 items-center gap-0.5 rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-medium sm:inline-flex">
+        <kbd className="pointer-events-none absolute top-1/2 right-2.5 hidden -translate-y-1/2 items-center gap-0.5 rounded-md border bg-background px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground sm:inline-flex">
           <span className="text-xs">⌘</span>K
         </kbd>
       </form>
@@ -70,11 +70,11 @@ export function HeaderSearch({ className }: { className?: string }) {
             <label htmlFor="header-survey-search-mobile" className="sr-only">
               Search surveys
             </label>
-            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               id="header-survey-search-mobile"
               autoFocus
-              className="bg-muted/70 h-9 w-48 rounded-xl border-transparent pl-8"
+              className="h-9 w-48 rounded-xl border-transparent bg-muted/70 pl-8"
               placeholder="Search…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}

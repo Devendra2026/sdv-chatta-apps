@@ -5,17 +5,16 @@ import {
   UnauthorizedException,
 } from "@nestjs/common"
 import { isStaffRoleCode } from "@workspace/types"
-import { fromNodeHeaders } from "better-auth/node"
 import type { Request } from "express"
 
 import { PrismaService } from "../prisma/prisma.service"
 import type { AuthUser } from "./auth.decorators"
-import { AuthService } from "./auth.service"
+import { SessionService } from "./session.service"
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
-    private readonly authService: AuthService,
+    private readonly sessionService: SessionService,
     private readonly prisma: PrismaService
   ) {}
 
@@ -24,11 +23,10 @@ export class AuthGuard implements CanActivate {
       .switchToHttp()
       .getRequest<Request & { user?: AuthUser }>()
 
-    const session = await this.authService.auth.api.getSession({
-      headers: fromNodeHeaders(request.headers),
-    })
+    const token = this.sessionService.readSessionToken(request)
+    const session = await this.sessionService.findValidSession(token)
 
-    if (!session?.user) {
+    if (!session) {
       throw new UnauthorizedException({
         code: "UNAUTHORIZED",
         message: "Authentication required",
@@ -36,7 +34,7 @@ export class AuthGuard implements CanActivate {
     }
 
     const user = await this.prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: session.userId },
       include: {
         userRoles: {
           include: {
@@ -83,15 +81,6 @@ export class AuthGuard implements CanActivate {
       status: user.status,
       roles,
       permissions,
-    }
-
-    try {
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { lastLoginAt: new Date() },
-      })
-    } catch {
-      // Session is valid; do not fail the request if lastLoginAt cannot be written.
     }
 
     return true

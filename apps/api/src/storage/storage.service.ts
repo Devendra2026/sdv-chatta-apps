@@ -117,6 +117,7 @@ export class StorageService implements OnModuleInit {
   private signingSecret(): string {
     return (
       process.env.STORAGE_SIGNING_SECRET?.trim() ||
+      process.env.SESSION_SECRET?.trim() ||
       process.env.BETTER_AUTH_SECRET?.trim() ||
       "dev-storage-signing-secret"
     )
