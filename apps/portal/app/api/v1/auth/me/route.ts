@@ -5,9 +5,9 @@ import { proxyToApi } from "@/lib/proxy-to-api"
 export const dynamic = "force-dynamic"
 
 /**
- * Static filesystem route so GET /api/v1/auth/me is not stolen by afterFiles
- * rewrites or skipped by the dynamic [...path] catch-all. Nest AuthMeController
- * (RBAC user + permissions) is the upstream — not Better Auth get-session.
+ * Static route for GET /api/v1/auth/me. Other auth paths (login, logout, …) are
+ * proxied by `auth/[...path]/route.ts` because this `auth/` segment prevents
+ * `api/v1/[...path]` from matching sibling paths like `/api/v1/auth/login`.
  */
 async function handle(req: NextRequest) {
   return proxyToApi(req, `/api/v1/auth/me${req.nextUrl.search}`)
