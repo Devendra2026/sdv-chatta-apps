@@ -19,7 +19,7 @@ async function main() {
     console.error(
       `[seed] Database initialization failed. ${redactSecrets(message)}`
     )
-    process.exitCode = 1
+    process.exit(1)
   } finally {
     await prisma.$disconnect()
   }

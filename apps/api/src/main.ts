@@ -12,8 +12,11 @@ import { AppModule, ObserveInstrument } from "./app.module"
 import { AllExceptionsFilter } from "./common/all-exceptions.filter"
 import { RateLimitMiddleware } from "./common/rate-limit.middleware"
 import { RequestLoggingInterceptor } from "./common/request-logging.interceptor"
+import { assertRequiredEnv } from "./config/validate-env"
 
 async function bootstrap() {
+  assertRequiredEnv()
+
   const server = express()
   server.set("trust proxy", 1)
 
@@ -70,4 +73,8 @@ async function bootstrap() {
   Logger.log(`API listening on http://localhost:${port}`, "Bootstrap")
 }
 
-bootstrap()
+bootstrap().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error)
+  Logger.error(message, undefined, "Bootstrap")
+  process.exit(1)
+})

@@ -28,6 +28,17 @@ describe("Health (e2e)", () => {
       .expect({ status: "ok" })
   })
 
+  it("/api/v1/health (GET)", () => {
+    return request(app.getHttpServer())
+      .get("/api/v1/health")
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.success).toBe(true)
+        expect(res.body.data.status).toBe("ok")
+        expect(res.body.data.service).toBe("api")
+      })
+  })
+
   afterEach(async () => {
     await app.close()
   })
