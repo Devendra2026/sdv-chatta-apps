@@ -10,6 +10,7 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
+    "test": "node --test lib/health-route.test.mjs",
     "test:e2e": "playwright test",
     "e2e": "playwright test"
   },

@@ -25,10 +25,10 @@ const nextConfig: NextConfig = {
       source: "/api/:path*",
       destination: `${apiInternal}/api/:path*`,
     }
-    // afterFiles: unmatched /api/* before 404. fallback: last-chance proxy.
-    // Filesystem routes win: /api/portal/*, /api/auth/[...all], /api/v1/[...path].
+    // fallback only: catch-all Route Handlers (/api/auth/[...all], /api/v1/[...path])
+    // and static routes (/api/v1/health) run before fallback. afterFiles would steal
+    // dynamic API routes and bypass cookie-preserving proxyToApi.
     return {
-      afterFiles: [apiProxy],
       fallback: [apiProxy],
     }
   },
