@@ -1,3 +1,4 @@
+export * from "./integration-error.js"
 export * from "./proxy-helpers.js"
 export * from "./staff-roles.js"
 export * from "./survey-id.js"

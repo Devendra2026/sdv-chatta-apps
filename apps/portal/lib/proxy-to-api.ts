@@ -6,6 +6,16 @@ import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 
 import { applyUpstreamSetCookies } from "@/lib/forward-set-cookies"
+import {
+  apiInternalUrl,
+  isRetryableFetchError,
+  isRetryableUpstreamStatus,
+  PORTAL_API_MAX_RETRIES,
+  PORTAL_API_TIMEOUT_MS,
+  sanitizeApiHost,
+  sleep,
+  type PortalApiJson,
+} from "@/lib/portal-api-fetch"
 
 const HOP_BY_HOP = new Set([
   "connection",
@@ -28,12 +38,42 @@ const SKIP_UPSTREAM_RESPONSE = new Set([
   "content-length",
 ])
 
-export function apiInternalUrl() {
-  return (
-    process.env.API_INTERNAL_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:4000"
+const RETRY_BACKOFF_MS = [200, 500]
+
+function apiUnavailableResponse(apiHost: string): NextResponse {
+  return NextResponse.json(
+    {
+      success: false,
+      error: {
+        code: "API_UNAVAILABLE",
+        message: `Cannot reach API at ${apiHost}`,
+      },
+    },
+    { status: 502, headers: { "cache-control": "private, no-store" } }
   )
+}
+
+function upstreamErrorResponse(
+  status: number,
+  message: string
+): NextResponse {
+  return NextResponse.json(
+    {
+      success: false,
+      error: {
+        code: "UPSTREAM_ERROR",
+        message,
+        upstreamStatus: status,
+      },
+    },
+    { status, headers: { "cache-control": "private, no-store" } }
+  )
+}
+
+async function readUpstreamErrorMessage(response: Response): Promise<string> {
+  const json = (await response.json().catch(() => null)) as PortalApiJson | null
+  if (json?.error?.message) return json.error.message
+  return response.statusText || "Upstream request failed"
 }
 
 /**
@@ -47,6 +87,8 @@ export async function proxyToApi(
   apiPath: string
 ): Promise<NextResponse> {
   const target = new URL(apiPath, apiInternalUrl())
+  const apiHost = sanitizeApiHost(apiInternalUrl())
+  const started = Date.now()
 
   const headers = new Headers()
   req.headers.forEach((value, key) => {
@@ -84,27 +126,77 @@ export async function proxyToApi(
   const method = req.method.toUpperCase()
   const body =
     method === "GET" || method === "HEAD" ? undefined : await req.arrayBuffer()
+  const canRetry = method === "GET" || method === "HEAD"
 
-  let upstream: Response
-  try {
-    upstream = await fetch(target, {
-      method,
-      headers,
-      body,
-      redirect: "manual",
-      cache: "no-store",
+  let upstream: Response | null = null
+
+  for (let attempt = 0; attempt <= PORTAL_API_MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch(target, {
+        method,
+        headers,
+        body,
+        redirect: "manual",
+        cache: "no-store",
+        signal: AbortSignal.timeout(PORTAL_API_TIMEOUT_MS),
+      })
+
+      if (
+        canRetry &&
+        isRetryableUpstreamStatus(response.status) &&
+        attempt < PORTAL_API_MAX_RETRIES
+      ) {
+        await sleep(RETRY_BACKOFF_MS[attempt] ?? 500)
+        continue
+      }
+
+      if (
+        !canRetry &&
+        isRetryableUpstreamStatus(response.status) &&
+        response.status >= 500
+      ) {
+        const message = await readUpstreamErrorMessage(response)
+        console.warn("[proxy-to-api]", {
+          path: apiPath,
+          status: response.status,
+          durationMs: Date.now() - started,
+          apiHost,
+        })
+        return upstreamErrorResponse(response.status, message)
+      }
+
+      upstream = response
+      break
+    } catch (err) {
+      if (canRetry && isRetryableFetchError(err) && attempt < PORTAL_API_MAX_RETRIES) {
+        await sleep(RETRY_BACKOFF_MS[attempt] ?? 500)
+        continue
+      }
+
+      console.warn("[proxy-to-api]", {
+        path: apiPath,
+        status: 0,
+        durationMs: Date.now() - started,
+        apiHost,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return apiUnavailableResponse(apiHost)
+    }
+  }
+
+  if (!upstream) {
+    return apiUnavailableResponse(apiHost)
+  }
+
+  if (upstream.status >= 500) {
+    const message = await readUpstreamErrorMessage(upstream)
+    console.warn("[proxy-to-api]", {
+      path: apiPath,
+      status: upstream.status,
+      durationMs: Date.now() - started,
+      apiHost,
     })
-  } catch {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: "API_UNAVAILABLE",
-          message: "API is unavailable",
-        },
-      },
-      { status: 502, headers: { "cache-control": "private, no-store" } }
-    )
+    return upstreamErrorResponse(upstream.status, message)
   }
 
   const resHeaders = new Headers()
@@ -128,3 +220,5 @@ export async function proxyToApi(
   )
   return res
 }
+
+export { apiInternalUrl } from "@/lib/portal-api-fetch"

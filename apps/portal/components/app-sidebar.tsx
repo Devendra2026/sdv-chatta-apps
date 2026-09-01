@@ -35,6 +35,7 @@ import {
   type NavItem,
 } from "@/components/app-nav"
 import { usePermission } from "@/hooks/use-permission"
+import { formatApiError } from "@/lib/format-api-error"
 
 function canSee(
   item: NavItem,
@@ -119,7 +120,7 @@ function NavCollapsibleGroup({
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const { hasPermission, isLoading, isError, refetch } = usePermission()
+  const { hasPermission, isLoading, isError, error, refetch } = usePermission()
 
   const visible = NAV_ITEMS.filter((item) => canSee(item, hasPermission)).map(
     (item) => ({
@@ -169,7 +170,12 @@ export function AppSidebar() {
                 </div>
               ) : isError ? (
                 <div className="space-y-2 px-2 text-xs text-muted-foreground">
-                  <p>Could not load permissions.</p>
+                  <p role="alert">
+                    {formatApiError(
+                      error,
+                      "Could not load permissions."
+                    )}
+                  </p>
                   <Button
                     size="sm"
                     variant="outline"

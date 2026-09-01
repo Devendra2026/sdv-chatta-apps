@@ -64,6 +64,8 @@ services:
       PORT: "4000"
       # Single URL used by migrate, seed-cli, and the Nest process.
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      # Required for multi-replica rate limiting (Redis INCR/EXPIRE); without this the API
+      # falls back to in-process counters, which are not safe across replicas.
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       STORAGE_DIR: /app/uploads
       CORS_ORIGIN: ${PUBLIC_PORTAL_URL},${PUBLIC_WEB_URL}

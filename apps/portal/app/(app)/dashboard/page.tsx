@@ -54,6 +54,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { useCan } from "@/hooks/use-permission"
 import { api } from "@/lib/api"
+import { formatApiError } from "@/lib/format-api-error"
 
 type WardCardStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED"
 
@@ -151,6 +152,7 @@ export default function DashboardPage() {
     allowed,
     isLoading: permLoading,
     isError: permError,
+    error: permLoadError,
   } = useCan("dashboard:read")
   const [wardId, setWardId] = React.useState<string>("all")
 
@@ -189,7 +191,10 @@ export default function DashboardPage() {
   if (permError) {
     return (
       <p className="text-sm text-muted-foreground" role="alert">
-        Could not verify access. Confirm the API is running and try refreshing.
+        {formatApiError(
+          permLoadError,
+          "Could not verify access. Confirm the API is running and try refreshing."
+        )}
       </p>
     )
   }

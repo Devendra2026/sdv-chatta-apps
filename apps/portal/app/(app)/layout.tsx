@@ -22,6 +22,9 @@ export default async function AppLayout({
   return (
     <PermissionProvider
       initialUser={session.status === "ok" ? session.user : undefined}
+      initialError={
+        session.status === "unavailable" ? session.error : undefined
+      }
     >
       <SidebarProvider>
         <AppSidebar />

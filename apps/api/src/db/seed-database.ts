@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client"
 import { hashPassword as defaultHashPassword } from "better-auth/crypto"
+import { PERMISSIONS as PERMISSION_CODES } from "@workspace/types"
 
 import { CREDENTIAL_ISSUER, CREDENTIAL_PROVIDER_ID } from "./credential"
 import { seedReferenceCatalogs } from "./reference-catalogs-seed"
@@ -37,211 +38,59 @@ const WARDS = [
   { number: 15, code: "W15", name: "वार्ड नंबर 15 - बीच का थोक" },
 ] as const
 
-const PERMISSIONS: Array<{
+/** Human-readable labels for catalog permission codes (@workspace/types). */
+const PERMISSION_DESCRIPTIONS: Record<string, string> = {
+  "dashboard:read": "View dashboard",
+  "survey:read": "View surveys",
+  "survey:create": "Create surveys",
+  "survey:update": "Update surveys",
+  "survey:delete": "Delete surveys",
+  "survey:pii:read": "View survey PII",
+  "import:read": "View imports",
+  "import:create": "Run imports",
+  "export:read": "View exports",
+  "export:create": "Export data",
+  "report:read": "View reports",
+  "report:export": "Export reports",
+  "payment:read": "View payments",
+  "payment:create": "Create payments",
+  "payment:update": "Update payments",
+  "payment:offline:create": "Offline collection",
+  "payment:requery": "Requery payments",
+  "refund:create": "Create refunds",
+  "refund:read": "View refunds",
+  "settlement:read": "View settlements",
+  "user:read": "View users",
+  "user:create": "Create users",
+  "user:update": "Update users",
+  "user:delete": "Deactivate users",
+  "role:read": "View roles",
+  "role:create": "Create roles",
+  "role:update": "Update roles",
+  "role:delete": "Delete roles",
+  "permission:read": "View permissions",
+  "settings:update": "Update settings",
+  "audit:read": "View audit logs",
+  "file:read": "View files",
+  "file:create": "Upload files",
+}
+
+function buildPermissionRow(code: string): {
   code: string
   resource: string
   action: string
   description: string
-}> = [
-  {
-    code: "dashboard:read",
-    resource: "dashboard",
-    action: "read",
-    description: "View dashboard",
-  },
-  {
-    code: "survey:read",
-    resource: "survey",
-    action: "read",
-    description: "View surveys",
-  },
-  {
-    code: "survey:create",
-    resource: "survey",
-    action: "create",
-    description: "Create surveys",
-  },
-  {
-    code: "survey:update",
-    resource: "survey",
-    action: "update",
-    description: "Update surveys",
-  },
-  {
-    code: "survey:delete",
-    resource: "survey",
-    action: "delete",
-    description: "Delete surveys",
-  },
-  {
-    code: "survey:pii:read",
-    resource: "survey:pii",
-    action: "read",
-    description: "View survey PII",
-  },
-  {
-    code: "import:read",
-    resource: "import",
-    action: "read",
-    description: "View imports",
-  },
-  {
-    code: "import:create",
-    resource: "import",
-    action: "create",
-    description: "Run imports",
-  },
-  {
-    code: "export:create",
-    resource: "export",
-    action: "create",
-    description: "Export data",
-  },
-  {
-    code: "export:read",
-    resource: "export",
-    action: "read",
-    description: "View exports",
-  },
-  {
-    code: "report:read",
-    resource: "report",
-    action: "read",
-    description: "View reports",
-  },
-  {
-    code: "report:export",
-    resource: "report",
-    action: "export",
-    description: "Export reports",
-  },
-  {
-    code: "payment:read",
-    resource: "payment",
-    action: "read",
-    description: "View payments",
-  },
-  {
-    code: "payment:create",
-    resource: "payment",
-    action: "create",
-    description: "Create payments",
-  },
-  {
-    code: "payment:update",
-    resource: "payment",
-    action: "update",
-    description: "Update payments",
-  },
-  {
-    code: "payment:offline:create",
-    resource: "payment:offline",
-    action: "create",
-    description: "Offline collection",
-  },
-  {
-    code: "payment:requery",
-    resource: "payment",
-    action: "requery",
-    description: "Requery payments",
-  },
-  {
-    code: "refund:create",
-    resource: "refund",
-    action: "create",
-    description: "Create refunds",
-  },
-  {
-    code: "refund:read",
-    resource: "refund",
-    action: "read",
-    description: "View refunds",
-  },
-  {
-    code: "settlement:read",
-    resource: "settlement",
-    action: "read",
-    description: "View settlements",
-  },
-  {
-    code: "user:read",
-    resource: "user",
-    action: "read",
-    description: "View users",
-  },
-  {
-    code: "user:create",
-    resource: "user",
-    action: "create",
-    description: "Create users",
-  },
-  {
-    code: "user:update",
-    resource: "user",
-    action: "update",
-    description: "Update users",
-  },
-  {
-    code: "user:delete",
-    resource: "user",
-    action: "delete",
-    description: "Deactivate users",
-  },
-  {
-    code: "role:read",
-    resource: "role",
-    action: "read",
-    description: "View roles",
-  },
-  {
-    code: "role:create",
-    resource: "role",
-    action: "create",
-    description: "Create roles",
-  },
-  {
-    code: "role:update",
-    resource: "role",
-    action: "update",
-    description: "Update roles",
-  },
-  {
-    code: "role:delete",
-    resource: "role",
-    action: "delete",
-    description: "Delete roles",
-  },
-  {
-    code: "permission:read",
-    resource: "permission",
-    action: "read",
-    description: "View permissions",
-  },
-  {
-    code: "settings:update",
-    resource: "settings",
-    action: "update",
-    description: "Update settings",
-  },
-  {
-    code: "audit:read",
-    resource: "audit",
-    action: "read",
-    description: "View audit logs",
-  },
-  {
-    code: "file:read",
-    resource: "file",
-    action: "read",
-    description: "View files",
-  },
-  {
-    code: "file:create",
-    resource: "file",
-    action: "create",
-    description: "Upload files",
-  },
-]
+} {
+  const colon = code.lastIndexOf(":")
+  return {
+    code,
+    resource: code.slice(0, colon),
+    action: code.slice(colon + 1),
+    description: PERMISSION_DESCRIPTIONS[code] ?? code,
+  }
+}
+
+const PERMISSIONS = PERMISSION_CODES.map(buildPermissionRow)
 
 const ROLE_PERMISSIONS: Record<string, string[] | "*"> = {
   SUPER_ADMIN: "*",

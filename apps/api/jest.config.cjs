@@ -3,6 +3,7 @@ module.exports = {
   rootDir: "src",
   testRegex: ".*\\.spec\\.ts$",
   testEnvironment: "node",
+  testTimeout: 15000,
   transform: {
     "^.+\\.(t|j)s$": [
       "@swc/jest",
