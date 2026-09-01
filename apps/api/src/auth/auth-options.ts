@@ -19,6 +19,14 @@ export const advancedAuth = {
   },
 }
 
+/**
+ * Cookie names become `__Secure-better-auth.*` when this is true.
+ * Derive from BETTER_AUTH_URL, not NODE_ENV — Nest talks HTTP internally.
+ */
+export function resolveUseSecureCookies(): boolean {
+  return resolvePublicAppUrl().startsWith("https://")
+}
+
 export const sessionAuth = {
   expiresIn: 60 * 60 * 24 * 7,
   cookieCache: {

@@ -1,14 +1,12 @@
 import {
+  describeCookieForwardingState,
   resolveCookieHeaderForProxy,
   resolveForwardedProto,
 } from "@workspace/types"
 import { cookies, headers } from "next/headers"
 
 import { type MeUser } from "@/lib/api"
-import {
-  fetchPortalApi,
-  fetchPortalApiHealth,
-} from "@/lib/portal-api-fetch"
+import { fetchPortalApi, fetchPortalApiHealth } from "@/lib/portal-api-fetch"
 
 export type SessionError = {
   code: string
@@ -24,12 +22,19 @@ export type CurrentUserResult =
 
 export async function fetchCurrentUser(): Promise<CurrentUserResult> {
   const requestHeaders = await headers()
+  const rawCookie = requestHeaders.get("cookie")
   const jar = await cookies()
-  const cookie = resolveCookieHeaderForProxy(
-    requestHeaders.get("cookie"),
-    jar.getAll()
-  )
-  if (!cookie) return { status: "unauthenticated" }
+  const cookie = resolveCookieHeaderForProxy(rawCookie, jar.getAll())
+  if (!cookie) {
+    console.warn("[server-session] cookie header missing", {
+      path: "/api/v1/auth/me",
+      ...describeCookieForwardingState({
+        rawHeader: rawCookie,
+        forwardedHeader: cookie,
+      }),
+    })
+    return { status: "unauthenticated" }
+  }
 
   const origin =
     process.env.NEXT_PUBLIC_APP_URL ??

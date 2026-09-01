@@ -1,8 +1,8 @@
 import {
+  describeCookieForwardingState,
   resolveCookieHeaderForProxy,
   resolveForwardedProto,
 } from "@workspace/types"
-import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 
 import { applyUpstreamSetCookies } from "@/lib/forward-set-cookies"
@@ -40,6 +40,21 @@ const SKIP_UPSTREAM_RESPONSE = new Set([
 
 const RETRY_BACKOFF_MS = [200, 500]
 
+function shouldLogMissingCookie(apiPath: string): boolean {
+  if (!apiPath.startsWith("/api/v1/")) return false
+  if (apiPath.startsWith("/api/v1/health")) return false
+  if (apiPath.startsWith("/api/v1/auth/forgot-password")) return false
+  return true
+}
+
+function headersToRecord(headers: Headers): Record<string, string> {
+  const out: Record<string, string> = {}
+  headers.forEach((value, key) => {
+    out[key] = value
+  })
+  return out
+}
+
 function apiUnavailableResponse(apiHost: string): NextResponse {
   return NextResponse.json(
     {
@@ -53,10 +68,7 @@ function apiUnavailableResponse(apiHost: string): NextResponse {
   )
 }
 
-function upstreamErrorResponse(
-  status: number,
-  message: string
-): NextResponse {
+function upstreamErrorResponse(status: number, message: string): NextResponse {
   return NextResponse.json(
     {
       success: false,
@@ -90,6 +102,19 @@ export async function proxyToApi(
   const apiHost = sanitizeApiHost(apiInternalUrl())
   const started = Date.now()
 
+  // Snapshot Cookie before any next/headers cookies() call. cookies() can
+  // consume/filter the incoming header (especially `__Secure-` names when
+  // the portal container sees HTTP behind Traefik).
+  const rawCookieHeader = req.headers.get("cookie")
+  const requestCookiePairs = req.cookies.getAll()
+  const cookieHeader =
+    resolveCookieHeaderForProxy(rawCookieHeader, requestCookiePairs) ??
+    (rawCookieHeader?.trim() || null)
+  const cookieState = describeCookieForwardingState({
+    rawHeader: rawCookieHeader,
+    forwardedHeader: cookieHeader,
+  })
+
   const headers = new Headers()
   req.headers.forEach((value, key) => {
     if (!HOP_BY_HOP.has(key.toLowerCase())) {
@@ -112,15 +137,31 @@ export async function proxyToApi(
   })
   headers.set("x-forwarded-proto", proto)
 
-  const jar = await cookies()
-  const cookieHeader = resolveCookieHeaderForProxy(
-    req.headers.get("cookie"),
-    jar.getAll()
-  )
   if (cookieHeader) {
     headers.set("cookie", cookieHeader)
+  } else if (rawCookieHeader?.trim()) {
+    headers.set("cookie", rawCookieHeader)
   } else {
     headers.delete("cookie")
+    if (shouldLogMissingCookie(apiPath)) {
+      console.warn("[proxy-to-api] cookie header missing", {
+        path: apiPath,
+        forwardedProto: proto,
+        ...cookieState,
+      })
+    }
+  }
+
+  if (
+    cookieHeader &&
+    !cookieState.hasSessionCookie &&
+    shouldLogMissingCookie(apiPath)
+  ) {
+    console.warn("[proxy-to-api] Cookie present but no session token", {
+      path: apiPath,
+      forwardedProto: proto,
+      ...cookieState,
+    })
   }
 
   const method = req.method.toUpperCase()
@@ -132,9 +173,11 @@ export async function proxyToApi(
 
   for (let attempt = 0; attempt <= PORTAL_API_MAX_RETRIES; attempt++) {
     try {
+      // Plain record so Node/undici fetch does not drop Cookie as a
+      // forbidden Headers-guard name.
       const response = await fetch(target, {
         method,
-        headers,
+        headers: headersToRecord(headers),
         body,
         redirect: "manual",
         cache: "no-store",
@@ -168,7 +211,11 @@ export async function proxyToApi(
       upstream = response
       break
     } catch (err) {
-      if (canRetry && isRetryableFetchError(err) && attempt < PORTAL_API_MAX_RETRIES) {
+      if (
+        canRetry &&
+        isRetryableFetchError(err) &&
+        attempt < PORTAL_API_MAX_RETRIES
+      ) {
         await sleep(RETRY_BACKOFF_MS[attempt] ?? 500)
         continue
       }
@@ -186,6 +233,17 @@ export async function proxyToApi(
 
   if (!upstream) {
     return apiUnavailableResponse(apiHost)
+  }
+
+  if (upstream.status === 401 || upstream.status === 403) {
+    console.warn("[proxy-to-api] upstream unauthorized", {
+      path: apiPath,
+      status: upstream.status,
+      durationMs: Date.now() - started,
+      apiHost,
+      forwardedProto: proto,
+      ...cookieState,
+    })
   }
 
   if (upstream.status >= 500) {

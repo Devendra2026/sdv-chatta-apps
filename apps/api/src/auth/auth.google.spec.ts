@@ -4,6 +4,7 @@ import {
   resolveGoogleSocialProvider,
   resolvePublicAppUrl,
   resolveTrustedOrigins,
+  resolveUseSecureCookies,
   sessionAuth,
 } from "./auth-options"
 
@@ -42,6 +43,13 @@ describe("auth-options invite-only Google", () => {
       httpOnly: true,
     })
     expect(sessionAuth.cookieCache.enabled).toBe(false)
+  })
+
+  it("uses __Secure- cookies only when BETTER_AUTH_URL is https", () => {
+    process.env.BETTER_AUTH_URL = "https://portal.npchhata.com"
+    expect(resolveUseSecureCookies()).toBe(true)
+    process.env.BETTER_AUTH_URL = "http://localhost:3000"
+    expect(resolveUseSecureCookies()).toBe(false)
   })
 
   it("strips trailing slashes from trusted origins", () => {

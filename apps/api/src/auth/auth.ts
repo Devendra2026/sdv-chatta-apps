@@ -11,6 +11,7 @@ import {
   resolveGoogleSocialProvider,
   resolvePublicAppUrl,
   resolveTrustedOrigins,
+  resolveUseSecureCookies,
   sessionAuth,
 } from "./auth-options"
 import { sendOtpEmail } from "./send-otp-email"
@@ -35,7 +36,10 @@ export function createAuth(prisma: PrismaService): BetterAuthInstance {
     },
     socialProviders: resolveGoogleSocialProvider(),
     trustedOrigins: resolveTrustedOrigins(),
-    advanced: advancedAuth,
+    advanced: {
+      ...advancedAuth,
+      useSecureCookies: resolveUseSecureCookies(),
+    },
     session: sessionAuth,
     plugins: [
       emailOTP({

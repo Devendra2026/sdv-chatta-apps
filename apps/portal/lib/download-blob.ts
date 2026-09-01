@@ -1,4 +1,6 @@
-function parseFilenameFromDisposition(header: string | null): string | undefined {
+function parseFilenameFromDisposition(
+  header: string | null
+): string | undefined {
   if (!header) return undefined
   const utf8 = header.match(/filename\*=UTF-8''([^;]+)/i)
   if (utf8?.[1]) return decodeURIComponent(utf8[1].trim())
@@ -13,11 +15,7 @@ export async function downloadAuthenticatedExport(
   path: string,
   fallbackFilename: string
 ): Promise<void> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.trim()
-    ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")
-    : ""
-
-  const response = await fetch(`${baseUrl}${path}`, {
+  const response = await fetch(`${path}`, {
     method: "GET",
     credentials: "include",
   })

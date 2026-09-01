@@ -98,7 +98,9 @@ export async function fetchPortalApi(
         continue
       }
 
-      const json = (await response.json().catch(() => null)) as PortalApiJson | null
+      const json = (await response
+        .json()
+        .catch(() => null)) as PortalApiJson | null
       if (!response.ok) {
         const parsed = json?.error
         const errorCode =
@@ -118,6 +120,7 @@ export async function fetchPortalApi(
           code: errorCode,
           durationMs: Date.now() - started,
           apiHost,
+          hasCookie: Boolean(options.cookie?.trim()),
         })
         return {
           ok: false,

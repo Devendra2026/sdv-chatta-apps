@@ -2,6 +2,7 @@ import {
   authCookieExpiryVariants,
   collectAuthCookieNames,
   cookieHeaderFromPairs,
+  describeCookieForwardingState,
   expiredAuthCookieHeaders,
   hasNonEmptySessionCookie,
   resolveCookieHeaderForProxy,
@@ -63,6 +64,27 @@ describe("proxy-to-api helpers", () => {
     expect(header).toBe("better-auth.session_token=live-token")
   })
 
+  it("omits empty leftover session cookies from the forwarded header", () => {
+    const header = resolveCookieHeaderForProxy(
+      "__Secure-better-auth.session_token=new-session",
+      [{ name: "better-auth.session_token", value: "" }]
+    )
+    expect(header).toBe("__Secure-better-auth.session_token=new-session")
+  })
+
+  it("describeCookieForwardingState never includes cookie values", () => {
+    const state = describeCookieForwardingState({
+      rawHeader: "__Secure-better-auth.session_token=secret-token",
+      forwardedHeader: "__Secure-better-auth.session_token=secret-token",
+    })
+    expect(state.hasRawCookieHeader).toBe(true)
+    expect(state.hasSessionCookie).toBe(true)
+    expect(state.parsedCookieNames).toEqual([
+      "__Secure-better-auth.session_token",
+    ])
+    expect(JSON.stringify(state)).not.toContain("secret-token")
+  })
+
   it("falls back to the cookie jar when the raw header is empty", () => {
     expect(
       resolveCookieHeaderForProxy("", [
@@ -85,9 +107,9 @@ describe("proxy-to-api helpers", () => {
   })
 
   it("collects chunked better-auth cookies from the request", () => {
-    expect(
-      collectAuthCookieNames(["better-auth.session_token.0"])
-    ).toContain("better-auth.session_token.0")
+    expect(collectAuthCookieNames(["better-auth.session_token.0"])).toContain(
+      "better-auth.session_token.0"
+    )
   })
 
   it("expires __Secure- cookies only with the Secure flag", () => {
@@ -107,7 +129,8 @@ describe("proxy-to-api helpers", () => {
     const headers = expiredAuthCookieHeaders(["better-auth.session_token"])
     expect(
       headers.some(
-        (h) => h.startsWith("better-auth.session_token=") && h.includes("Secure")
+        (h) =>
+          h.startsWith("better-auth.session_token=") && h.includes("Secure")
       )
     ).toBe(true)
     expect(

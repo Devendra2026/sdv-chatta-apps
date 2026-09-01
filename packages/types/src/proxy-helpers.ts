@@ -58,11 +58,44 @@ export function mergeCookiePairs(
   return [...map.entries()].map(([name, value]) => ({ name, value }))
 }
 
+/**
+ * Build the Cookie header to send upstream.
+ * Empty leftover values (e.g. `better-auth.session_token=`) are omitted so
+ * they cannot shadow a live `__Secure-` session cookie.
+ */
 export function resolveCookieHeaderForProxy(
   rawHeader: string | null | undefined,
   jarPairs: CookiePair[] = []
 ): string | null {
-  return cookieHeaderFromPairs(mergeCookiePairs(rawHeader, jarPairs))
+  const merged = mergeCookiePairs(rawHeader, jarPairs).filter(
+    (pair) => pair.value.trim().length > 0
+  )
+  return cookieHeaderFromPairs(merged)
+}
+
+/** Cookie names only — never log values (session tokens). */
+export type CookieForwardingState = {
+  hasRawCookieHeader: boolean
+  rawHeaderLength: number
+  parsedCookieNames: string[]
+  forwardedCookieNames: string[]
+  hasSessionCookie: boolean
+}
+
+export function describeCookieForwardingState(opts: {
+  rawHeader: string | null | undefined
+  parsedPairs?: CookiePair[]
+  forwardedHeader: string | null
+}): CookieForwardingState {
+  const parsed = opts.parsedPairs ?? parseCookieHeader(opts.rawHeader)
+  const forwarded = parseCookieHeader(opts.forwardedHeader)
+  return {
+    hasRawCookieHeader: Boolean(opts.rawHeader?.trim()),
+    rawHeaderLength: opts.rawHeader?.trim().length ?? 0,
+    parsedCookieNames: parsed.map((pair) => pair.name),
+    forwardedCookieNames: forwarded.map((pair) => pair.name),
+    hasSessionCookie: hasNonEmptySessionCookie(parsed),
+  }
 }
 
 export const AUTH_COOKIE_NAMES = [
