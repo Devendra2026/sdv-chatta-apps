@@ -9,8 +9,6 @@ describe("assertRequiredEnv", () => {
     PUBLIC_APP_URL: "https://portal.example.com",
     CORS_ORIGIN: "https://portal.example.com,https://www.example.com",
     STORAGE_DIR: "/app/uploads",
-    SMTP_HOST: "smtp.example.com",
-    SMTP_FROM: "Nagar Panchayat Chhata <noreply@example.com>",
     SEED_ADMIN_EMAIL: "admin@example.com",
     SEED_ADMIN_PASSWORD: "strong-pass-1",
   }
@@ -31,19 +29,6 @@ describe("assertRequiredEnv", () => {
         includeSeedAdmin: true,
       })
     ).toThrow(/SESSION_SECRET/)
-  })
-
-  it("requires SMTP in production", () => {
-    expect(() =>
-      assertRequiredEnv({
-        env: {
-          ...baseProdEnv,
-          SMTP_HOST: undefined,
-          SMTP_FROM: undefined,
-        },
-        includeSeedAdmin: true,
-      })
-    ).toThrow(/SMTP_HOST/)
   })
 
   it("rejects sandbox payment provider in production", () => {

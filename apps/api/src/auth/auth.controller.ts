@@ -12,7 +12,6 @@ import {
   Post,
   Req,
   Res,
-  ServiceUnavailableException,
 } from "@nestjs/common"
 import {
   IsBoolean,
@@ -34,13 +33,8 @@ import {
   PASSWORD_MIN_LENGTH,
   assertPasswordPolicy,
 } from "./password-policy"
-import {
-  AuthEmailDeliveryError,
-  sendPasswordResetLinkEmail,
-  sendSecurityNotificationEmail,
-} from "./send-auth-email"
 import { assertTrustedOrigin } from "./session-options"
-import { SessionService, buildPasswordResetUrl } from "./session.service"
+import { SessionService } from "./session.service"
 
 class LoginDto {
   @IsEmail()
@@ -61,15 +55,7 @@ class ChangePasswordDto {
   newPassword!: string
 }
 
-class ForgotPasswordRequestDto {
-  @IsEmail()
-  email!: string
-}
-
 class ResetPasswordDto {
-  @IsEmail()
-  email!: string
-
   @IsString()
   @MinLength(16)
   token!: string
@@ -247,11 +233,6 @@ export class AuthController {
       data: { passwordHash: await hashPassword(dto.newPassword) },
     })
 
-    await sendSecurityNotificationEmail({
-      email: user.email,
-      event: "password_changed",
-    }).catch(() => undefined)
-
     await this.audit.log({
       action: "auth.password_change",
       entity: "User",
@@ -268,41 +249,14 @@ export class AuthController {
 
   @Public()
   @Post("forgot-password")
-  async forgotPasswordRequest(
-    @Body() dto: ForgotPasswordRequestDto,
-    @Req() req: Request
-  ) {
+  forgotPasswordRequest(@Req() req: Request) {
     this.guardTrustedOrigin(req)
-    const email = dto.email.trim().toLowerCase()
-
-    try {
-      const created = await this.sessionService.createPasswordResetToken(email)
-      if (created) {
-        const resetUrl = buildPasswordResetUrl(created.rawToken)
-        await sendPasswordResetLinkEmail({ email, resetUrl })
-        await this.audit.log({
-          action: "auth.password_reset_requested",
-          entity: "User",
-          ipAddress: req.ip || undefined,
-          metadata: { email },
-        })
-      }
-      return {
-        success: true,
-        data: {
-          message:
-            "If an account exists for this email, a password reset link has been sent.",
-        },
-      }
-    } catch (err) {
-      if (err instanceof AuthEmailDeliveryError) {
-        throw new ServiceUnavailableException({
-          code: "EMAIL_UNAVAILABLE",
-          message:
-            "Unable to send email right now. Try again later or contact an administrator.",
-        })
-      }
-      throw err
+    return {
+      success: true,
+      data: {
+        message:
+          "Password recovery must be initiated by an administrator. Please contact your municipal administrator for a reset link.",
+      },
     }
   }
 
@@ -311,15 +265,15 @@ export class AuthController {
   async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
     this.guardTrustedOrigin(req)
     assertPasswordPolicy(dto.newPassword)
-    const email = dto.email.trim().toLowerCase()
 
+    let resetUserId: string
     try {
-      await this.sessionService.consumePasswordResetToken(
+      const result = await this.sessionService.consumePasswordResetToken(
         dto.token,
-        email,
         hashPassword,
         dto.newPassword
       )
+      resetUserId = result.userId
     } catch (err) {
       const code = err instanceof Error ? err.message : "RESET_TOKEN_INVALID"
       if (code === "TOO_MANY_ATTEMPTS") {
@@ -331,23 +285,16 @@ export class AuthController {
       throw new BadRequestException({
         code: "PASSWORD_RESET_FAILED",
         message:
-          "Invalid or expired reset link. Request a new one and try again.",
+          "Invalid or expired reset link. Request a new one from an administrator.",
       })
     }
 
-    const user = await this.prisma.user.findUnique({ where: { email } })
-    if (user) {
-      await sendSecurityNotificationEmail({
-        email,
-        event: "password_reset",
-      }).catch(() => undefined)
-      await this.audit.log({
-        action: "auth.password_reset",
-        entity: "User",
-        entityId: user.id,
-        ipAddress: req.ip || undefined,
-      })
-    }
+    await this.audit.log({
+      action: "auth.password_reset",
+      entity: "User",
+      entityId: resetUserId,
+      ipAddress: req.ip || undefined,
+    })
 
     return {
       success: true,

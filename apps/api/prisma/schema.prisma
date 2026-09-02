@@ -22,13 +22,14 @@ model User {
   lastLoginAt   DateTime?
 
   sessions            Session[]
+  passwordResetTokens PasswordResetToken[]
   userRoles           UserRole[]
-  auditLogs           AuditLog[]         @relation("AuditActor")
-  surveysCreated      Survey[]           @relation("SurveyCreatedBy")
-  surveysUpdated      Survey[]           @relation("SurveyUpdatedBy")
+  auditLogs           AuditLog[]           @relation("AuditActor")
+  surveysCreated      Survey[]             @relation("SurveyCreatedBy")
+  surveysUpdated      Survey[]             @relation("SurveyUpdatedBy")
   importJobs          ImportJob[]
   exportJobs          ExportJob[]
-  paymentsCollected   Payment[]          @relation("PaymentCollectedBy")
+  paymentsCollected   Payment[]            @relation("PaymentCollectedBy")
   attachmentsUploaded SurveyAttachment[]
 
   @@map("user")
@@ -54,6 +55,22 @@ model Session {
 
   @@index([userId])
   @@map("session")
+}
+
+model PasswordResetToken {
+  id             String    @id @default(cuid())
+  userId         String
+  tokenHash      String    @unique
+  expiresAt      DateTime
+  usedAt         DateTime?
+  failedAttempts Int       @default(0)
+  createdAt      DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_token")
 }
 
 model Verification {

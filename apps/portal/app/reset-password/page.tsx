@@ -17,18 +17,16 @@ function ResetPasswordForm() {
   const searchParams = useSearchParams()
   const tokenFromUrl = searchParams.get("token") ?? ""
 
-  const [email, setEmail] = React.useState("")
-  const [token, setToken] = React.useState(tokenFromUrl)
   const [newPassword, setNewPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
   const [loading, setLoading] = React.useState(false)
 
-  React.useEffect(() => {
-    if (tokenFromUrl) setToken(tokenFromUrl)
-  }, [tokenFromUrl])
-
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (!tokenFromUrl.trim()) {
+      toast.error("Reset link is invalid or missing")
+      return
+    }
     if (newPassword !== confirmPassword) {
       toast.error("Passwords do not match")
       return
@@ -37,16 +35,11 @@ function ResetPasswordForm() {
       toast.error("Password must be at least 12 characters")
       return
     }
-    if (!token.trim()) {
-      toast.error("Reset link is invalid or missing")
-      return
-    }
 
     setLoading(true)
     try {
       await api.post("/api/v1/auth/reset-password", {
-        email: email.trim(),
-        token: token.trim(),
+        token: tokenFromUrl.trim(),
         newPassword,
       })
       toast.success("Password updated. Sign in with your new password.")
@@ -56,6 +49,32 @@ function ResetPasswordForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (!tokenFromUrl.trim()) {
+    return (
+      <div className="relative flex min-h-svh flex-col bg-slate-50">
+        <div className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-10">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-900/5 sm:p-8">
+            <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+              Invalid reset link
+            </h1>
+            <p className="mt-3 text-sm text-slate-600">
+              This password reset link is missing or invalid. Contact an
+              administrator for a new link.
+            </p>
+            <p className="mt-6 text-center text-sm">
+              <Link
+                href="/login"
+                className="cursor-pointer font-medium text-sky-800 hover:underline"
+              >
+                Back to sign in
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -79,34 +98,10 @@ function ResetPasswordForm() {
             Set new password / नया पासवर्ड
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Enter your email and choose a new password (minimum 12 characters).
+            Choose a new password (minimum 12 characters).
           </p>
 
           <form className="mt-6 space-y-4" onSubmit={onSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="reset-email">Email / ईमेल</Label>
-              <Input
-                id="reset-email"
-                type="email"
-                autoComplete="username"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="h-10"
-              />
-            </div>
-            {!tokenFromUrl ? (
-              <div className="space-y-2">
-                <Label htmlFor="reset-token">Reset token (from email link)</Label>
-                <Input
-                  id="reset-token"
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  required
-                  className="h-10 font-mono text-sm"
-                />
-              </div>
-            ) : null}
             <div className="space-y-2">
               <Label htmlFor="reset-new">New password</Label>
               <Input

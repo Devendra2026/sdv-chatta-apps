@@ -20,9 +20,9 @@ test.describe("portal smoke", () => {
     await expect(page).toHaveURL(/\/login/)
   })
 
-  test("forgot password page renders", async ({ page }) => {
+  test("forgot password page shows admin contact message", async ({ page }) => {
     await page.goto("/forgot-password")
-    await expect(page.getByText(/Reset password/i)).toBeVisible()
-    await expect(page.getByLabel(/Email/i)).toBeVisible()
+    await expect(page.getByText(/Password recovery/i)).toBeVisible()
+    await expect(page.getByText(/initiated by an administrator/i)).toBeVisible()
   })
 })

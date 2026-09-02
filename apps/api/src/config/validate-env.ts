@@ -40,12 +40,8 @@ function collectProductionErrors(env: NodeJS.ProcessEnv): string[] {
   }
 
   if (!env.STORAGE_DIR?.trim()) {
-    errors.push("STORAGE_DIR is required in production (compose sets /app/uploads)")
-  }
-
-  if (!env.SMTP_HOST?.trim() || !env.SMTP_FROM?.trim()) {
     errors.push(
-      "SMTP_HOST and SMTP_FROM are required in production for password-reset link emails"
+      "STORAGE_DIR is required in production (compose sets /app/uploads)"
     )
   }
 
@@ -82,7 +78,9 @@ export function assertRequiredEnv(options: ValidateEnvOptions = {}): void {
       resolveSeedAdminConfig(env)
     } catch (error) {
       errors.push(
-        error instanceof Error ? error.message : "Invalid Super Admin seed config"
+        error instanceof Error
+          ? error.message
+          : "Invalid Super Admin seed config"
       )
     }
   }

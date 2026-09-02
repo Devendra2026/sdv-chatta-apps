@@ -22,8 +22,6 @@
     "REQUEST_BODY_LIMIT",
     "OBSERVE_APP_KEY",
     "OBSERVE_APP_SECRET",
-    "SMTP_HOST",
-    "SMTP_FROM",
     "ATOM_RETURN_URL",
     "ATOM_CALLBACK_URL",
     "ATOM_GATEWAY_RETURN_URL",
@@ -95,7 +93,9 @@
       "cache": false
     },
     "e2e": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "cache": false,
       "persistent": true
     }

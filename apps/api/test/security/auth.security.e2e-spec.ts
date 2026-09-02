@@ -1,12 +1,3 @@
-jest.mock("../../src/auth/send-auth-email", () => {
-  const actual = jest.requireActual("../../src/auth/send-auth-email")
-  return {
-    ...actual,
-    sendPasswordResetLinkEmail: jest.fn().mockResolvedValue(undefined),
-    sendSecurityNotificationEmail: jest.fn().mockResolvedValue(undefined),
-  }
-})
-
 import { INestApplication, ValidationPipe } from "@nestjs/common"
 import { APP_GUARD } from "@nestjs/core"
 import { Test } from "@nestjs/testing"
@@ -18,15 +9,14 @@ import { AuthGuard } from "../../src/auth/auth.guard"
 import { AuthModule } from "../../src/auth/auth.module"
 import { LoginProtectionService } from "../../src/auth/login-protection.service"
 import { hashPassword } from "../../src/auth/password-hash"
-import * as sendAuthEmail from "../../src/auth/send-auth-email"
 import { LOGIN_MAX_FAILURES } from "../../src/auth/session.constants"
+import { SessionService } from "../../src/auth/session.service"
 import { AllExceptionsFilter } from "../../src/common/all-exceptions.filter"
 import { PrismaModule } from "../../src/prisma/prisma.module"
 import { PrismaService } from "../../src/prisma/prisma.service"
 
 const STAFF_EMAIL = "staff@example.com"
 const STAFF_PASSWORD = "StaffPassword1!"
-const WRONG_PASSWORD = "WrongPassword1!"
 const LEGACY_SHORT_EMAIL = "legacy@example.com"
 /** Existing account password from before the 12-character policy */
 const LEGACY_SHORT_PASSWORD = "abc123!@xy"
@@ -58,13 +48,14 @@ type SessionRow = {
   userAgent: string | null
 }
 
-type VerificationRow = {
+type PasswordResetTokenRow = {
   id: string
-  identifier: string
-  value: string
+  userId: string
+  tokenHash: string
   expiresAt: Date
+  usedAt: Date | null
+  failedAttempts: number
   createdAt: Date
-  updatedAt: Date
 }
 
 function baseStaffUser(passwordHash: string): StaffUser {
@@ -91,7 +82,7 @@ describe("Auth security (e2e)", () => {
   let initialPasswordHash: string
 
   const sessions = new Map<string, SessionRow>()
-  const verifications = new Map<string, VerificationRow>()
+  const passwordResetTokens = new Map<string, PasswordResetTokenRow>()
   const users = new Map<string, StaffUser>()
 
   const prisma = {
@@ -225,14 +216,21 @@ describe("Auth security (e2e)", () => {
         }
       ),
     },
-    verification: {
+    passwordResetToken: {
       deleteMany: jest.fn(
-        async ({ where }: { where: { identifier?: string } }) => {
+        async ({
+          where,
+        }: {
+          where: { userId?: string; usedAt?: null; id?: { not: string } }
+        }) => {
           let count = 0
-          for (const [identifier, row] of [...verifications.entries()]) {
-            if (where.identifier && row.identifier !== where.identifier)
+          for (const [tokenHash, row] of [...passwordResetTokens.entries()]) {
+            if (where.userId && row.userId !== where.userId) continue
+            if (where.usedAt === null && row.usedAt !== null) continue
+            if (where.id && "not" in where.id && row.id === where.id.not) {
               continue
-            verifications.delete(identifier)
+            }
+            passwordResetTokens.delete(tokenHash)
             count += 1
           }
           return { count }
@@ -242,21 +240,28 @@ describe("Auth security (e2e)", () => {
         async ({
           data,
         }: {
-          data: Omit<VerificationRow, "id" | "createdAt" | "updatedAt">
+          data: Omit<
+            PasswordResetTokenRow,
+            "id" | "createdAt" | "failedAttempts" | "usedAt"
+          > & {
+            failedAttempts?: number
+            usedAt?: Date | null
+          }
         }) => {
-          const row: VerificationRow = {
-            id: `verify-${verifications.size + 1}`,
+          const row: PasswordResetTokenRow = {
+            id: `reset-${passwordResetTokens.size + 1}`,
             createdAt: new Date(),
-            updatedAt: new Date(),
+            failedAttempts: data.failedAttempts ?? 0,
+            usedAt: data.usedAt ?? null,
             ...data,
           }
-          verifications.set(data.identifier, row)
+          passwordResetTokens.set(data.tokenHash, row)
           return row
         }
       ),
-      findFirst: jest.fn(
-        async ({ where }: { where: { identifier: string } }) => {
-          return verifications.get(where.identifier) ?? null
+      findUnique: jest.fn(
+        async ({ where }: { where: { tokenHash: string } }) => {
+          return passwordResetTokens.get(where.tokenHash) ?? null
         }
       ),
       update: jest.fn(
@@ -265,15 +270,36 @@ describe("Auth security (e2e)", () => {
           data,
         }: {
           where: { id: string }
-          data: { value: string }
+          data: Partial<PasswordResetTokenRow>
         }) => {
-          for (const [identifier, row] of verifications.entries()) {
+          for (const [tokenHash, row] of passwordResetTokens.entries()) {
             if (row.id !== where.id) continue
-            const updated = { ...row, value: data.value, updatedAt: new Date() }
-            verifications.set(identifier, updated)
+            const updated = { ...row, ...data }
+            passwordResetTokens.set(tokenHash, updated)
             return updated
           }
           return null
+        }
+      ),
+      updateMany: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { userId?: string; usedAt?: null; id?: { not: string } }
+          data: Partial<PasswordResetTokenRow>
+        }) => {
+          let count = 0
+          for (const [tokenHash, row] of passwordResetTokens.entries()) {
+            if (where.userId && row.userId !== where.userId) continue
+            if (where.usedAt === null && row.usedAt !== null) continue
+            if (where.id && "not" in where.id && row.id === where.id.not) {
+              continue
+            }
+            passwordResetTokens.set(tokenHash, { ...row, ...data })
+            count += 1
+          }
+          return { count }
         }
       ),
     },
@@ -308,9 +334,8 @@ describe("Auth security (e2e)", () => {
 
   beforeEach(async () => {
     sessions.clear()
-    verifications.clear()
+    passwordResetTokens.clear()
     users.set(STAFF_EMAIL, baseStaffUser(initialPasswordHash))
-    jest.mocked(sendAuthEmail.sendPasswordResetLinkEmail).mockClear()
     await app.get(LoginProtectionService).clearLoginFailures(STAFF_EMAIL)
   })
 
@@ -332,13 +357,55 @@ describe("Auth security (e2e)", () => {
     return sessionLine!.split(";")[0]!
   }
 
-  function latestResetToken(): string {
-    const calls = jest.mocked(sendAuthEmail.sendPasswordResetLinkEmail).mock
-      .calls
-    const latest = calls[calls.length - 1]?.[0]
-    expect(latest?.resetUrl).toBeDefined()
-    return new URL(latest!.resetUrl).searchParams.get("token")!
+  async function createResetTokenForStaff(): Promise<string> {
+    const created = await app
+      .get(SessionService)
+      .createPasswordResetTokenForUser("user-1")
+    expect(created?.rawToken).toBeDefined()
+    return created!.rawToken
   }
+
+  it("returns administrator guidance from forgot-password", async () => {
+    const forgot = await request(app.getHttpServer())
+      .post("/api/v1/auth/forgot-password")
+      .set("Origin", "http://localhost:3000")
+
+    expect(forgot.status).toBe(201)
+    expect(forgot.body.data.message).toMatch(/administrator/i)
+    expect(passwordResetTokens.size).toBe(0)
+  })
+
+  it("completes admin-generated reset link and reset-password", async () => {
+    const rawToken = await createResetTokenForStaff()
+    expect(passwordResetTokens.size).toBe(1)
+
+    const reset = await request(app.getHttpServer())
+      .post("/api/v1/auth/reset-password")
+      .set("Origin", "http://localhost:3000")
+      .send({
+        token: rawToken,
+        newPassword: "NewSecurePass1!",
+      })
+
+    expect(reset.status).toBe(201)
+    expect(reset.body.data.reset).toBe(true)
+    expect(sessions.size).toBe(0)
+
+    const loginOld = await request(app.getHttpServer())
+      .post("/api/v1/auth/login")
+      .set("Origin", "http://localhost:3000")
+      .send({ email: STAFF_EMAIL, password: STAFF_PASSWORD })
+
+    expect(loginOld.status).toBe(401)
+
+    const loginNew = await request(app.getHttpServer())
+      .post("/api/v1/auth/login")
+      .set("Origin", "http://localhost:3000")
+      .send({ email: STAFF_EMAIL, password: "NewSecurePass1!" })
+
+    expect(loginNew.status).toBe(201)
+    expect(sessionCookieFromLogin(loginNew)).toMatch(/chhata_session=/)
+  })
 
   it("locks out login after repeated failures", async () => {
     jest.useFakeTimers()
@@ -416,46 +483,6 @@ describe("Auth security (e2e)", () => {
     expect(me.status).toBe(401)
   })
 
-  it("completes forgot-password and reset-password with a link token", async () => {
-    const forgot = await request(app.getHttpServer())
-      .post("/api/v1/auth/forgot-password")
-      .set("Origin", "http://localhost:3000")
-      .send({ email: STAFF_EMAIL })
-
-    expect(forgot.status).toBe(201)
-    expect(forgot.body.data.message).toMatch(/reset link has been sent/i)
-    expect(verifications.has(`password-reset:${STAFF_EMAIL}`)).toBe(true)
-
-    const rawToken = latestResetToken()
-    const reset = await request(app.getHttpServer())
-      .post("/api/v1/auth/reset-password")
-      .set("Origin", "http://localhost:3000")
-      .send({
-        email: STAFF_EMAIL,
-        token: rawToken,
-        newPassword: "NewSecurePass1!",
-      })
-
-    expect(reset.status).toBe(201)
-    expect(reset.body.data.reset).toBe(true)
-    expect(sessions.size).toBe(0)
-
-    const loginOld = await request(app.getHttpServer())
-      .post("/api/v1/auth/login")
-      .set("Origin", "http://localhost:3000")
-      .send({ email: STAFF_EMAIL, password: STAFF_PASSWORD })
-
-    expect(loginOld.status).toBe(401)
-
-    const loginNew = await request(app.getHttpServer())
-      .post("/api/v1/auth/login")
-      .set("Origin", "http://localhost:3000")
-      .send({ email: STAFF_EMAIL, password: "NewSecurePass1!" })
-
-    expect(loginNew.status).toBe(201)
-    expect(sessionCookieFromLogin(loginNew)).toMatch(/chhata_session=/)
-  })
-
   it("allows login with an existing password shorter than 12 characters", async () => {
     const legacyHash = await hashPassword(LEGACY_SHORT_PASSWORD)
     users.set(LEGACY_SHORT_EMAIL, {
@@ -494,17 +521,11 @@ describe("Auth security (e2e)", () => {
   })
 
   it("rejects reset-password when new password is shorter than 12 characters", async () => {
-    await request(app.getHttpServer())
-      .post("/api/v1/auth/forgot-password")
-      .set("Origin", "http://localhost:3000")
-      .send({ email: STAFF_EMAIL })
-
-    const rawToken = latestResetToken()
+    const rawToken = await createResetTokenForStaff()
     const reset = await request(app.getHttpServer())
       .post("/api/v1/auth/reset-password")
       .set("Origin", "http://localhost:3000")
       .send({
-        email: STAFF_EMAIL,
         token: rawToken,
         newPassword: "short1",
       })
@@ -513,21 +534,36 @@ describe("Auth security (e2e)", () => {
   })
 
   it("rejects an invalid reset link token", async () => {
-    await request(app.getHttpServer())
-      .post("/api/v1/auth/forgot-password")
-      .set("Origin", "http://localhost:3000")
-      .send({ email: STAFF_EMAIL })
-
     const reset = await request(app.getHttpServer())
       .post("/api/v1/auth/reset-password")
       .set("Origin", "http://localhost:3000")
       .send({
-        email: STAFF_EMAIL,
         token: "not-the-reset-token-value",
         newPassword: "AnotherSecure1!",
       })
 
     expect(reset.status).toBe(400)
     expect(reset.body.error?.code).toBe("PASSWORD_RESET_FAILED")
+  })
+
+  it("rejects reuse of a consumed reset token", async () => {
+    const rawToken = await createResetTokenForStaff()
+    const first = await request(app.getHttpServer())
+      .post("/api/v1/auth/reset-password")
+      .set("Origin", "http://localhost:3000")
+      .send({
+        token: rawToken,
+        newPassword: "NewSecurePass1!",
+      })
+    expect(first.status).toBe(201)
+
+    const second = await request(app.getHttpServer())
+      .post("/api/v1/auth/reset-password")
+      .set("Origin", "http://localhost:3000")
+      .send({
+        token: rawToken,
+        newPassword: "AnotherSecure1!",
+      })
+    expect(second.status).toBe(400)
   })
 })

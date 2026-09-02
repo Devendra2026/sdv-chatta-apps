@@ -4,10 +4,12 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
   Query,
+  Req,
 } from "@nestjs/common"
 import {
   ASSIGNABLE_STAFF_ROLE_CODES,
@@ -23,13 +25,17 @@ import {
   MinLength,
   ValidateIf,
 } from "class-validator"
+import type { Request } from "express"
 
+import { AuditService } from "../audit/audit.service"
 import {
   CurrentUser,
   RequirePermission,
   type AuthUser,
 } from "../auth/auth.decorators"
 import { PASSWORD_MIN_LENGTH } from "../auth/password-policy"
+import { SessionService } from "../auth/session.service"
+import { PrismaService } from "../prisma/prisma.service"
 import { UsersService } from "./users.service"
 
 class CreateUserDto {
@@ -93,7 +99,12 @@ class UpdateUserDto {
 
 @Controller("api/v1/users")
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly sessionService: SessionService,
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService
+  ) {}
 
   @Get()
   @RequirePermission("user:read")
@@ -152,6 +163,47 @@ export class UsersController {
       actor
     )
     return { success: true, data }
+  }
+
+  @Post(":id/password-reset-link")
+  @RequirePermission("user:update")
+  async createPasswordResetLink(
+    @Param("id") id: string,
+    @CurrentUser() actor: AuthUser,
+    @Req() req: Request
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id } })
+    if (!user) {
+      throw new NotFoundException({
+        code: "USER_NOT_FOUND",
+        message: "User not found",
+      })
+    }
+
+    const created =
+      await this.sessionService.createPasswordResetTokenForUser(id)
+    if (!created) {
+      throw new BadRequestException({
+        code: "PASSWORD_ACCOUNT_NOT_FOUND",
+        message: "This user does not have a password account to reset",
+      })
+    }
+
+    await this.audit.log({
+      action: "auth.password_reset_link_created",
+      entity: "User",
+      entityId: id,
+      actorId: actor.id,
+      ipAddress: req.ip || undefined,
+    })
+
+    return {
+      success: true,
+      data: {
+        resetUrl: created.resetUrl,
+        expiresAt: created.expiresAt.toISOString(),
+      },
+    }
   }
 
   @Delete(":id")

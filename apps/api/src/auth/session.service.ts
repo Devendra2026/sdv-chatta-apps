@@ -1,10 +1,10 @@
 import { Injectable } from "@nestjs/common"
-import { randomBytes } from "node:crypto"
 import type { Request, Response } from "express"
+import { randomBytes } from "node:crypto"
 
 import { PrismaService } from "../prisma/prisma.service"
+import { resolvePublicAppUrl, resolveUseSecureCookies } from "./session-options"
 import {
-  PASSWORD_RESET_IDENTIFIER_PREFIX,
   PASSWORD_RESET_MAX_ATTEMPTS,
   PASSWORD_RESET_TTL_SECONDS,
   SESSION_REFRESH_THRESHOLD_SECONDS,
@@ -13,13 +13,10 @@ import {
   sessionCookieName,
   sessionIdleTimeoutSeconds,
 } from "./session.constants"
-import {
-  resolvePublicAppUrl,
-  resolveUseSecureCookies,
-} from "./session-options"
 import { hashOpaqueToken } from "./token-hash"
 
 const SESSION_TOKEN_PURPOSE = "session"
+const PASSWORD_RESET_TOKEN_PURPOSE = "password-reset"
 
 export type SessionRecord = {
   id: string
@@ -110,7 +107,9 @@ export class SessionService {
     return createdAt.getTime() + absoluteMs <= Date.now()
   }
 
-  async findValidSession(rawToken: string | undefined): Promise<SessionRecord | null> {
+  async findValidSession(
+    rawToken: string | undefined
+  ): Promise<SessionRecord | null> {
     if (!rawToken?.trim()) return null
     const tokenHash = this.hashSessionToken(rawToken)
     const session = await this.prisma.session.findUnique({
@@ -123,7 +122,9 @@ export class SessionService {
       this.isIdleExpired(session.lastActiveAt) ||
       this.isAbsoluteExpired(session.createdAt)
     ) {
-      await this.prisma.session.delete({ where: { id: session.id } }).catch(() => undefined)
+      await this.prisma.session
+        .delete({ where: { id: session.id } })
+        .catch(() => undefined)
       return null
     }
 
@@ -190,8 +191,7 @@ export class SessionService {
     session: SessionRecord
   ): Promise<SessionRecord | null> {
     const remainingMs = session.expiresAt.getTime() - Date.now()
-    const needsRefresh =
-      remainingMs < SESSION_REFRESH_THRESHOLD_SECONDS * 1000
+    const needsRefresh = remainingMs < SESSION_REFRESH_THRESHOLD_SECONDS * 1000
 
     if (!needsRefresh) {
       await this.touchSession(session.id)
@@ -263,90 +263,86 @@ export class SessionService {
     if (resolveUseSecureCookies()) return true
     const forwarded = res.req?.headers["x-forwarded-proto"]
     const proto =
-      (typeof forwarded === "string" ? forwarded.split(",")[0]?.trim() : undefined) ??
-      res.req?.protocol
+      (typeof forwarded === "string"
+        ? forwarded.split(",")[0]?.trim()
+        : undefined) ?? res.req?.protocol
     return proto === "https"
   }
 
-  passwordResetIdentifier(email: string): string {
-    return `${PASSWORD_RESET_IDENTIFIER_PREFIX}${email.trim().toLowerCase()}`
-  }
-
-  async createPasswordResetToken(email: string): Promise<{
+  async createPasswordResetTokenForUser(userId: string): Promise<{
     rawToken: string
+    resetUrl: string
     expiresAt: Date
   } | null> {
-    const normalized = email.trim().toLowerCase()
     const user = await this.prisma.user.findUnique({
-      where: { email: normalized },
+      where: { id: userId },
     })
     if (!user?.passwordHash) return null
 
     const rawToken = randomBytes(32).toString("base64url")
-    const tokenHash = hashOpaqueToken(rawToken, "password-reset")
-    const identifier = this.passwordResetIdentifier(normalized)
+    const tokenHash = hashOpaqueToken(rawToken, PASSWORD_RESET_TOKEN_PURPOSE)
     const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_SECONDS * 1000)
 
-    await this.prisma.verification.deleteMany({ where: { identifier } })
-    await this.prisma.verification.create({
+    await this.prisma.passwordResetToken.deleteMany({
+      where: { userId, usedAt: null },
+    })
+    await this.prisma.passwordResetToken.create({
       data: {
-        identifier,
-        value: `${tokenHash}:0`,
+        userId,
+        tokenHash,
         expiresAt,
       },
     })
 
-    return { rawToken, expiresAt }
+    return {
+      rawToken,
+      resetUrl: buildPasswordResetUrl(rawToken),
+      expiresAt,
+    }
   }
 
   async consumePasswordResetToken(
     rawToken: string,
-    email: string,
     hashNewPassword: (plain: string) => Promise<string>,
     newPassword: string
-  ): Promise<void> {
-    const normalized = email.trim().toLowerCase()
-    const identifier = this.passwordResetIdentifier(normalized)
-    const record = await this.prisma.verification.findFirst({
-      where: { identifier },
-      orderBy: { createdAt: "desc" },
-    })
-
-    if (!record || record.expiresAt.getTime() <= Date.now()) {
-      throw new Error("RESET_TOKEN_EXPIRED")
+  ): Promise<{ userId: string }> {
+    const trimmed = rawToken.trim()
+    if (!trimmed) {
+      throw new Error("RESET_TOKEN_INVALID")
     }
 
-    const [storedHash, attemptsRaw] = record.value.split(":")
-    const attempts = Number(attemptsRaw ?? "0") || 0
-    if (attempts >= PASSWORD_RESET_MAX_ATTEMPTS) {
+    const tokenHash = hashOpaqueToken(trimmed, PASSWORD_RESET_TOKEN_PURPOSE)
+    const record = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+    })
+
+    if (!record || record.usedAt || record.expiresAt.getTime() <= Date.now()) {
+      throw new Error("RESET_TOKEN_INVALID")
+    }
+
+    if (record.failedAttempts >= PASSWORD_RESET_MAX_ATTEMPTS) {
       throw new Error("TOO_MANY_ATTEMPTS")
     }
 
-    const submittedHash = hashOpaqueToken(rawToken.trim(), "password-reset")
-    if (submittedHash !== storedHash) {
-      await this.prisma.verification.update({
-        where: { id: record.id },
-        data: { value: `${storedHash}:${attempts + 1}` },
-      })
-      throw new Error("RESET_TOKEN_INVALID")
-    }
-
-    const user = await this.prisma.user.findUnique({
-      where: { email: normalized },
-    })
-    if (!user) {
-      throw new Error("RESET_TOKEN_INVALID")
-    }
-
     const passwordHash = await hashNewPassword(newPassword)
+    const usedAt = new Date()
     await this.prisma.$transaction([
       this.prisma.user.update({
-        where: { id: user.id },
+        where: { id: record.userId },
         data: { passwordHash },
       }),
-      this.prisma.verification.deleteMany({ where: { identifier } }),
-      this.prisma.session.deleteMany({ where: { userId: user.id } }),
+      this.prisma.passwordResetToken.update({
+        where: { id: record.id },
+        data: { usedAt },
+      }),
+      this.prisma.passwordResetToken.updateMany({
+        where: { userId: record.userId, usedAt: null },
+        data: { usedAt },
+      }),
+      this.prisma.session.deleteMany({ where: { userId: record.userId } }),
     ])
+
+    return { userId: record.userId }
   }
 }
 

@@ -27,7 +27,6 @@ export function sessionAbsoluteTimeoutSeconds(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : SESSION_TTL_SECONDS
 }
 
-export const PASSWORD_RESET_IDENTIFIER_PREFIX = "password-reset:"
 export const PASSWORD_RESET_TTL_SECONDS = 30 * 60
 export const PASSWORD_RESET_MAX_ATTEMPTS = 5
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Plus, Search, Users } from "lucide-react"
+import { Copy, Plus, Search, Users } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -75,6 +75,8 @@ export default function UsersPage() {
   const [editName, setEditName] = React.useState("")
   const [editStatus, setEditStatus] = React.useState<string>("ACTIVE")
   const [editRoleIds, setEditRoleIds] = React.useState<string[]>([])
+  const [resetLinkUrl, setResetLinkUrl] = React.useState<string | null>(null)
+  const [resetLinkLoading, setResetLinkLoading] = React.useState(false)
 
   const [search, setSearch] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState<string>("all")
@@ -125,6 +127,7 @@ export default function UsersPage() {
     setEditUser(u)
     setEditName(u.name)
     setEditStatus(u.status)
+    setResetLinkUrl(null)
   }
 
   React.useEffect(() => {
@@ -176,6 +179,40 @@ export default function UsersPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   })
+
+  async function generateResetLink() {
+    if (!editUser) return
+    const confirmed = window.confirm(
+      `Generate a password reset link for ${editUser.email}? The link expires in 30 minutes and can only be used once.`
+    )
+    if (!confirmed) return
+
+    setResetLinkLoading(true)
+    setResetLinkUrl(null)
+    try {
+      const res = await api.post<{ resetUrl: string; expiresAt: string }>(
+        `/api/v1/users/${editUser.id}/password-reset-link`
+      )
+      setResetLinkUrl(res.data.resetUrl)
+      toast.success("Password reset link generated")
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Could not generate reset link"
+      )
+    } finally {
+      setResetLinkLoading(false)
+    }
+  }
+
+  async function copyResetLink() {
+    if (!resetLinkUrl) return
+    try {
+      await navigator.clipboard.writeText(resetLinkUrl)
+      toast.success("Link copied to clipboard")
+    } catch {
+      toast.error("Could not copy link")
+    }
+  }
 
   function toggleRole(
     roleId: string,
@@ -406,7 +443,7 @@ export default function UsersPage() {
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  minLength={8}
+                  minLength={12}
                   required
                 />
               </div>
@@ -453,7 +490,7 @@ export default function UsersPage() {
                 createMutation.isPending ||
                 name.trim().length < 2 ||
                 !email.trim() ||
-                password.length < 8
+                password.length < 12
               }
               onClick={() => createMutation.mutate()}
             >
@@ -546,6 +583,53 @@ export default function UsersPage() {
                 ))}
               </div>
             </div>
+            {canUpdate ? (
+              <div className="space-y-3 rounded-lg border border-dashed p-4">
+                <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                  Password reset
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Generate a one-time reset link to share with this user. The
+                  link is not emailed automatically.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="cursor-pointer"
+                  disabled={resetLinkLoading}
+                  onClick={() => void generateResetLink()}
+                >
+                  {resetLinkLoading
+                    ? "Generating…"
+                    : "Generate password reset link"}
+                </Button>
+                {resetLinkUrl ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-emerald-700">
+                      Reset link generated successfully.
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        readOnly
+                        value={resetLinkUrl}
+                        className="font-mono text-xs"
+                        aria-label="Password reset link"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0 cursor-pointer"
+                        onClick={() => void copyResetLink()}
+                        aria-label="Copy reset link"
+                      >
+                        <Copy className="size-4" aria-hidden />
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <DialogFooter>
             <Button

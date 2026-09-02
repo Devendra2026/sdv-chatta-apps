@@ -7,7 +7,11 @@ const WINDOW_MS = 60_000
 const memoryHits = new Map<string, { count: number; resetAt: number }>()
 
 export function getRateLimitMax(path: string): number {
-  if (path.includes("/auth/login") || path.includes("/auth/forgot-password")) {
+  if (
+    path.includes("/auth/login") ||
+    path.includes("/auth/forgot-password") ||
+    path.includes("/auth/reset-password")
+  ) {
     return 20
   }
   if (path.includes("/public/property-tax")) return 30
