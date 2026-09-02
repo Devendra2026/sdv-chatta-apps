@@ -44,6 +44,8 @@ function shouldLogMissingCookie(apiPath: string): boolean {
   if (!apiPath.startsWith("/api/v1/")) return false
   if (apiPath.startsWith("/api/v1/health")) return false
   if (apiPath.startsWith("/api/v1/auth/forgot-password")) return false
+  if (apiPath.startsWith("/api/v1/auth/login")) return false
+  if (apiPath.startsWith("/api/v1/auth/logout")) return false
   return true
 }
 

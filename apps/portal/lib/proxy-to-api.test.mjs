@@ -21,4 +21,9 @@ describe("portal proxyToApi cookie forwarding", () => {
     assert.match(src, /\[proxy-to-api\] cookie header missing/)
     assert.match(src, /headersToRecord\(headers\)/)
   })
+
+  it("does not warn about missing session cookies on login or logout", () => {
+    assert.match(src, /\/api\/v1\/auth\/login/)
+    assert.match(src, /\/api\/v1\/auth\/logout/)
+  })
 })

@@ -4,6 +4,7 @@ import {
   cookieHeaderFromPairs,
   describeCookieForwardingState,
   expiredAuthCookieHeaders,
+  expiredLegacyAuthCookieHeaders,
   hasNonEmptySessionCookie,
   resolveCookieHeaderForProxy,
   resolveForwardedProto,
@@ -135,6 +136,17 @@ describe("proxy-to-api helpers", () => {
         (h) =>
           h.startsWith("better-auth.session_token=") && !h.includes("Secure")
       )
+    ).toBe(true)
+  })
+
+  it("expiredLegacyAuthCookieHeaders clears better-auth but not chhata_session", () => {
+    const headers = expiredLegacyAuthCookieHeaders([
+      "chhata_session",
+      "better-auth.session_token",
+    ])
+    expect(headers.some((h) => h.startsWith("chhata_session="))).toBe(false)
+    expect(
+      headers.some((h) => h.startsWith("better-auth.session_token="))
     ).toBe(true)
   })
 })

@@ -20,6 +20,17 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { api } from "@/lib/api"
 
+async function clearLegacyAuthCookies() {
+  try {
+    await fetch("/api/portal/clear-legacy-auth-cookies", {
+      method: "POST",
+      credentials: "include",
+    })
+  } catch {
+    // Non-fatal — login can still proceed
+  }
+}
+
 const TRUST_ITEMS = [
   {
     icon: ClipboardList,
@@ -64,6 +75,7 @@ export default function LoginPage() {
   const [formError, setFormError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
+    void clearLegacyAuthCookies()
     const params = new URLSearchParams(window.location.search)
     if (params.get("signedOut") === "1") {
       toast.success("Signed out")
@@ -96,6 +108,7 @@ export default function LoginPage() {
         email,
         password,
       })
+      await clearLegacyAuthCookies()
       toast.success("Signed in")
       window.location.assign("/dashboard")
     } catch (err) {

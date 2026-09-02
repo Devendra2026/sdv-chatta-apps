@@ -4,9 +4,25 @@ import nodemailer from "nodemailer"
 const logger = new Logger("OtpEmail")
 
 export type OtpEmailType =
-  "sign-in" | "email-verification" | "forget-password" | "change-email"
+  | "sign-in"
+  | "email-verification"
+  | "forget-password"
+  | "change-email"
 
-function isSmtpConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
+export type OtpDeliveryResult = {
+  channel: "smtp" | "dev-log"
+  /** Present only in non-production when SMTP is not configured. */
+  devOtp?: string
+}
+
+export class OtpEmailDeliveryError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "OtpEmailDeliveryError"
+  }
+}
+
+export function isSmtpConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
   return Boolean(env.SMTP_HOST?.trim() && env.SMTP_FROM?.trim())
 }
 
@@ -54,10 +70,10 @@ function buildPasswordResetMessage(otp: string): {
 export async function sendOtpEmail(
   params: { email: string; otp: string; type: OtpEmailType },
   env: NodeJS.ProcessEnv = process.env
-): Promise<void> {
+): Promise<OtpDeliveryResult> {
   if (params.type !== "forget-password") {
     logger.warn(`Unsupported OTP type for mail: ${params.type}`)
-    return
+    return { channel: "dev-log" }
   }
 
   const transport = createTransport(env)
@@ -68,12 +84,12 @@ export async function sendOtpEmail(
       logger.error(
         "SMTP is not configured; cannot send password-reset OTP in production"
       )
-      throw new Error("SMTP is not configured")
+      throw new OtpEmailDeliveryError("SMTP is not configured")
     }
     logger.warn(
-      `[dev] Password-reset OTP for ${params.email}: ${params.otp} (SMTP not configured)`
+      `[dev] Password-reset OTP for ${params.email}: ${params.otp} (SMTP not configured — shown in API response for local dev)`
     )
-    return
+    return { channel: "dev-log", devOtp: params.otp }
   }
 
   const { subject, text } = buildPasswordResetMessage(params.otp)
@@ -85,14 +101,13 @@ export async function sendOtpEmail(
       subject,
       text,
     })
+    logger.log(`Password-reset OTP sent to ${params.email}`)
+    return { channel: "smtp" }
   } catch (err) {
-    logger.error(
-      `Failed to send password-reset OTP to ${params.email}: ${
-        err instanceof Error ? err.message : "unknown error"
-      }`
+    const detail = err instanceof Error ? err.message : "unknown error"
+    logger.error(`Failed to send password-reset OTP to ${params.email}: ${detail}`)
+    throw new OtpEmailDeliveryError(
+      `Failed to send password-reset email: ${detail}`
     )
-    throw err
   }
 }
-
-export { isSmtpConfigured }

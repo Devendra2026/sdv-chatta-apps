@@ -43,6 +43,12 @@ function collectProductionErrors(env: NodeJS.ProcessEnv): string[] {
     errors.push("STORAGE_DIR is required in production (compose sets /app/uploads)")
   }
 
+  if (!env.SMTP_HOST?.trim() || !env.SMTP_FROM?.trim()) {
+    errors.push(
+      "SMTP_HOST and SMTP_FROM are required in production for password-reset OTP emails"
+    )
+  }
+
   return errors
 }
 

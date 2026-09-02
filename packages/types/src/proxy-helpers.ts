@@ -106,9 +106,25 @@ export const LEGACY_AUTH_COOKIE_NAMES = [
 ] as const
 
 export function collectAuthCookieNames(existingNames: string[]): string[] {
-  const names = new Set<string>([SESSION_COOKIE_NAME, ...LEGACY_AUTH_COOKIE_NAMES])
+  const names = new Set<string>([
+    SESSION_COOKIE_NAME,
+    ...LEGACY_AUTH_COOKIE_NAMES,
+  ])
   for (const name of existingNames) {
     if (name.includes("better-auth") || name === SESSION_COOKIE_NAME) {
+      names.add(name)
+    }
+  }
+  return [...names]
+}
+
+/** Legacy Better Auth names only — does not expire chhata_session. */
+export function collectLegacyAuthCookieNames(
+  existingNames: string[]
+): string[] {
+  const names = new Set<string>([...LEGACY_AUTH_COOKIE_NAMES])
+  for (const name of existingNames) {
+    if (name.includes("better-auth")) {
       names.add(name)
     }
   }
@@ -151,6 +167,17 @@ export function serializeExpiredAuthCookie(
 
 export function expiredAuthCookieHeaders(existingNames: string[]): string[] {
   return collectAuthCookieNames(existingNames).flatMap((name) =>
+    authCookieExpiryVariants(name).map((variant) =>
+      serializeExpiredAuthCookie(name, variant)
+    )
+  )
+}
+
+/** Expire leftover Better Auth cookies without clearing chhata_session. */
+export function expiredLegacyAuthCookieHeaders(
+  existingNames: string[]
+): string[] {
+  return collectLegacyAuthCookieNames(existingNames).flatMap((name) =>
     authCookieExpiryVariants(name).map((variant) =>
       serializeExpiredAuthCookie(name, variant)
     )

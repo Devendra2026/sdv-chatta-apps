@@ -21,6 +21,7 @@ import { AuthService } from "./auth.service"
 import { hashPassword, verifyPassword } from "./password-hash"
 import { assertTrustedOrigin } from "./session-options"
 import { SessionService } from "./session.service"
+import { OtpEmailDeliveryError } from "./send-otp-email"
 
 class LoginDto {
   @IsEmail()
@@ -181,24 +182,24 @@ export class AuthController {
     const email = dto.email.trim().toLowerCase()
 
     try {
-      await this.sessionService.requestPasswordResetOtp(email)
+      const delivery = await this.sessionService.requestPasswordResetOtp(email)
+      return {
+        success: true,
+        data: {
+          message:
+            "If an account exists for this email, a one-time code has been sent.",
+          ...(delivery?.devOtp ? { devOtp: delivery.devOtp } : {}),
+        },
+      }
     } catch (err) {
-      if (err instanceof Error && err.message === "SMTP is not configured") {
+      if (err instanceof OtpEmailDeliveryError) {
         throw new ServiceUnavailableException({
           code: "EMAIL_UNAVAILABLE",
           message:
             "Unable to send email right now. Try again later or contact an administrator.",
         })
       }
-      // Generic success — do not reveal whether the email exists.
-    }
-
-    return {
-      success: true,
-      data: {
-        message:
-          "If an account exists for this email, a one-time code has been sent.",
-      },
+      throw err
     }
   }
 

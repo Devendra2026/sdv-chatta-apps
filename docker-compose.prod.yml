@@ -61,7 +61,7 @@ services:
     env_file: .env
     # Required in Dokploy Environment tab (or compose warns and API exits on startup):
     #   SESSION_SECRET, POSTGRES_*, REDIS_PASSWORD, PUBLIC_*_URL,
-    #   SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD
+    #   SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD, SMTP_HOST, SMTP_FROM
     environment:
       NODE_ENV: production
       PORT: "4000"

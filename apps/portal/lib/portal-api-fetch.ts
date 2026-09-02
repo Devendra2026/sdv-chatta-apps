@@ -2,12 +2,23 @@ import { describeHttpFailure } from "@workspace/types"
 
 const RETRY_BACKOFF_MS = [200, 500]
 
+/** Strip pathname so `base + /api/v1/...` cannot double-prefix. */
+export function normalizeApiInternalOrigin(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed) return "http://localhost:4000"
+  try {
+    return new URL(trimmed).origin
+  } catch {
+    return trimmed.replace(/\/+$/, "")
+  }
+}
+
 export function apiInternalUrl() {
-  return (
+  const raw =
     process.env.API_INTERNAL_URL ??
     process.env.NEXT_PUBLIC_API_URL ??
     "http://localhost:4000"
-  )
+  return normalizeApiInternalOrigin(raw)
 }
 
 export const PORTAL_API_TIMEOUT_MS = 10_000
@@ -116,6 +127,7 @@ export async function fetchPortalApi(
         })
         console.warn("[portal-api-fetch]", {
           path: options.path,
+          url,
           status: response.status,
           code: errorCode,
           durationMs: Date.now() - started,

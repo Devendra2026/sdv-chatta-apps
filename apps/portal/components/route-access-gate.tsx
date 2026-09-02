@@ -5,6 +5,7 @@ import type { ReactNode } from "react"
 
 import { Skeleton } from "@workspace/ui/components/skeleton"
 
+import { ApiUnavailablePanel } from "@/components/api-unavailable-panel"
 import { usePermission } from "@/hooks/use-permission"
 import {
   getRequiredPermissionForPath,
@@ -33,10 +34,14 @@ function RouteAccessLoading() {
 
 export function RouteAccessGate({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  const { user, isLoading } = usePermission()
+  const { user, isLoading, isError, error } = usePermission()
 
   if (isLoading) {
     return <RouteAccessLoading />
+  }
+
+  if (!user && isError) {
+    return <ApiUnavailablePanel error={error} />
   }
 
   if (!user) {

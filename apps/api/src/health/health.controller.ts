@@ -14,8 +14,12 @@ export class HealthController {
   health() {
     return { status: "ok" }
   }
+}
 
-  @Get("api/v1/health")
+@Public()
+@Controller("api/v1")
+export class HealthV1Controller {
+  @Get("health")
   healthV1() {
     return {
       success: true,

@@ -20,15 +20,25 @@ export default function ForgotPasswordPage() {
   const [newPassword, setNewPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
   const [loading, setLoading] = React.useState(false)
+  const [devOtp, setDevOtp] = React.useState<string | null>(null)
 
   async function onRequestOtp(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
+    setDevOtp(null)
     try {
-      await api.post("/api/v1/auth/forgot-password", {
-        email: email.trim(),
-      })
-      toast.success("If an account exists, a code was sent to your email.")
+      const res = await api.post<{ message: string; devOtp?: string }>(
+        "/api/v1/auth/forgot-password",
+        {
+          email: email.trim(),
+        }
+      )
+      if (res.data.devOtp) {
+        setDevOtp(res.data.devOtp)
+        toast.message("Development mode — use the code shown below.")
+      } else {
+        toast.success("If an account exists, a code was sent to your email.")
+      }
       setStep("reset")
     } catch (err) {
       toast.error(
@@ -116,6 +126,28 @@ export default function ForgotPasswordPage() {
             </form>
           ) : (
             <form className="mt-6 space-y-4" onSubmit={onResetPassword}>
+              {devOtp ? (
+                <div
+                  role="status"
+                  className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950"
+                >
+                  <p className="font-medium">Development OTP (local only)</p>
+                  <p className="mt-1 font-mono text-lg tracking-widest">{devOtp}</p>
+                  <p className="mt-1 text-xs text-amber-900/80">
+                    SMTP is not configured. In production this code is sent by
+                    email only. With Mailpit, check{" "}
+                    <a
+                      href="http://localhost:8025"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium underline"
+                    >
+                      localhost:8025
+                    </a>
+                    .
+                  </p>
+                </div>
+              ) : null}
               <div className="space-y-2">
                 <Label htmlFor="forgot-code">One-time code / OTP</Label>
                 <Input
@@ -166,7 +198,10 @@ export default function ForgotPasswordPage() {
                 variant="ghost"
                 className="h-10 w-full cursor-pointer"
                 disabled={loading}
-                onClick={() => setStep("email")}
+                onClick={() => {
+                  setDevOtp(null)
+                  setStep("email")
+                }}
               >
                 Use a different email
               </Button>

@@ -170,13 +170,15 @@ export class SessionService {
     return String(randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, "0")
   }
 
-  async requestPasswordResetOtp(email: string): Promise<void> {
+  async requestPasswordResetOtp(
+    email: string
+  ): Promise<{ devOtp?: string } | undefined> {
     const normalized = email.trim().toLowerCase()
     const user = await this.prisma.user.findUnique({
       where: { email: normalized },
     })
     if (!user?.passwordHash) {
-      return
+      return undefined
     }
 
     const otp = this.generateOtpCode()
@@ -189,11 +191,16 @@ export class SessionService {
       data: { identifier, value, expiresAt },
     })
 
-    await sendOtpEmail({
+    const delivery = await sendOtpEmail({
       email: normalized,
       otp,
       type: "forget-password",
     })
+
+    if (delivery.devOtp) {
+      return { devOtp: delivery.devOtp }
+    }
+    return undefined
   }
 
   async verifyPasswordResetOtp(
