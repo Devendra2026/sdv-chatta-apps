@@ -23,10 +23,9 @@ export function resolveSessionSecret(): string {
     process.env.SESSION_SECRET?.trim() ||
     process.env.BETTER_AUTH_SECRET?.trim()
   if (!secret || secret.length < 32) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("SESSION_SECRET must be set (≥32 chars) in production")
-    }
-    return "dev-session-secret-change-me-32chars"
+    throw new Error(
+      "SESSION_SECRET must be set (≥32 random chars). Generate with: openssl rand -base64 48"
+    )
   }
   return secret
 }

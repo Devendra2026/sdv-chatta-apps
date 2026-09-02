@@ -1,4 +1,8 @@
-import { Injectable } from "@nestjs/common"
+import {
+  Inject,
+  Injectable,
+  ServiceUnavailableException,
+} from "@nestjs/common"
 import type { Request, Response } from "express"
 import { randomBytes } from "node:crypto"
 
@@ -14,6 +18,7 @@ import {
   sessionIdleTimeoutSeconds,
 } from "./session.constants"
 import { hashOpaqueToken } from "./token-hash"
+import { SESSION_CACHE, type SessionCache } from "./session-cache"
 
 const SESSION_TOKEN_PURPOSE = "session"
 const PASSWORD_RESET_TOKEN_PURPOSE = "password-reset"
@@ -39,9 +44,19 @@ export type SessionListItem = {
   current: boolean
 }
 
+function storeUnavailable(): never {
+  throw new ServiceUnavailableException({
+    code: "AUTH_STORE_UNAVAILABLE",
+    message: "Authentication store is unavailable",
+  })
+}
+
 @Injectable()
 export class SessionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(SESSION_CACHE) private readonly cache: SessionCache
+  ) {}
 
   generateSessionToken(): string {
     return randomBytes(32).toString("base64url")
@@ -76,6 +91,42 @@ export class SessionService {
     }
   }
 
+  private redisTtlSeconds(expiresAt: Date, lastActiveAt: Date): number {
+    const idleRemaining =
+      lastActiveAt.getTime() + sessionIdleTimeoutSeconds() * 1000 - Date.now()
+    const absoluteRemaining = expiresAt.getTime() - Date.now()
+    return Math.max(
+      1,
+      Math.floor(Math.min(idleRemaining, absoluteRemaining) / 1000)
+    )
+  }
+
+  private async writeCache(record: SessionRecord): Promise<void> {
+    try {
+      await this.cache.set(
+        this.hashSessionToken(record.rawToken),
+        {
+          sessionId: record.id,
+          userId: record.userId,
+          createdAt: record.createdAt.toISOString(),
+          lastActivityAt: record.lastActiveAt.toISOString(),
+          expiresAt: record.expiresAt.toISOString(),
+        },
+        this.redisTtlSeconds(record.expiresAt, record.lastActiveAt)
+      )
+    } catch {
+      storeUnavailable()
+    }
+  }
+
+  private async deleteCache(tokenHash: string): Promise<void> {
+    try {
+      await this.cache.delete(tokenHash)
+    } catch {
+      storeUnavailable()
+    }
+  }
+
   async createSession(
     userId: string,
     meta?: { ipAddress?: string; userAgent?: string }
@@ -94,7 +145,9 @@ export class SessionService {
         userAgent: meta?.userAgent ?? null,
       },
     })
-    return this.toRecord(session, rawToken)
+    const record = this.toRecord(session, rawToken)
+    await this.writeCache(record)
+    return record
   }
 
   private isIdleExpired(lastActiveAt: Date): boolean {
@@ -112,10 +165,48 @@ export class SessionService {
   ): Promise<SessionRecord | null> {
     if (!rawToken?.trim()) return null
     const tokenHash = this.hashSessionToken(rawToken)
+
+    let cached: Awaited<ReturnType<SessionCache["get"]>> = null
+    try {
+      cached = await this.cache.get(tokenHash)
+    } catch {
+      storeUnavailable()
+    }
+
+    if (cached) {
+      const lastActiveAt = new Date(cached.lastActivityAt)
+      const createdAt = new Date(cached.createdAt)
+      const expiresAt = new Date(cached.expiresAt)
+      if (
+        expiresAt.getTime() <= Date.now() ||
+        this.isIdleExpired(lastActiveAt) ||
+        this.isAbsoluteExpired(createdAt)
+      ) {
+        await this.deleteCache(tokenHash)
+        await this.prisma.session
+          .updateMany({
+            where: { id: cached.sessionId, revokedAt: null },
+            data: { revokedAt: new Date() },
+          })
+          .catch(() => undefined)
+        return null
+      }
+      return {
+        id: cached.sessionId,
+        rawToken: rawToken.trim(),
+        userId: cached.userId,
+        expiresAt,
+        lastActiveAt,
+        createdAt,
+        ipAddress: null,
+        userAgent: null,
+      }
+    }
+
     const session = await this.prisma.session.findUnique({
       where: { tokenHash },
     })
-    if (!session) return null
+    if (!session || session.revokedAt) return null
 
     if (
       session.expiresAt.getTime() <= Date.now() ||
@@ -123,43 +214,75 @@ export class SessionService {
       this.isAbsoluteExpired(session.createdAt)
     ) {
       await this.prisma.session
-        .delete({ where: { id: session.id } })
+        .updateMany({
+          where: { id: session.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        })
         .catch(() => undefined)
       return null
     }
 
-    return this.toRecord(session, rawToken.trim())
+    const record = this.toRecord(session, rawToken.trim())
+    await this.writeCache(record)
+    return record
   }
 
-  async touchSession(sessionId: string): Promise<void> {
-    await this.prisma.session.update({
-      where: { id: sessionId },
-      data: { lastActiveAt: new Date() },
-    })
+  async touchSession(session: SessionRecord): Promise<void> {
+    const lastActiveAt = new Date()
+    const updated = { ...session, lastActiveAt }
+    await this.writeCache(updated)
+    await this.prisma.session
+      .update({
+        where: { id: session.id },
+        data: { lastActiveAt },
+      })
+      .catch(() => undefined)
   }
 
   async deleteSessionByToken(rawToken: string | undefined): Promise<void> {
     if (!rawToken?.trim()) return
     const tokenHash = this.hashSessionToken(rawToken)
-    await this.prisma.session.deleteMany({ where: { tokenHash } })
+    await this.deleteCache(tokenHash)
+    await this.prisma.session.updateMany({
+      where: { tokenHash, revokedAt: null },
+      data: { revokedAt: new Date() },
+    })
   }
 
   async deleteSessionById(sessionId: string, userId: string): Promise<boolean> {
-    const result = await this.prisma.session.deleteMany({
-      where: { id: sessionId, userId },
+    const row = await this.prisma.session.findFirst({
+      where: { id: sessionId, userId, revokedAt: null },
     })
-    return result.count > 0
+    if (!row) return false
+    await this.deleteCache(row.tokenHash)
+    await this.prisma.session.update({
+      where: { id: sessionId },
+      data: { revokedAt: new Date() },
+    })
+    return true
   }
 
   async revokeAllUserSessions(
     userId: string,
     exceptSessionId?: string
   ): Promise<number> {
-    const result = await this.prisma.session.deleteMany({
+    const rows = await this.prisma.session.findMany({
       where: {
         userId,
+        revokedAt: null,
         ...(exceptSessionId ? { id: { not: exceptSessionId } } : {}),
       },
+    })
+    for (const row of rows) {
+      await this.deleteCache(row.tokenHash)
+    }
+    const result = await this.prisma.session.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+        ...(exceptSessionId ? { id: { not: exceptSessionId } } : {}),
+      },
+      data: { revokedAt: new Date() },
     })
     return result.count
   }
@@ -169,7 +292,7 @@ export class SessionService {
     currentSessionId?: string
   ): Promise<SessionListItem[]> {
     const rows = await this.prisma.session.findMany({
-      where: { userId },
+      where: { userId, revokedAt: null },
       orderBy: { lastActiveAt: "desc" },
     })
     return rows.map((row) => ({
@@ -194,10 +317,11 @@ export class SessionService {
     const needsRefresh = remainingMs < SESSION_REFRESH_THRESHOLD_SECONDS * 1000
 
     if (!needsRefresh) {
-      await this.touchSession(session.id)
+      await this.touchSession(session)
       return null
     }
 
+    const previousHash = this.hashSessionToken(session.rawToken)
     const rawToken = this.generateSessionToken()
     const tokenHash = this.hashSessionToken(rawToken)
     const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000)
@@ -209,7 +333,10 @@ export class SessionService {
         lastActiveAt: new Date(),
       },
     })
-    return this.toRecord(updated, rawToken)
+    await this.deleteCache(previousHash)
+    const record = this.toRecord(updated, rawToken)
+    await this.writeCache(record)
+    return record
   }
 
   readSessionToken(req: Request): string | undefined {
@@ -237,26 +364,29 @@ export class SessionService {
       `Expires=${expiresAt.toUTCString()}`,
       `Max-Age=${Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))}`,
     ]
-    if (this.shouldUseSecureCookie(res) || name.startsWith("__Host-")) {
+    if (this.shouldUseSecureCookie(res)) {
       parts.push("Secure")
     }
     res.append("Set-Cookie", parts.join("; "))
   }
 
   clearSessionCookie(res: Response): void {
-    const name = sessionCookieName()
-    const parts = [
-      `${name}=`,
-      "Path=/",
-      "HttpOnly",
-      "SameSite=Lax",
-      "Max-Age=0",
-      "Expires=Thu, 01 Jan 1970 00:00:00 GMT",
-    ]
-    if (this.shouldUseSecureCookie(res) || name.startsWith("__Host-")) {
-      parts.push("Secure")
+    const names = new Set([sessionCookieName(), "chhata_session", "__Host-session"])
+    const secure = this.shouldUseSecureCookie(res)
+    for (const name of names) {
+      const parts = [
+        `${name}=`,
+        "Path=/",
+        "HttpOnly",
+        "SameSite=Lax",
+        "Max-Age=0",
+        "Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+      ]
+      if (secure || name.startsWith("__Host-")) {
+        parts.push("Secure")
+      }
+      res.append("Set-Cookie", parts.join("; "))
     }
-    res.append("Set-Cookie", parts.join("; "))
   }
 
   private shouldUseSecureCookie(res: Response): boolean {
@@ -339,8 +469,8 @@ export class SessionService {
         where: { userId: record.userId, usedAt: null },
         data: { usedAt },
       }),
-      this.prisma.session.deleteMany({ where: { userId: record.userId } }),
     ])
+    await this.revokeAllUserSessions(record.userId)
 
     return { userId: record.userId }
   }

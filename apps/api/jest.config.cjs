@@ -25,7 +25,8 @@ module.exports = {
     ],
   },
   // pnpm nests packages under .pnpm/@nestjs+common@…/node_modules/@nestjs
-  transformIgnorePatterns: ["node_modules/(?!(.*@nestjs|rxjs))"],
+  transformIgnorePatterns: ["node_modules/(?!(.*@nestjs|rxjs|.*uuid))"],
+  setupFiles: ["<rootDir>/../test/setup-env.ts"],
   collectCoverageFrom: ["**/*.(t|j)s"],
   coverageDirectory: "../coverage",
 }

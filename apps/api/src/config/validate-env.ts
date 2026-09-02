@@ -13,17 +13,10 @@ function isProduction(env: NodeJS.ProcessEnv): boolean {
 function collectProductionErrors(env: NodeJS.ProcessEnv): string[] {
   const errors: string[] = []
 
-  const sessionSecret =
-    env.SESSION_SECRET?.trim() || env.BETTER_AUTH_SECRET?.trim()
+  const sessionSecret = env.SESSION_SECRET?.trim()
   if (!sessionSecret || sessionSecret.length < 32) {
     errors.push(
-      "SESSION_SECRET must be set in Dokploy (≥32 random chars). Generate with: openssl rand -base64 48"
-    )
-  }
-
-  if (!env.REDIS_URL?.trim()) {
-    errors.push(
-      "REDIS_URL is required in production (set REDIS_PASSWORD in Dokploy; compose derives REDIS_URL)"
+      "SESSION_SECRET must be set (≥32 random chars). Generate with: openssl rand -base64 48"
     )
   }
 
@@ -67,6 +60,23 @@ export function assertRequiredEnv(options: ValidateEnvOptions = {}): void {
     errors.push(
       "DATABASE_URL is required (compose derives it from POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB)"
     )
+  }
+
+  if (!env.REDIS_URL?.trim()) {
+    errors.push(
+      "REDIS_URL is required (local: redis://localhost:6380; production: compose derives it from REDIS_PASSWORD)"
+    )
+  }
+
+  if (!env.SESSION_SECRET?.trim() && !env.BETTER_AUTH_SECRET?.trim()) {
+    errors.push(
+      "SESSION_SECRET is required (≥32 chars). Copy from apps/api/.env.example"
+    )
+  } else if (
+    env.SESSION_SECRET?.trim() &&
+    env.SESSION_SECRET.trim().length < 32
+  ) {
+    errors.push("SESSION_SECRET must be at least 32 characters")
   }
 
   if (isProduction(env)) {

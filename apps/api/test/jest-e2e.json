@@ -17,5 +17,7 @@
       }
     ]
   },
-  "transformIgnorePatterns": ["node_modules/(?!(.*@nestjs|rxjs))"]
+  "transformIgnorePatterns": ["node_modules/(?!(.*@nestjs|rxjs|.*uuid))"],
+  "setupFiles": ["<rootDir>/setup-env.ts"],
+  "globalTeardown": "<rootDir>/redis-teardown.ts"
 }

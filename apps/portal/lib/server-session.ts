@@ -57,8 +57,7 @@ export async function fetchCurrentUser(): Promise<CurrentUserResult> {
     sessionCookieName: process.env.SESSION_COOKIE_NAME,
   }
 
-  // Nest AuthMeController — session user plus RBAC roles/permissions.
-  // Do not use Better Auth GET /api/auth/get-session here; it has no permissions.
+  // Nest AuthController GET /api/v1/auth/me — session user plus RBAC.
   const meResult = await fetchPortalApi({
     ...fetchOptions,
     path: "/api/v1/auth/me",

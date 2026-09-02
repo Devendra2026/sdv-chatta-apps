@@ -93,6 +93,17 @@ export class AuthController {
   }
 
   @Public()
+  @Post("register")
+  register(@Req() req: Request) {
+    this.guardTrustedOrigin(req)
+    throw new ForbiddenException({
+      code: "AUTH_REGISTER_DISABLED",
+      message:
+        "Staff accounts are provisioned by an administrator in Settings → Users",
+    })
+  }
+
+  @Public()
   @Post("login")
   async login(
     @Body() dto: LoginDto,

@@ -7,7 +7,7 @@ import {
 import { Reflector } from "@nestjs/core"
 import type { Request } from "express"
 
-import { IS_PUBLIC_KEY } from "../auth/auth.decorators"
+import { IS_PUBLIC_KEY, SKIP_CSRF_KEY } from "../auth/auth.decorators"
 import {
   CSRF_HEADER_NAME,
   csrfTokensMatch,
@@ -15,11 +15,29 @@ import {
   readCsrfCookie,
 } from "./csrf"
 
+function isStaffAuthMutation(path: string): boolean {
+  return (
+    path.includes("/auth/login") ||
+    path.includes("/auth/logout") ||
+    path.includes("/auth/register") ||
+    path.includes("/auth/forgot-password") ||
+    path.includes("/auth/reset-password")
+  )
+}
+
 @Injectable()
 export class CsrfGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
+    const skipCsrf = this.reflector.getAllAndOverride<boolean>(SKIP_CSRF_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ])
+    if (skipCsrf) {
+      return true
+    }
+
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -30,8 +48,8 @@ export class CsrfGuard implements CanActivate {
       return true
     }
 
-    // Public mutating routes (login, logout, payment callbacks) skip CSRF.
-    if (isPublic) {
+    // Public mutating routes skip CSRF except staff auth (login/logout/register).
+    if (isPublic && !isStaffAuthMutation(request.path || request.url)) {
       return true
     }
 

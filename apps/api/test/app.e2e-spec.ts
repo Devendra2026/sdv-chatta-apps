@@ -4,6 +4,8 @@ import request from "supertest"
 import { App } from "supertest/types"
 
 import { HealthModule } from "./../src/health/health.module"
+import { HealthService } from "./../src/health/health.service"
+import { PrismaService } from "./../src/prisma/prisma.service"
 import {
   markRoutesVerified,
   resetRoutesVerifiedStateForTests,
@@ -16,7 +18,22 @@ describe("Health (e2e)", () => {
     resetRoutesVerifiedStateForTests()
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [HealthModule],
-    }).compile()
+    })
+      .overrideProvider(PrismaService)
+      .useValue({
+        $queryRaw: jest.fn(async () => [{ "?column?": 1 }]),
+        $connect: jest.fn(),
+        $disconnect: jest.fn(),
+      })
+      .overrideProvider(HealthService)
+      .useValue({
+        checkDependencies: async () => ({
+          postgres: true,
+          redis: true,
+          routesRegistered: true,
+        }),
+      })
+      .compile()
 
     app = moduleFixture.createNestApplication()
     await app.init()
@@ -54,6 +71,17 @@ describe("Health (e2e)", () => {
       })
   })
 
+  it("/api/v1/health/live (GET)", () => {
+    return request(app.getHttpServer())
+      .get("/api/v1/health/live")
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.data.status).toBe("live")
+        expect(res.body.data.service).toBe("api")
+        expect(typeof res.body.data.pid).toBe("number")
+      })
+  })
+
   it("/api/v1/ready (GET)", () => {
     return request(app.getHttpServer())
       .get("/api/v1/ready")
@@ -61,6 +89,15 @@ describe("Health (e2e)", () => {
       .expect((res) => {
         expect(res.body.data.status).toBe("ready")
         expect(res.body.data.routesVerified).toContain("GET /api/v1/health")
+      })
+  })
+
+  it("/api/v1/health/ready (GET)", () => {
+    return request(app.getHttpServer())
+      .get("/api/v1/health/ready")
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.data.status).toBe("ready")
       })
   })
 })

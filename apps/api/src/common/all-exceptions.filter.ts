@@ -108,13 +108,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const logMessage =
       exception instanceof Error ? exception.message : String(exception)
-
-    this.logger.error(
-      `${request.method} ${request.url} status=${status} code=${code} requestId=${request.requestId ?? "-"} message=${logMessage}`
-    )
-
-    if (exception instanceof Error && exception.stack) {
-      this.logger.debug(exception.stack)
+    const logLine = `${request.method} ${request.url} status=${status} code=${code} requestId=${request.requestId ?? "-"} message=${logMessage}`
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      this.logger.error(logLine)
+      if (exception instanceof Error && exception.stack) {
+        this.logger.debug(exception.stack)
+      }
+    } else {
+      this.logger.warn(logLine)
     }
 
     response.status(status).json({

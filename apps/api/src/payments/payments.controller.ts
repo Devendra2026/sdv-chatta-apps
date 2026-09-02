@@ -22,6 +22,7 @@ import type { Response } from "express"
 import {
   CurrentUser,
   Public,
+  SkipCsrf,
   RequirePermission,
   type AuthUser,
 } from "../auth/auth.decorators"
@@ -121,6 +122,7 @@ export class PaymentsController {
   }
 
   @Public()
+  @SkipCsrf()
   @Post("gateway/callback")
   async callback(@Body() body: Record<string, unknown>) {
     const data = await this.paymentsService.handleCallback(body ?? {})
@@ -129,6 +131,7 @@ export class PaymentsController {
 
   /** Atom (or sandbox) browser return — process payload and 302 to citizen web. */
   @Public()
+  @SkipCsrf()
   @Post("gateway/return")
   async gatewayReturnPost(
     @Body() body: Record<string, unknown>,

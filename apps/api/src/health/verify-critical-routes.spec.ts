@@ -1,7 +1,6 @@
 import { INestApplication } from "@nestjs/common"
 import { APP_GUARD } from "@nestjs/core"
 import { Test } from "@nestjs/testing"
-import request from "supertest"
 
 import { AuditModule } from "../audit/audit.module"
 import { AuthGuard } from "../auth/auth.guard"
@@ -19,6 +18,8 @@ import {
   CRITICAL_API_ROUTES,
   verifyCriticalRoutes,
 } from "./verify-critical-routes"
+import { SESSION_CACHE } from "../auth/session-cache"
+import { MemorySessionCache } from "../../test/helpers/memory-session.cache"
 import { PrismaModule } from "../prisma/prisma.module"
 import { PrismaService } from "../prisma/prisma.service"
 
@@ -27,6 +28,7 @@ describe("verifyCriticalRoutes", () => {
 
   const prisma = {
     user: { findUnique: jest.fn(async () => null) },
+    $queryRaw: jest.fn(async () => [{ "?column?": 1 }]),
     session: {
       findUnique: jest.fn(async () => null),
       create: jest.fn(),
@@ -50,6 +52,8 @@ describe("verifyCriticalRoutes", () => {
     })
       .overrideProvider(PrismaService)
       .useValue(prisma)
+      .overrideProvider(SESSION_CACHE)
+      .useValue(new MemorySessionCache())
       .compile()
 
     app = moduleRef.createNestApplication()

@@ -1,6 +1,6 @@
 export type CookiePair = { name: string; value: string }
 
-/** Local dev default; production uses SESSION_COOKIE_NAME=__Host-session */
+/** Local dev default and production cookie name. */
 export const LEGACY_SESSION_COOKIE_NAME = "chhata_session"
 
 /** @deprecated use resolveSessionCookieName() */
@@ -17,8 +17,8 @@ export function knownSessionCookieNames(
   configuredName?: string | null
 ): string[] {
   const primary = resolveSessionCookieName(configuredName)
-  if (primary === LEGACY_SESSION_COOKIE_NAME) return [primary]
-  return [primary, LEGACY_SESSION_COOKIE_NAME]
+  const names = new Set([primary, LEGACY_SESSION_COOKIE_NAME, "__Host-session"])
+  return [...names]
 }
 
 /** Rebuild a Cookie header from parsed pairs. */

@@ -4,7 +4,6 @@ import bcrypt from "bcryptjs"
 
 const BCRYPT_PREFIX = "$2"
 const ARGON2_PREFIX = "$argon2"
-const BCRYPT_ROUNDS = 12
 
 const LEGACY_SCRYPT = {
   N: 16384,

@@ -52,7 +52,10 @@ export class AuthGuard implements CanActivate {
         : "missing_session_token"
       this.logAuthDenial(request, reason)
       throw new UnauthorizedException({
-        code: "UNAUTHORIZED",
+        code:
+          reason === "missing_session_token"
+            ? "AUTH_SESSION_MISSING"
+            : "AUTH_SESSION_INVALID",
         message: "Authentication required",
       })
     }
@@ -65,7 +68,7 @@ export class AuthGuard implements CanActivate {
         refreshed.expiresAt
       )
     } else {
-      await this.sessionService.touchSession(session.id)
+      await this.sessionService.touchSession(session)
     }
 
     const user = await this.prisma.user.findUnique({
@@ -128,7 +131,7 @@ export class AuthGuard implements CanActivate {
     reason: AuthDenyReason
   ): void {
     this.logger.warn(
-      `auth denied route=${request.method} ${request.path} reason=${reason} requestId=${request.requestId ?? "-"}`
+      `auth denied route=${request.method} ${request.path} reason=${reason} requestId=${request.requestId ?? "-"} pid=${process.pid}`
     )
   }
 }

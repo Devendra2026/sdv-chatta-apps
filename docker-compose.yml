@@ -40,6 +40,74 @@ services:
       - "8025:8025"
       - "1025:1025"
 
+  # Production-like local stack: docker compose --profile app up --build
+  # Uses the same Dockerfiles as production. Leave this profile off for
+  # `pnpm dev:api` / `pnpm dev:portal` so ports 3000/4000 stay free.
+  api:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+      args:
+        API_BUILD_ID: local
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      DATABASE_URL: postgresql://chhata:chhata@postgres:5432/chhata?schema=public
+      REDIS_URL: redis://redis:6379
+      STORAGE_DIR: /app/uploads
+      CORS_ORIGIN: http://localhost:3000,http://localhost:3001
+      PUBLIC_APP_URL: http://localhost:3000
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-to-a-long-random-secret-at-least-32-chars}
+      SESSION_COOKIE_NAME: chhata_session
+      API_BUILD_ID: local
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-sikarwar2010@gmail.com}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-change-me-seed-admin-password}
+      PAYMENT_PROVIDER: sandbox
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/api/v1/health/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  portal:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: docker/portal.Dockerfile
+      args:
+        API_INTERNAL_URL: http://api:4000
+        NEXT_PUBLIC_APP_URL: http://localhost:3000
+        NEXT_PUBLIC_CITIZEN_WEB_URL: http://localhost:3001
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      API_INTERNAL_URL: http://api:4000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      SESSION_COOKIE_NAME: chhata_session
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   chhata_pg_data:
   chhata_redis_data:

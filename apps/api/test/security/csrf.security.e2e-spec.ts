@@ -12,8 +12,12 @@ import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME } from "../../src/common/csrf"
 import { CsrfController } from "../../src/common/csrf.controller"
 import { CsrfGuard } from "../../src/common/csrf.guard"
 import { AllExceptionsFilter } from "../../src/common/all-exceptions.filter"
+import { SESSION_CACHE } from "../../src/auth/session-cache"
+import { MemorySessionCache } from "../helpers/memory-session.cache"
+import { loginWithCsrf, parseSetCookie } from "../helpers/csrf-login"
 import { PrismaModule } from "../../src/prisma/prisma.module"
 import { PrismaService } from "../../src/prisma/prisma.service"
+import { closeRedisClient } from "../../src/common/redis.client"
 
 const STAFF_EMAIL = "staff@example.com"
 const STAFF_PASSWORD = "StaffPassword1!"
@@ -103,6 +107,14 @@ describe("CSRF security (e2e)", () => {
       findUnique: jest.fn(async ({ where }: { where: { tokenHash: string } }) => {
         return sessions.get(where.tokenHash) ?? null
       }),
+      findFirst: jest.fn(async ({ where }: { where: { id: string; userId: string } }) => {
+        return [...sessions.values()].find(
+          (row) => row.id === where.id && row.userId === where.userId
+        ) ?? null
+      }),
+      findMany: jest.fn(async ({ where }: { where: { userId: string } }) => {
+        return [...sessions.values()].filter((row) => row.userId === where.userId)
+      }),
       update: jest.fn(async ({ where, data }: { where: { id: string }; data: Partial<SessionRow> }) => {
         for (const [tokenHash, row] of sessions.entries()) {
           if (row.id !== where.id) continue
@@ -117,6 +129,7 @@ describe("CSRF security (e2e)", () => {
         }
         return null
       }),
+      updateMany: jest.fn(async () => ({ count: 0 })),
       deleteMany: jest.fn(async () => ({ count: 0 })),
     },
     verification: {
@@ -153,6 +166,8 @@ describe("CSRF security (e2e)", () => {
     })
       .overrideProvider(PrismaService)
       .useValue(prisma)
+      .overrideProvider(SESSION_CACHE)
+      .useValue(new MemorySessionCache())
       .compile()
 
     app = moduleRef.createNestApplication()
@@ -174,19 +189,11 @@ describe("CSRF security (e2e)", () => {
 
   afterAll(async () => {
     await app.close()
+    await closeRedisClient()
   })
 
-  function parseSetCookie(setCookie: string | string[] | undefined): string {
-    const lines = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : []
-    return lines.map((line) => line.split(";")[0]).join("; ")
-  }
-
   async function loginSessionCookie(): Promise<string> {
-    const login = await request(app.getHttpServer())
-      .post("/api/v1/auth/login")
-      .set("Origin", "http://localhost:3000")
-      .send({ email: STAFF_EMAIL, password: STAFF_PASSWORD })
-
+    const login = await loginWithCsrf(app, STAFF_EMAIL, STAFF_PASSWORD)
     expect(login.status).toBe(201)
     return parseSetCookie(login.headers["set-cookie"])
   }
@@ -206,14 +213,14 @@ describe("CSRF security (e2e)", () => {
     )
   })
 
-  it("allows public mutating routes without CSRF", async () => {
+  it("rejects staff login without CSRF", async () => {
     const res = await request(app.getHttpServer())
       .post("/api/v1/auth/login")
       .set("Origin", "http://localhost:3000")
       .send({ email: STAFF_EMAIL, password: WRONG_PASSWORD })
 
-    expect(res.status).toBe(401)
-    expect(res.body.error?.code).toBe("INVALID_CREDENTIALS")
+    expect(res.status).toBe(403)
+    expect(res.body.error?.code).toBe("CSRF_VALIDATION_FAILED")
   })
 
   it("rejects protected mutating routes when CSRF header is missing", async () => {

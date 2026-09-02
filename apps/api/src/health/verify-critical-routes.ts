@@ -10,6 +10,7 @@ export type CriticalRouteProbe = {
 
 export const CRITICAL_API_ROUTES: CriticalRouteProbe[] = [
   { method: "GET", path: "/api/v1/health", allowedStatuses: [200] },
+  { method: "GET", path: "/api/v1/health/live", allowedStatuses: [200] },
   { method: "GET", path: "/api/v1/csrf", allowedStatuses: [200] },
   {
     method: "GET",

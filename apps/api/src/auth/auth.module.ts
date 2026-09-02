@@ -7,6 +7,8 @@ import { AuthService } from "./auth.service"
 import { PermissionGuard } from "./permission.guard"
 import { RolesGuard } from "./roles.guard"
 import { LoginProtectionService } from "./login-protection.service"
+import { RedisSessionCache } from "./redis-session.cache"
+import { SESSION_CACHE } from "./session-cache"
 import { SessionService } from "./session.service"
 
 @Module({
@@ -14,6 +16,10 @@ import { SessionService } from "./session.service"
   controllers: [AuthController],
   providers: [
     AuthService,
+    {
+      provide: SESSION_CACHE,
+      useClass: RedisSessionCache,
+    },
     SessionService,
     LoginProtectionService,
     AuthGuard,

@@ -4,7 +4,6 @@ import type { NextFunction, Request, Response } from "express"
 import { getRedisClient } from "./redis.client"
 
 const WINDOW_MS = 60_000
-const memoryHits = new Map<string, { count: number; resetAt: number }>()
 
 export function getRateLimitMax(path: string): number {
   if (
@@ -19,6 +18,16 @@ export function getRateLimitMax(path: string): number {
   return 300
 }
 
+function unavailable(res: Response) {
+  res.status(503).json({
+    success: false,
+    error: {
+      code: "AUTH_STORE_UNAVAILABLE",
+      message: "Rate limiter is unavailable",
+    },
+  })
+}
+
 @Injectable()
 export class RateLimitMiddleware implements NestMiddleware {
   private readonly logger = new Logger(RateLimitMiddleware.name)
@@ -26,18 +35,21 @@ export class RateLimitMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     const key = `${req.ip}:${req.path}`
     const max = getRateLimitMax(req.path)
-    const redis = getRedisClient()
-
-    if (redis) {
+    try {
+      const redis = getRedisClient()
       void this.applyRedisLimit(redis, key, max, res, next)
-      return
+    } catch (error) {
+      this.logger.warn(
+        `Redis rate limit unavailable: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+      unavailable(res)
     }
-
-    this.applyMemoryLimit(key, max, res, next)
   }
 
   private async applyRedisLimit(
-    redis: NonNullable<ReturnType<typeof getRedisClient>>,
+    redis: ReturnType<typeof getRedisClient>,
     key: string,
     max: number,
     res: Response,
@@ -59,34 +71,11 @@ export class RateLimitMiddleware implements NestMiddleware {
       next()
     } catch (error) {
       this.logger.warn(
-        `Redis rate limit failed, falling back to in-memory: ${
+        `Redis rate limit failed: ${
           error instanceof Error ? error.message : String(error)
         }`
       )
-      this.applyMemoryLimit(key, max, res, next)
+      unavailable(res)
     }
-  }
-
-  private applyMemoryLimit(
-    key: string,
-    max: number,
-    res: Response,
-    next: NextFunction
-  ) {
-    const now = Date.now()
-    const current = memoryHits.get(key)
-    if (!current || current.resetAt < now) {
-      memoryHits.set(key, { count: 1, resetAt: now + WINDOW_MS })
-      return next()
-    }
-    current.count += 1
-    if (current.count > max) {
-      res.status(429).json({
-        success: false,
-        error: { code: "RATE_LIMITED", message: "Too many requests" },
-      })
-      return
-    }
-    return next()
   }
 }

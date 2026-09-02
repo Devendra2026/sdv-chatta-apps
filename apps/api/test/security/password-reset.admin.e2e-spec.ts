@@ -10,8 +10,11 @@ import { AuthModule } from "../../src/auth/auth.module"
 import { hashPassword } from "../../src/auth/password-hash"
 import { hashOpaqueToken } from "../../src/auth/token-hash"
 import { AllExceptionsFilter } from "../../src/common/all-exceptions.filter"
+import { SESSION_CACHE } from "../../src/auth/session-cache"
+import { MemorySessionCache } from "../helpers/memory-session.cache"
 import { PrismaModule } from "../../src/prisma/prisma.module"
 import { PrismaService } from "../../src/prisma/prisma.service"
+import { closeRedisClient } from "../../src/common/redis.client"
 import { RbacModule } from "../../src/rbac/rbac.module"
 
 const ADMIN_EMAIL = "admin@example.com"
@@ -155,6 +158,7 @@ describe("Admin password reset link (e2e)", () => {
           return null
         }
       ),
+      updateMany: jest.fn(async () => ({ count: 0 })),
       deleteMany: jest.fn(async ({ where }: { where: { userId?: string } }) => {
         let count = 0
         for (const [tokenHash, row] of [...sessions.entries()]) {
@@ -300,6 +304,8 @@ describe("Admin password reset link (e2e)", () => {
     })
       .overrideProvider(PrismaService)
       .useValue(prisma)
+      .overrideProvider(SESSION_CACHE)
+      .useValue(new MemorySessionCache())
       .compile()
 
     app = moduleRef.createNestApplication()
@@ -315,6 +321,7 @@ describe("Admin password reset link (e2e)", () => {
 
   afterAll(async () => {
     await app.close()
+    await closeRedisClient()
   })
 
   function sessionCookieFromLogin(res: request.Response): string {

@@ -11,9 +11,12 @@ import { LoginProtectionService } from "../../src/auth/login-protection.service"
 import { hashPassword } from "../../src/auth/password-hash"
 import { LOGIN_MAX_FAILURES } from "../../src/auth/session.constants"
 import { SessionService } from "../../src/auth/session.service"
+import { SESSION_CACHE } from "../../src/auth/session-cache"
 import { AllExceptionsFilter } from "../../src/common/all-exceptions.filter"
+import { MemorySessionCache } from "../helpers/memory-session.cache"
 import { PrismaModule } from "../../src/prisma/prisma.module"
 import { PrismaService } from "../../src/prisma/prisma.service"
+import { closeRedisClient } from "../../src/common/redis.client"
 
 const STAFF_EMAIL = "staff@example.com"
 const STAFF_PASSWORD = "StaffPassword1!"
@@ -44,6 +47,7 @@ type SessionRow = {
   lastActiveAt: Date
   createdAt: Date
   updatedAt: Date
+  revokedAt: Date | null
   ipAddress: string | null
   userAgent: string | null
 }
@@ -138,6 +142,7 @@ describe("Auth security (e2e)", () => {
             id: `sess-${sessions.size + 1}`,
             createdAt: new Date(),
             updatedAt: new Date(),
+            revokedAt: null,
             ...data,
           }
           sessions.set(data.tokenHash, row)
@@ -149,9 +154,11 @@ describe("Auth security (e2e)", () => {
           return sessions.get(where.tokenHash) ?? null
         }
       ),
-      findMany: jest.fn(async ({ where }: { where: { userId: string } }) => {
+      findMany: jest.fn(async ({ where }: { where: { userId: string; revokedAt?: null } }) => {
         return [...sessions.values()].filter(
-          (row) => row.userId === where.userId
+          (row) =>
+            row.userId === where.userId &&
+            (where.revokedAt === undefined || row.revokedAt === where.revokedAt)
         )
       }),
       update: jest.fn(
@@ -174,6 +181,55 @@ describe("Auth security (e2e)", () => {
             return updated
           }
           return null
+        }
+      ),
+      findFirst: jest.fn(
+        async ({
+          where,
+        }: {
+          where: { id: string; userId: string; revokedAt?: null }
+        }) => {
+          return (
+            [...sessions.values()].find(
+              (row) =>
+                row.id === where.id &&
+                row.userId === where.userId &&
+                (where.revokedAt === undefined || row.revokedAt === where.revokedAt)
+            ) ?? null
+          )
+        }
+      ),
+      updateMany: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: {
+            tokenHash?: string
+            userId?: string
+            id?: string | { not: string }
+            revokedAt?: null
+          }
+          data: Partial<SessionRow>
+        }) => {
+          let count = 0
+          for (const [tokenHash, row] of [...sessions.entries()]) {
+            if (where.tokenHash && row.tokenHash !== where.tokenHash) continue
+            if (where.userId && row.userId !== where.userId) continue
+            if (
+              where.id &&
+              typeof where.id === "object" &&
+              "not" in where.id &&
+              row.id === where.id.not
+            ) {
+              continue
+            }
+            if (typeof where.id === "string" && row.id !== where.id) continue
+            if (where.revokedAt === null && row.revokedAt) continue
+            sessions.set(tokenHash, { ...row, ...data })
+            count += 1
+          }
+          return { count }
         }
       ),
       delete: jest.fn(async ({ where }: { where: { id: string } }) => {
@@ -324,6 +380,8 @@ describe("Auth security (e2e)", () => {
     })
       .overrideProvider(PrismaService)
       .useValue(prisma)
+      .overrideProvider(SESSION_CACHE)
+      .useValue(new MemorySessionCache())
       .compile()
 
     app = moduleRef.createNestApplication()
@@ -341,6 +399,7 @@ describe("Auth security (e2e)", () => {
 
   afterAll(async () => {
     await app.close()
+    await closeRedisClient()
   })
 
   function sessionCookieFromLogin(res: request.Response): string {
@@ -408,32 +467,25 @@ describe("Auth security (e2e)", () => {
   })
 
   it("locks out login after repeated failures", async () => {
-    jest.useFakeTimers()
-    try {
-      const loginProtection = app.get(LoginProtectionService)
-      for (let attempt = 0; attempt < LOGIN_MAX_FAILURES; attempt += 1) {
-        const pending = loginProtection.recordLoginFailure(STAFF_EMAIL)
-        await jest.runAllTimersAsync()
-        await pending
-      }
-
-      await expect(
-        loginProtection.assertLoginAllowed(STAFF_EMAIL)
-      ).rejects.toMatchObject({
-        response: { code: "INVALID_CREDENTIALS" },
-      })
-
-      const res = await request(app.getHttpServer())
-        .post("/api/v1/auth/login")
-        .set("Origin", "http://localhost:3000")
-        .send({ email: STAFF_EMAIL, password: STAFF_PASSWORD })
-
-      expect(res.status).toBe(401)
-      expect(res.body.error?.code).toBe("INVALID_CREDENTIALS")
-      expect(sessions.size).toBe(0)
-    } finally {
-      jest.useRealTimers()
+    const loginProtection = app.get(LoginProtectionService)
+    for (let attempt = 0; attempt < LOGIN_MAX_FAILURES; attempt += 1) {
+      await loginProtection.recordLoginFailure(STAFF_EMAIL)
     }
+
+    await expect(
+      loginProtection.assertLoginAllowed(STAFF_EMAIL)
+    ).rejects.toMatchObject({
+      response: { code: "INVALID_CREDENTIALS" },
+    })
+
+    const res = await request(app.getHttpServer())
+      .post("/api/v1/auth/login")
+      .set("Origin", "http://localhost:3000")
+      .send({ email: STAFF_EMAIL, password: STAFF_PASSWORD })
+
+    expect(res.status).toBe(401)
+    expect(res.body.error?.code).toBe("INVALID_CREDENTIALS")
+    expect(sessions.size).toBe(0)
   })
 
   it("creates a session on login and lists it via GET /sessions", async () => {

@@ -13,19 +13,24 @@ import { CsrfController } from "../src/common/csrf.controller"
 import { CsrfGuard } from "../src/common/csrf.guard"
 import { AllExceptionsFilter } from "../src/common/all-exceptions.filter"
 import { HealthModule } from "../src/health/health.module"
+import { HealthService } from "../src/health/health.service"
 import {
   markRoutesVerified,
   resetRoutesVerifiedStateForTests,
 } from "../src/health/route-verification-state"
 import { verifyCriticalRoutes } from "../src/health/verify-critical-routes"
+import { SESSION_CACHE } from "../src/auth/session-cache"
+import { MemorySessionCache } from "./helpers/memory-session.cache"
 import { PrismaModule } from "../src/prisma/prisma.module"
 import { PrismaService } from "../src/prisma/prisma.service"
+import { closeRedisClient } from "../src/common/redis.client"
 
 describe("GET /api/v1/auth/me stability (e2e)", () => {
   let app: INestApplication<App>
 
   const prisma = {
     user: { findUnique: jest.fn(async () => null) },
+    $queryRaw: jest.fn(async () => [{ "?column?": 1 }]),
     session: {
       findUnique: jest.fn(async () => null),
       create: jest.fn(),
@@ -49,6 +54,16 @@ describe("GET /api/v1/auth/me stability (e2e)", () => {
     })
       .overrideProvider(PrismaService)
       .useValue(prisma)
+      .overrideProvider(SESSION_CACHE)
+      .useValue(new MemorySessionCache())
+      .overrideProvider(HealthService)
+      .useValue({
+        checkDependencies: async () => ({
+          postgres: true,
+          redis: true,
+          routesRegistered: true,
+        }),
+      })
       .compile()
 
     app = moduleRef.createNestApplication()
@@ -63,12 +78,13 @@ describe("GET /api/v1/auth/me stability (e2e)", () => {
   afterAll(async () => {
     await app.close()
     resetRoutesVerifiedStateForTests()
+    await closeRedisClient()
   })
 
   it("returns 401 (not 404) for unauthenticated GET /api/v1/auth/me", async () => {
     const res = await request(app.getHttpServer()).get("/api/v1/auth/me")
     expect(res.status).toBe(401)
-    expect(res.body.error?.code).toBe("UNAUTHORIZED")
+    expect(res.body.error?.code).toBe("AUTH_SESSION_MISSING")
   })
 
   it("keeps GET /api/v1/auth/me registered across 20 consecutive requests", async () => {
@@ -76,7 +92,7 @@ describe("GET /api/v1/auth/me stability (e2e)", () => {
       const res = await request(app.getHttpServer()).get("/api/v1/auth/me")
       expect(res.status).toBe(401)
       expect(res.status).not.toBe(404)
-      expect(res.body.error?.code).toBe("UNAUTHORIZED")
+      expect(res.body.error?.code).toBe("AUTH_SESSION_MISSING")
     }
   })
 

@@ -16,13 +16,16 @@ export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
 export const SESSION_REFRESH_THRESHOLD_SECONDS = 60 * 60 * 24
 
 export function sessionIdleTimeoutSeconds(): number {
-  const raw = process.env.SESSION_IDLE_TIMEOUT_SECONDS
+  const raw =
+    process.env.SESSION_IDLE_TTL ?? process.env.SESSION_IDLE_TIMEOUT_SECONDS
   const parsed = raw ? Number(raw) : 1800
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1800
 }
 
 export function sessionAbsoluteTimeoutSeconds(): number {
-  const raw = process.env.SESSION_ABSOLUTE_TIMEOUT_SECONDS
+  const raw =
+    process.env.SESSION_ABSOLUTE_TTL ??
+    process.env.SESSION_ABSOLUTE_TIMEOUT_SECONDS
   const parsed = raw ? Number(raw) : SESSION_TTL_SECONDS
   return Number.isFinite(parsed) && parsed > 0 ? parsed : SESSION_TTL_SECONDS
 }

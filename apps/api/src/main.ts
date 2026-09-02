@@ -22,6 +22,7 @@ import {
 } from "./health/api-runtime-info"
 import { markRoutesVerified } from "./health/route-verification-state"
 import { verifyCriticalRoutes } from "./health/verify-critical-routes"
+import { pingRedis } from "./common/redis.client"
 
 async function bootstrap() {
   assertRequiredEnv()
@@ -97,6 +98,11 @@ async function bootstrap() {
 
   await app.init()
 
+  const redisOk = await pingRedis()
+  if (!redisOk) {
+    throw new Error("Redis is required and is not reachable (REDIS_URL)")
+  }
+
   const verifiedRoutes = await verifyCriticalRoutes(app)
   markRoutesVerified(verifiedRoutes)
   bootstrapLogger.log(
@@ -118,10 +124,9 @@ async function bootstrap() {
   })
 
   const port = process.env.PORT ? Number(process.env.PORT) : 4000
-  await app.listen(port)
+  await app.listen(port, "0.0.0.0")
   bootstrapLogger.log(
-    `API listening on http://localhost:${port} buildId=${runtime.buildId} pid=${runtime.pid}`,
-    "Bootstrap"
+    `API listening on http://0.0.0.0:${port} buildId=${runtime.buildId} pid=${runtime.pid}`
   )
 }
 

@@ -35,8 +35,7 @@ describe("session-options", () => {
     expect(resolveUseSecureCookies()).toBe(true)
   })
 
-  it("requires a long session secret in production", () => {
-    process.env.NODE_ENV = "production"
+  it("requires a long session secret", () => {
     delete process.env.SESSION_SECRET
     delete process.env.BETTER_AUTH_SECRET
     expect(() => resolveSessionSecret()).toThrow(/SESSION_SECRET/)

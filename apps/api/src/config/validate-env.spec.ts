@@ -51,6 +51,18 @@ describe("assertRequiredEnv", () => {
     ).toThrow(/DATABASE_URL/)
   })
 
+  it("requires REDIS_URL in all environments", () => {
+    expect(() =>
+      assertRequiredEnv({
+        env: {
+          NODE_ENV: "development",
+          DATABASE_URL: "postgresql://u:p@localhost:5433/chhata",
+          SESSION_SECRET: "x".repeat(32),
+        },
+      })
+    ).toThrow(/REDIS_URL/)
+  })
+
   it("includes seed admin errors when requested", () => {
     expect(() =>
       assertRequiredEnv({

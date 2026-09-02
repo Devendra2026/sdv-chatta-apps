@@ -1,8 +1,13 @@
 import { randomBytes, timingSafeEqual } from "node:crypto"
 import type { Request, Response } from "express"
 
-export const CSRF_COOKIE_NAME =
-  process.env.CSRF_COOKIE_NAME?.trim() || "csrf_token"
+export function csrfCookieName(): string {
+  return process.env.CSRF_COOKIE_NAME?.trim() || "csrf_token"
+}
+
+/** Default CSRF cookie name; prefer csrfCookieName() at runtime. */
+export const CSRF_COOKIE_NAME = "csrf_token"
+
 export const CSRF_HEADER_NAME = "x-csrf-token"
 
 export function generateCsrfToken(): string {
@@ -12,10 +17,11 @@ export function generateCsrfToken(): string {
 export function readCsrfCookie(req: Request): string | undefined {
   const header = req.headers.cookie
   if (!header) return undefined
+  const name = csrfCookieName()
   for (const part of header.split(";")) {
     const trimmed = part.trim()
-    if (!trimmed.startsWith(`${CSRF_COOKIE_NAME}=`)) continue
-    const value = trimmed.slice(CSRF_COOKIE_NAME.length + 1)
+    if (!trimmed.startsWith(`${name}=`)) continue
+    const value = trimmed.slice(name.length + 1)
     if (value.trim()) return decodeURIComponent(value.trim())
   }
   return undefined
@@ -30,7 +36,7 @@ export function csrfTokensMatch(cookieToken: string, headerToken: string): boole
 
 export function attachCsrfCookie(res: Response, token: string): void {
   const parts = [
-    `${CSRF_COOKIE_NAME}=${encodeURIComponent(token)}`,
+    `${csrfCookieName()}=${encodeURIComponent(token)}`,
     "Path=/",
     "SameSite=Lax",
     `Max-Age=${60 * 60 * 8}`,
