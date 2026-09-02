@@ -1,4 +1,4 @@
-import { describeHttpFailure } from "@workspace/types"
+import { describeCookieForwardingState, describeHttpFailure } from "@workspace/types"
 
 const RETRY_BACKOFF_MS = [200, 500]
 
@@ -67,6 +67,8 @@ export type PortalApiFetchOptions = {
   origin: string
   proto: string
   host?: string | null
+  /** For diagnostics only — never log cookie values. */
+  sessionCookieName?: string | null
 }
 
 function buildRequestHeaders(options: PortalApiFetchOptions): HeadersInit {
@@ -112,6 +114,18 @@ export async function fetchPortalApi(
       const json = (await response
         .json()
         .catch(() => null)) as PortalApiJson | null
+      const requestId =
+        response.headers.get("x-request-id") ??
+        json?.error?.requestId ??
+        undefined
+      const apiBuildId = response.headers.get("x-api-build-id") ?? undefined
+      const apiPid = response.headers.get("x-api-pid") ?? undefined
+      const cookieState = describeCookieForwardingState({
+        rawHeader: options.cookie ?? null,
+        forwardedHeader: options.cookie ?? null,
+        sessionCookieName: options.sessionCookieName,
+      })
+
       if (!response.ok) {
         const parsed = json?.error
         const errorCode =
@@ -132,7 +146,18 @@ export async function fetchPortalApi(
           code: errorCode,
           durationMs: Date.now() - started,
           apiHost,
+          apiBuildId,
+          apiPid,
+          requestId,
           hasCookie: Boolean(options.cookie?.trim()),
+          hasSessionCookie: cookieState.hasSessionCookie,
+          forwardedCookieNames: cookieState.forwardedCookieNames,
+          authHint:
+            response.status === 401
+              ? "route_exists_session_rejected"
+              : response.status === 404
+                ? "route_missing_or_wrong_backend"
+                : undefined,
         })
         return {
           ok: false,

@@ -54,6 +54,7 @@ export async function fetchCurrentUser(): Promise<CurrentUserResult> {
     origin,
     proto,
     host,
+    sessionCookieName: process.env.SESSION_COOKIE_NAME,
   }
 
   // Nest AuthMeController — session user plus RBAC roles/permissions.

@@ -18,7 +18,9 @@ describe("portal-api-fetch internal URL", () => {
     assert.match(src, /normalizeApiInternalOrigin\(raw\)/)
   })
 
-  it("logs the full upstream URL on HTTP errors", () => {
-    assert.match(src, /\[portal-api-fetch\][\s\S]*url,/)
+  it("logs api build id and session cookie state on HTTP errors", () => {
+    assert.match(src, /apiBuildId/)
+    assert.match(src, /hasSessionCookie/)
+    assert.match(src, /route_missing_or_wrong_backend/)
   })
 })

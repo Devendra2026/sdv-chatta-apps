@@ -2,6 +2,7 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from "@nestjs/common"
 import { Reflector } from "@nestjs/core"
@@ -12,8 +13,16 @@ import { PrismaService } from "../prisma/prisma.service"
 import { AuthUser, IS_PUBLIC_KEY } from "./auth.decorators"
 import { SessionService } from "./session.service"
 
+export type AuthDenyReason =
+  | "missing_session_token"
+  | "invalid_session"
+  | "inactive_user"
+  | "missing_staff_role"
+
 @Injectable()
 export class AuthGuard implements CanActivate {
+  private readonly logger = new Logger(AuthGuard.name)
+
   constructor(
     private readonly reflector: Reflector,
     private readonly sessionService: SessionService,
@@ -38,6 +47,10 @@ export class AuthGuard implements CanActivate {
     const session = await this.sessionService.findValidSession(token)
 
     if (!session) {
+      const reason: AuthDenyReason = token?.trim()
+        ? "invalid_session"
+        : "missing_session_token"
+      this.logAuthDenial(request, reason)
       throw new UnauthorizedException({
         code: "UNAUTHORIZED",
         message: "Authentication required",
@@ -73,6 +86,7 @@ export class AuthGuard implements CanActivate {
     })
 
     if (!user || user.status !== "ACTIVE") {
+      this.logAuthDenial(request, "inactive_user")
       throw new UnauthorizedException({
         code: "UNAUTHORIZED",
         message: "User is inactive or not found",
@@ -89,6 +103,7 @@ export class AuthGuard implements CanActivate {
     ]
 
     if (!roles.some((code) => isStaffRoleCode(code))) {
+      this.logAuthDenial(request, "missing_staff_role")
       throw new UnauthorizedException({
         code: "UNAUTHORIZED",
         message: "Staff portal access requires a valid staff role",
@@ -106,5 +121,14 @@ export class AuthGuard implements CanActivate {
     }
 
     return true
+  }
+
+  private logAuthDenial(
+    request: Request & { requestId?: string },
+    reason: AuthDenyReason
+  ): void {
+    this.logger.warn(
+      `auth denied route=${request.method} ${request.path} reason=${reason} requestId=${request.requestId ?? "-"}`
+    )
   }
 }

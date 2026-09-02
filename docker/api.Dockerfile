@@ -32,6 +32,8 @@ RUN cd /out && npx prisma generate --schema=prisma/schema.prisma
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+ARG API_BUILD_ID=dev
+ENV API_BUILD_ID=$API_BUILD_ID
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nestjs
 COPY --from=installer --chown=nestjs:nodejs /out .
 RUN mkdir -p /app/uploads && chown nestjs:nodejs /app/uploads

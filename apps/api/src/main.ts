@@ -15,6 +15,13 @@ import { OriginValidationMiddleware } from "./common/origin-validation.middlewar
 import { RateLimitMiddleware } from "./common/rate-limit.middleware"
 import { RequestLoggingInterceptor } from "./common/request-logging.interceptor"
 import { assertRequiredEnv } from "./config/validate-env"
+import {
+  API_BUILD_ID_HEADER,
+  API_PID_HEADER,
+  getApiRuntimeInfo,
+} from "./health/api-runtime-info"
+import { markRoutesVerified } from "./health/route-verification-state"
+import { verifyCriticalRoutes } from "./health/verify-critical-routes"
 
 async function bootstrap() {
   assertRequiredEnv()
@@ -27,8 +34,13 @@ async function bootstrap() {
     instrument: ObserveInstrument,
   })
 
+  const runtime = getApiRuntimeInfo()
+  const bootstrapLogger = new Logger("Bootstrap")
+
   const bodyLimit = process.env.REQUEST_BODY_LIMIT ?? "25mb"
   app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader(API_BUILD_ID_HEADER, runtime.buildId)
+    res.setHeader(API_PID_HEADER, String(runtime.pid))
     return express.json({ limit: bodyLimit })(req, res, (err?: unknown) => {
       if (err) return next(err as Error)
       return express.urlencoded({ extended: true, limit: bodyLimit })(
@@ -83,9 +95,34 @@ async function bootstrap() {
     credentials: true,
   })
 
+  await app.init()
+
+  const verifiedRoutes = await verifyCriticalRoutes(app)
+  markRoutesVerified(verifiedRoutes)
+  bootstrapLogger.log(
+    `Critical routes verified: ${verifiedRoutes.map((r) => r.route).join(", ")}`
+  )
+
+  app.use((req: Request, res: Response) => {
+    res.status(404).json({
+      success: false,
+      error: {
+        code: "ROUTE_NOT_FOUND",
+        message: `Cannot ${req.method} ${req.originalUrl}`,
+        requestId:
+          typeof req.headers["x-request-id"] === "string"
+            ? req.headers["x-request-id"]
+            : undefined,
+      },
+    })
+  })
+
   const port = process.env.PORT ? Number(process.env.PORT) : 4000
   await app.listen(port)
-  Logger.log(`API listening on http://localhost:${port}`, "Bootstrap")
+  bootstrapLogger.log(
+    `API listening on http://localhost:${port} buildId=${runtime.buildId} pid=${runtime.pid}`,
+    "Bootstrap"
+  )
 }
 
 bootstrap().catch((error: unknown) => {
