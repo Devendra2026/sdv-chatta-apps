@@ -162,33 +162,17 @@ export function createApiClient(options: ApiClientOptions) {
 
 export type ApiClient = ReturnType<typeof createApiClient>
 
-function resolvePublicBaseUrl(): string {
-  if (typeof window !== "undefined") {
-    return ""
-  }
-  const internal = process.env.API_INTERNAL_URL?.trim()
-  if (internal) return internal.replace(/\/$/, "")
-  const configured = process.env.NEXT_PUBLIC_API_URL?.trim()
-  if (configured) return configured.replace(/\/$/, "")
-  return "http://localhost:4000"
+export type PublicApiClientOptions = {
+  resolveBaseUrl: () => string
 }
 
-/** Citizen web client — same-origin /api in browser, API_INTERNAL_URL on server. */
-export function createPublicApiClient() {
+/**
+ * Citizen web client factory. The Next.js app must supply resolveBaseUrl
+ * (browser: same-origin ""; server: API_INTERNAL_URL from app env).
+ */
+export function createPublicApiClient(options: PublicApiClientOptions) {
   return createApiClient({
     credentials: "omit",
-    resolveBaseUrl: resolvePublicBaseUrl,
+    resolveBaseUrl: options.resolveBaseUrl,
   })
-}
-
-const publicClient = createPublicApiClient()
-
-export async function publicApiGet<T>(path: string): Promise<T> {
-  const { data } = await publicClient.get<T>(path)
-  return data
-}
-
-export async function publicApiPost<T>(path: string, body: unknown): Promise<T> {
-  const { data } = await publicClient.post<T>(path, body)
-  return data
 }

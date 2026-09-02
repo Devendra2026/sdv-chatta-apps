@@ -9,6 +9,7 @@ import { parseGisSurveyId } from "@workspace/types"
 
 import { AuditService } from "../audit/audit.service"
 import type { AuthUser } from "../auth/auth.decorators"
+import { assertSurveyAccess } from "../auth/resource-access"
 import { PrismaService } from "../prisma/prisma.service"
 import { StorageService } from "../storage/storage.service"
 import {
@@ -42,6 +43,12 @@ export class SurveysService {
   ) {}
 
   async create(dto: CreateSurveyDto, user: AuthUser) {
+    assertSurveyAccess(
+      user,
+      { id: "", wardId: dto.wardId ?? "", createdById: user.id },
+      "create"
+    )
+
     if (!dto.wardId) {
       throw new BadRequestException({
         code: "WARD_REQUIRED",
@@ -133,7 +140,12 @@ export class SurveysService {
     return survey
   }
 
-  async findAll(query: ListSurveysQueryDto) {
+  async findAll(query: ListSurveysQueryDto, user: AuthUser) {
+    assertSurveyAccess(
+      user,
+      { id: "", wardId: query.wardId ?? "", createdById: user.id },
+      "read"
+    )
     const page = query.page ?? 1
     const pageSize = query.pageSize ?? 20
     const where = this.buildWhere(query)
@@ -190,7 +202,7 @@ export class SurveysService {
     }
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user: AuthUser) {
     const survey = await this.prisma.survey.findFirst({
       where: { OR: [{ id }, { surveyId: id }], deletedAt: null },
       include: this.defaultInclude(),
@@ -201,6 +213,7 @@ export class SurveysService {
         message: "Survey not found",
       })
     }
+    assertSurveyAccess(user, survey, "read")
     return this.ensureCanonicalSurveyId(survey)
   }
 
@@ -233,7 +246,8 @@ export class SurveysService {
   }
 
   async update(id: string, dto: UpdateSurveyDto, user: AuthUser) {
-    const current = await this.findOne(id)
+    const current = await this.findOne(id, user)
+    assertSurveyAccess(user, current, "update")
     const beforeAudit = this.buildAuditState(current)
 
     const targetWardId = dto.wardId ?? current.wardId
@@ -342,7 +356,8 @@ export class SurveysService {
   }
 
   async remove(id: string, user: AuthUser) {
-    const current = await this.findOne(id)
+    const current = await this.findOne(id, user)
+    assertSurveyAccess(user, current, "delete")
     const survey = await this.prisma.survey.update({
       where: { id: current.id },
       data: {
@@ -615,13 +630,26 @@ export class SurveysService {
   }
 
   async withAttachmentUrls<
-    T extends { attachments?: Array<{ objectKey: string; mimeType: string }> },
-  >(survey: T) {
+    T extends {
+      id: string
+      wardId: string
+      createdById?: string | null
+      attachments?: Array<{
+        objectKey: string
+        mimeType: string
+        uploadedById?: string | null
+      }>
+    },
+  >(survey: T, user: AuthUser) {
     if (!survey.attachments?.length) return survey
     const attachments = await Promise.all(
       survey.attachments.map(async (a) => {
         const url = await this.storage
-          .getSignedUrl(a.objectKey, 600)
+          .getSignedUrlForUser(user, a.objectKey, {
+            surveyId: survey.id,
+            uploadedById: a.uploadedById,
+            survey,
+          })
           .catch(() => null)
         return { ...a, url }
       })
@@ -634,7 +662,8 @@ export class SurveysService {
     file: Express.Multer.File,
     user: AuthUser
   ) {
-    const current = await this.findOne(surveyId)
+    const current = await this.findOne(surveyId, user)
+    assertSurveyAccess(user, current, "update")
     const safeName = file.originalname.replace(/[^\w.-]+/g, "_").slice(0, 180)
     const objectKey = `surveys/${current.id}/${Date.now()}-${safeName}`
     await this.storage.putObject(objectKey, file.buffer, file.mimetype)
@@ -657,7 +686,11 @@ export class SurveysService {
       newValue: { fileName: file.originalname, mimeType: file.mimetype },
     })
     const url = await this.storage
-      .getSignedUrl(objectKey, 600)
+      .getSignedUrlForUser(user, objectKey, {
+        surveyId: current.id,
+        uploadedById: user.id,
+        survey: current,
+      })
       .catch(() => null)
     return { ...attachment, url }
   }
@@ -667,7 +700,8 @@ export class SurveysService {
     attachmentId: string,
     user: AuthUser
   ) {
-    const current = await this.findOne(surveyId)
+    const current = await this.findOne(surveyId, user)
+    assertSurveyAccess(user, current, "update")
     const attachment = await this.prisma.surveyAttachment.findFirst({
       where: { id: attachmentId, surveyId: current.id },
     })

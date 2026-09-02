@@ -32,6 +32,18 @@ describe("UsersService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks()
+    prisma.user.count.mockReset()
+    prisma.user.findMany.mockReset()
+    prisma.user.findUnique.mockReset()
+    prisma.user.findUniqueOrThrow.mockReset()
+    prisma.user.update.mockReset()
+    prisma.$transaction.mockReset()
+    prisma.role.findMany.mockReset()
+    prisma.role.findUnique.mockReset()
+    prisma.userRole.deleteMany.mockReset()
+    prisma.userRole.createMany.mockReset()
+    sessionService.revokeAllUserSessions.mockReset()
+    audit.log.mockReset()
     const moduleRef = await Test.createTestingModule({
       providers: [
         UsersService,
@@ -104,6 +116,46 @@ describe("UsersService", () => {
     )
 
     expect(sessionService.revokeAllUserSessions).toHaveBeenCalledWith("u2")
+  })
+
+  it("revokes sessions when roles change", async () => {
+    prisma.user.findUnique
+      .mockResolvedValueOnce({
+        id: "u4",
+        status: "ACTIVE",
+        userRoles: [{ roleId: "r1", role: { id: "r1", code: "OPERATOR" } }],
+      })
+      .mockResolvedValueOnce({
+        id: "u4",
+        status: "ACTIVE",
+        userRoles: [{ roleId: "r1", role: { id: "r1", code: "OPERATOR" } }],
+      })
+    prisma.user.findUniqueOrThrow.mockResolvedValue({
+      id: "u4",
+      email: "x@y.com",
+      name: "X",
+      status: "ACTIVE",
+      userRoles: [{ roleId: "r2", role: { id: "r2", code: "CLERK" } }],
+    })
+    prisma.user.update.mockResolvedValue({})
+    prisma.role.findMany.mockResolvedValue([
+      { id: "r2", code: "CLERK", name: "Clerk" },
+    ])
+
+    await service.update(
+      "u4",
+      { roleIds: ["r2"] },
+      {
+        id: "admin",
+        email: "admin@example.com",
+        name: "Admin",
+        status: "ACTIVE",
+        roles: ["SUPER_ADMIN"],
+        permissions: [],
+      }
+    )
+
+    expect(sessionService.revokeAllUserSessions).toHaveBeenCalledWith("u4")
   })
 
   it("deactivate sets INACTIVE and revokes sessions", async () => {

@@ -1,6 +1,7 @@
 import { Logger, ValidationPipe } from "@nestjs/common"
 import { NestFactory } from "@nestjs/core"
 import { ExpressAdapter } from "@nestjs/platform-express"
+import helmet from "helmet"
 import "dotenv/config"
 import express, {
   type NextFunction,
@@ -10,6 +11,7 @@ import express, {
 
 import { AppModule, ObserveInstrument } from "./app.module"
 import { AllExceptionsFilter } from "./common/all-exceptions.filter"
+import { OriginValidationMiddleware } from "./common/origin-validation.middleware"
 import { RateLimitMiddleware } from "./common/rate-limit.middleware"
 import { RequestLoggingInterceptor } from "./common/request-logging.interceptor"
 import { assertRequiredEnv } from "./config/validate-env"
@@ -38,6 +40,19 @@ async function bootstrap() {
   })
 
   app.use(new RateLimitMiddleware().use.bind(new RateLimitMiddleware()))
+  app.use(new OriginValidationMiddleware().use.bind(new OriginValidationMiddleware()))
+
+  const publicAppUrl = process.env.PUBLIC_APP_URL?.trim() ?? ""
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+      hsts:
+        process.env.NODE_ENV === "production" && publicAppUrl.startsWith("https://")
+          ? { maxAge: 31536000, includeSubDomains: true }
+          : false,
+    })
+  )
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     res.setHeader("X-Content-Type-Options", "nosniff")

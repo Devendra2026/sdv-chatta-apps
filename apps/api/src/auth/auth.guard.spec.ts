@@ -50,15 +50,20 @@ function createGuard(opts: {
       opts.session
         ? {
             id: "sess-1",
-            token: opts.session.token,
+            rawToken: opts.session.token,
             userId: opts.session.userId,
             expiresAt: new Date(Date.now() + 60_000),
+            lastActiveAt: new Date(),
+            createdAt: new Date(),
+            ipAddress: null,
+            userAgent: null,
           }
         : null
     ),
     refreshSessionIfNeeded:
       opts.refreshSessionIfNeeded ??
       jest.fn().mockResolvedValue(null),
+    touchSession: jest.fn().mockResolvedValue(undefined),
     attachSessionCookie: jest.fn(),
   }
   const prisma = {
@@ -160,9 +165,13 @@ describe("AuthGuard", () => {
   it("refreshes sliding sessions when TTL is low", async () => {
     const refreshSessionIfNeeded = jest.fn().mockResolvedValue({
       id: "sess-1",
-      token: "tok",
+      rawToken: "new-tok",
       userId: "user-1",
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      lastActiveAt: new Date(),
+      createdAt: new Date(),
+      ipAddress: null,
+      userAgent: null,
     })
     const { guard, sessionService } = createGuard({
       session: { userId: "user-1", token: "tok" },

@@ -18,7 +18,7 @@ import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { api } from "@/lib/api"
+import { ApiError, api } from "@/lib/api"
 
 async function clearLegacyAuthCookies() {
   try {
@@ -52,8 +52,22 @@ const TRUST_ITEMS = [
   },
 ] as const
 
-function mapAuthErrorMessage(message: string | undefined | null): string {
-  const m = (message ?? "").toLowerCase()
+function stripHttpMetadata(message: string): string {
+  return message
+    .replace(/\s*\[\d+\s+[A-Z]+\s+[^\]]+\]\s*$/i, "")
+    .replace(/\s*\(\d+:\s*[A-Z_]+\)\s*$/i, "")
+    .trim()
+}
+
+function mapAuthErrorMessage(error: unknown): string {
+  const raw =
+    error instanceof ApiError || error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : ""
+  const message = stripHttpMetadata(raw)
+  const m = message.toLowerCase()
   if (
     m.includes("signup") ||
     m.includes("sign up") ||
@@ -65,7 +79,10 @@ function mapAuthErrorMessage(message: string | undefined | null): string {
   ) {
     return "Your account is not provisioned or the password is incorrect. Contact an administrator."
   }
-  return message?.trim() || "Login failed"
+  if (m.includes("too many requests")) {
+    return "Too many login attempts. Please wait a moment and try again."
+  }
+  return message || "Login failed"
 }
 
 export default function LoginPage() {
@@ -112,9 +129,7 @@ export default function LoginPage() {
       toast.success("Signed in")
       window.location.assign("/dashboard")
     } catch (err) {
-      const msg = mapAuthErrorMessage(
-        err instanceof Error ? err.message : "Login failed"
-      )
+      const msg = mapAuthErrorMessage(err)
       setFormError(msg)
       toast.error(msg)
     } finally {
@@ -317,7 +332,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    minLength={8}
+                    minLength={12}
                     disabled={loading}
                     className="h-11 border-slate-200 bg-slate-50/50 transition-colors duration-200 focus-visible:bg-white"
                   />

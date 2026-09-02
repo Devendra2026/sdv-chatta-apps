@@ -6,6 +6,8 @@ import { AuthGuard } from "./auth/auth.guard"
 import { AuthModule } from "./auth/auth.module"
 import { PermissionGuard } from "./auth/permission.guard"
 import { RolesGuard } from "./auth/roles.guard"
+import { CsrfController } from "./common/csrf.controller"
+import { CsrfGuard } from "./common/csrf.guard"
 import { DashboardModule } from "./dashboard/dashboard.module"
 import { HealthModule } from "./health/health.module"
 import { ImportsModule } from "./imports/imports.module"
@@ -56,8 +58,10 @@ const observeOptions = observeOptionsFromEnv()
     PublicPropertyTaxModule,
     ...(observeOptions ? [ObserveModule.forRoot(observeOptions)] : []),
   ],
+  controllers: [CsrfController],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

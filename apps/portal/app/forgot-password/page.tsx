@@ -11,66 +11,24 @@ import { Label } from "@workspace/ui/components/label"
 
 import { api } from "@/lib/api"
 
-type Step = "email" | "reset"
-
 export default function ForgotPasswordPage() {
-  const [step, setStep] = React.useState<Step>("email")
   const [email, setEmail] = React.useState("")
-  const [code, setCode] = React.useState("")
-  const [newPassword, setNewPassword] = React.useState("")
-  const [confirmPassword, setConfirmPassword] = React.useState("")
   const [loading, setLoading] = React.useState(false)
-  const [devOtp, setDevOtp] = React.useState<string | null>(null)
+  const [sent, setSent] = React.useState(false)
 
-  async function onRequestOtp(e: React.FormEvent<HTMLFormElement>) {
+  async function onRequestLink(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
-    setDevOtp(null)
     try {
-      const res = await api.post<{ message: string; devOtp?: string }>(
-        "/api/v1/auth/forgot-password",
-        {
-          email: email.trim(),
-        }
-      )
-      if (res.data.devOtp) {
-        setDevOtp(res.data.devOtp)
-        toast.message("Development mode — use the code shown below.")
-      } else {
-        toast.success("If an account exists, a code was sent to your email.")
-      }
-      setStep("reset")
+      await api.post<{ message: string }>("/api/v1/auth/forgot-password", {
+        email: email.trim(),
+      })
+      setSent(true)
+      toast.success("If an account exists, a reset link was sent to your email.")
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Could not send reset code"
+        err instanceof Error ? err.message : "Could not send reset link"
       )
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function onResetPassword(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match")
-      return
-    }
-    if (newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters")
-      return
-    }
-
-    setLoading(true)
-    try {
-      await api.post("/api/v1/auth/forgot-password/verify", {
-        email: email.trim(),
-        code: code.trim(),
-        newPassword,
-      })
-      toast.success("Password updated. Sign in with your new password.")
-      window.location.assign("/login")
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Password reset failed")
     } finally {
       setLoading(false)
     }
@@ -97,13 +55,28 @@ export default function ForgotPasswordPage() {
             Reset password / पासवर्ड रीसेट
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            {step === "email"
-              ? "Enter your staff email. We will send a one-time code."
-              : "Enter the code from your email and choose a new password."}
+            {sent
+              ? "Check your email for a secure reset link (valid for 30 minutes)."
+              : "Enter your staff email. We will send a secure reset link."}
           </p>
 
-          {step === "email" ? (
-            <form className="mt-6 space-y-4" onSubmit={onRequestOtp}>
+          {sent ? (
+            <div className="mt-6 space-y-4">
+              <p className="text-sm text-slate-600">
+                Did not receive it? Check spam or request again after a few
+                minutes.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full cursor-pointer"
+                onClick={() => setSent(false)}
+              >
+                Send another link
+              </Button>
+            </div>
+          ) : (
+            <form className="mt-6 space-y-4" onSubmit={onRequestLink}>
               <div className="space-y-2">
                 <Label htmlFor="forgot-email">Email / ईमेल</Label>
                 <Input
@@ -121,89 +94,7 @@ export default function ForgotPasswordPage() {
                 className="h-10 w-full cursor-pointer bg-sky-800 transition-colors duration-200 hover:bg-sky-900"
                 disabled={loading}
               >
-                {loading ? "Sending…" : "Send code / कोड भेजें"}
-              </Button>
-            </form>
-          ) : (
-            <form className="mt-6 space-y-4" onSubmit={onResetPassword}>
-              {devOtp ? (
-                <div
-                  role="status"
-                  className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950"
-                >
-                  <p className="font-medium">Development OTP (local only)</p>
-                  <p className="mt-1 font-mono text-lg tracking-widest">{devOtp}</p>
-                  <p className="mt-1 text-xs text-amber-900/80">
-                    SMTP is not configured. In production this code is sent by
-                    email only. With Mailpit, check{" "}
-                    <a
-                      href="http://localhost:8025"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-medium underline"
-                    >
-                      localhost:8025
-                    </a>
-                    .
-                  </p>
-                </div>
-              ) : null}
-              <div className="space-y-2">
-                <Label htmlFor="forgot-code">One-time code / OTP</Label>
-                <Input
-                  id="forgot-code"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  required
-                  className="h-10"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="forgot-new">New password / नया पासवर्ड</Label>
-                <Input
-                  id="forgot-new"
-                  type="password"
-                  autoComplete="new-password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  className="h-10"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="forgot-confirm">Confirm password</Label>
-                <Input
-                  id="forgot-confirm"
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  className="h-10"
-                />
-              </div>
-              <Button
-                type="submit"
-                className="h-10 w-full cursor-pointer bg-sky-800 transition-colors duration-200 hover:bg-sky-900"
-                disabled={loading}
-              >
-                {loading ? "Updating…" : "Reset password / पासवर्ड बदलें"}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-10 w-full cursor-pointer"
-                disabled={loading}
-                onClick={() => {
-                  setDevOtp(null)
-                  setStep("email")
-                }}
-              >
-                Use a different email
+                {loading ? "Sending…" : "Send reset link / लिंक भेजें"}
               </Button>
             </form>
           )}

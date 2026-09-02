@@ -115,6 +115,7 @@ export async function proxyToApi(
   const cookieState = describeCookieForwardingState({
     rawHeader: rawCookieHeader,
     forwardedHeader: cookieHeader,
+    sessionCookieName: process.env.SESSION_COOKIE_NAME,
   })
 
   const headers = new Headers()

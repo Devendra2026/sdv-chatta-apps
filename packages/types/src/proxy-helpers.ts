@@ -1,7 +1,25 @@
 export type CookiePair = { name: string; value: string }
 
-/** Staff session cookie set by Nest (no __Secure- prefix). */
-export const SESSION_COOKIE_NAME = "chhata_session"
+/** Local dev default; production uses SESSION_COOKIE_NAME=__Host-session */
+export const LEGACY_SESSION_COOKIE_NAME = "chhata_session"
+
+/** @deprecated use resolveSessionCookieName() */
+export const SESSION_COOKIE_NAME = LEGACY_SESSION_COOKIE_NAME
+
+export function resolveSessionCookieName(
+  configuredName?: string | null
+): string {
+  const configured = configuredName?.trim()
+  return configured || LEGACY_SESSION_COOKIE_NAME
+}
+
+export function knownSessionCookieNames(
+  configuredName?: string | null
+): string[] {
+  const primary = resolveSessionCookieName(configuredName)
+  if (primary === LEGACY_SESSION_COOKIE_NAME) return [primary]
+  return [primary, LEGACY_SESSION_COOKIE_NAME]
+}
 
 /** Rebuild a Cookie header from parsed pairs. */
 export function cookieHeaderFromPairs(pairs: CookiePair[]): string | null {
@@ -81,6 +99,8 @@ export function describeCookieForwardingState(opts: {
   rawHeader: string | null | undefined
   parsedPairs?: CookiePair[]
   forwardedHeader: string | null
+  /** Primary session cookie name (e.g. from SESSION_COOKIE_NAME on the server). */
+  sessionCookieName?: string | null
 }): CookieForwardingState {
   const parsed = opts.parsedPairs ?? parseCookieHeader(opts.rawHeader)
   const forwarded = parseCookieHeader(opts.forwardedHeader)
@@ -89,7 +109,7 @@ export function describeCookieForwardingState(opts: {
     rawHeaderLength: opts.rawHeader?.trim().length ?? 0,
     parsedCookieNames: parsed.map((pair) => pair.name),
     forwardedCookieNames: forwarded.map((pair) => pair.name),
-    hasSessionCookie: hasNonEmptySessionCookie(parsed),
+    hasSessionCookie: hasNonEmptySessionCookie(parsed, opts.sessionCookieName),
   }
 }
 
@@ -105,13 +125,19 @@ export const LEGACY_AUTH_COOKIE_NAMES = [
   "__Secure-better-auth.account_data",
 ] as const
 
-export function collectAuthCookieNames(existingNames: string[]): string[] {
+export function collectAuthCookieNames(
+  existingNames: string[],
+  configuredName?: string | null
+): string[] {
   const names = new Set<string>([
-    SESSION_COOKIE_NAME,
+    ...knownSessionCookieNames(configuredName),
     ...LEGACY_AUTH_COOKIE_NAMES,
   ])
   for (const name of existingNames) {
-    if (name.includes("better-auth") || name === SESSION_COOKIE_NAME) {
+    if (
+      name.includes("better-auth") ||
+      knownSessionCookieNames(configuredName).includes(name)
+    ) {
       names.add(name)
     }
   }
@@ -165,8 +191,11 @@ export function serializeExpiredAuthCookie(
   return parts.join("; ")
 }
 
-export function expiredAuthCookieHeaders(existingNames: string[]): string[] {
-  return collectAuthCookieNames(existingNames).flatMap((name) =>
+export function expiredAuthCookieHeaders(
+  existingNames: string[],
+  configuredName?: string | null
+): string[] {
+  return collectAuthCookieNames(existingNames, configuredName).flatMap((name) =>
     authCookieExpiryVariants(name).map((variant) =>
       serializeExpiredAuthCookie(name, variant)
     )
@@ -185,11 +214,11 @@ export function expiredLegacyAuthCookieHeaders(
 }
 
 export function hasNonEmptySessionCookie(
-  pairs: Array<{ name: string; value: string }>
+  pairs: Array<{ name: string; value: string }>,
+  configuredName?: string | null
 ): boolean {
-  return pairs.some(
-    (c) => c.name === SESSION_COOKIE_NAME && c.value.trim().length > 0
-  )
+  const names = new Set(knownSessionCookieNames(configuredName))
+  return pairs.some((c) => names.has(c.name) && c.value.trim().length > 0)
 }
 
 export type ResolveForwardedProtoInput = {

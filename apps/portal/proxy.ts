@@ -1,11 +1,15 @@
-import { SESSION_COOKIE_NAME } from "@workspace/types"
+import { knownSessionCookieNames } from "@workspace/types"
 import { NextRequest, NextResponse } from "next/server"
 
-const publicPaths = ["/login", "/signup", "/forgot-password"]
+const publicPaths = ["/login", "/signup", "/forgot-password", "/reset-password"]
 
 function hasAuthSessionCookie(req: NextRequest) {
-  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value
-  return Boolean(token?.trim())
+  const names = new Set(knownSessionCookieNames(process.env.SESSION_COOKIE_NAME))
+  for (const name of names) {
+    const token = req.cookies.get(name)?.value
+    if (token?.trim()) return true
+  }
+  return false
 }
 
 export default async function proxy(req: NextRequest) {
@@ -26,7 +30,8 @@ export default async function proxy(req: NextRequest) {
     hasSession &&
     (pathname === "/login" ||
       pathname === "/signup" ||
-      pathname === "/forgot-password")
+      pathname === "/forgot-password" ||
+      pathname === "/reset-password")
   ) {
     return NextResponse.redirect(new URL("/dashboard", req.url))
   }

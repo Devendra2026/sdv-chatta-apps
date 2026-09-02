@@ -1,29 +1,45 @@
 import { Injectable } from "@nestjs/common"
-import { randomBytes, randomInt, createHmac, timingSafeEqual } from "node:crypto"
+import { randomBytes } from "node:crypto"
 import type { Request, Response } from "express"
 
 import { PrismaService } from "../prisma/prisma.service"
 import {
-  OTP_LENGTH,
-  OTP_MAX_ATTEMPTS,
-  OTP_TTL_SECONDS,
   PASSWORD_RESET_IDENTIFIER_PREFIX,
-  SESSION_COOKIE_NAME,
+  PASSWORD_RESET_MAX_ATTEMPTS,
+  PASSWORD_RESET_TTL_SECONDS,
   SESSION_REFRESH_THRESHOLD_SECONDS,
   SESSION_TTL_SECONDS,
+  sessionAbsoluteTimeoutSeconds,
+  sessionCookieName,
+  sessionIdleTimeoutSeconds,
 } from "./session.constants"
 import {
   resolvePublicAppUrl,
-  resolveSessionSecret,
   resolveUseSecureCookies,
 } from "./session-options"
-import { sendOtpEmail } from "./send-otp-email"
+import { hashOpaqueToken } from "./token-hash"
+
+const SESSION_TOKEN_PURPOSE = "session"
 
 export type SessionRecord = {
   id: string
-  token: string
+  rawToken: string
   userId: string
   expiresAt: Date
+  lastActiveAt: Date
+  createdAt: Date
+  ipAddress: string | null
+  userAgent: string | null
+}
+
+export type SessionListItem = {
+  id: string
+  createdAt: Date
+  lastActiveAt: Date
+  expiresAt: Date
+  ipAddress: string | null
+  userAgent: string | null
+  current: boolean
 }
 
 @Injectable()
@@ -34,102 +50,210 @@ export class SessionService {
     return randomBytes(32).toString("base64url")
   }
 
+  private hashSessionToken(raw: string): string {
+    return hashOpaqueToken(raw, SESSION_TOKEN_PURPOSE)
+  }
+
+  private toRecord(
+    row: {
+      id: string
+      tokenHash: string
+      userId: string
+      expiresAt: Date
+      lastActiveAt: Date
+      createdAt: Date
+      ipAddress: string | null
+      userAgent: string | null
+    },
+    rawToken: string
+  ): SessionRecord {
+    return {
+      id: row.id,
+      rawToken,
+      userId: row.userId,
+      expiresAt: row.expiresAt,
+      lastActiveAt: row.lastActiveAt,
+      createdAt: row.createdAt,
+      ipAddress: row.ipAddress,
+      userAgent: row.userAgent,
+    }
+  }
+
   async createSession(
     userId: string,
     meta?: { ipAddress?: string; userAgent?: string }
   ): Promise<SessionRecord> {
-    const token = this.generateSessionToken()
-    const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000)
+    const rawToken = this.generateSessionToken()
+    const tokenHash = this.hashSessionToken(rawToken)
+    const now = new Date()
+    const expiresAt = new Date(now.getTime() + SESSION_TTL_SECONDS * 1000)
     const session = await this.prisma.session.create({
       data: {
-        token,
+        tokenHash,
         userId,
         expiresAt,
+        lastActiveAt: now,
         ipAddress: meta?.ipAddress ?? null,
         userAgent: meta?.userAgent ?? null,
       },
     })
-    return session
+    return this.toRecord(session, rawToken)
   }
 
-  async findValidSession(token: string | undefined): Promise<SessionRecord | null> {
-    if (!token?.trim()) return null
+  private isIdleExpired(lastActiveAt: Date): boolean {
+    const idleMs = sessionIdleTimeoutSeconds() * 1000
+    return lastActiveAt.getTime() + idleMs <= Date.now()
+  }
+
+  private isAbsoluteExpired(createdAt: Date): boolean {
+    const absoluteMs = sessionAbsoluteTimeoutSeconds() * 1000
+    return createdAt.getTime() + absoluteMs <= Date.now()
+  }
+
+  async findValidSession(rawToken: string | undefined): Promise<SessionRecord | null> {
+    if (!rawToken?.trim()) return null
+    const tokenHash = this.hashSessionToken(rawToken)
     const session = await this.prisma.session.findUnique({
-      where: { token: token.trim() },
+      where: { tokenHash },
     })
     if (!session) return null
-    if (session.expiresAt.getTime() <= Date.now()) {
+
+    if (
+      session.expiresAt.getTime() <= Date.now() ||
+      this.isIdleExpired(session.lastActiveAt) ||
+      this.isAbsoluteExpired(session.createdAt)
+    ) {
       await this.prisma.session.delete({ where: { id: session.id } }).catch(() => undefined)
       return null
     }
-    return session
+
+    return this.toRecord(session, rawToken.trim())
   }
 
-  async deleteSessionByToken(token: string | undefined): Promise<void> {
-    if (!token?.trim()) return
-    await this.prisma.session.deleteMany({ where: { token: token.trim() } })
+  async touchSession(sessionId: string): Promise<void> {
+    await this.prisma.session.update({
+      where: { id: sessionId },
+      data: { lastActiveAt: new Date() },
+    })
   }
 
-  async revokeAllUserSessions(userId: string): Promise<void> {
-    await this.prisma.session.deleteMany({ where: { userId } })
+  async deleteSessionByToken(rawToken: string | undefined): Promise<void> {
+    if (!rawToken?.trim()) return
+    const tokenHash = this.hashSessionToken(rawToken)
+    await this.prisma.session.deleteMany({ where: { tokenHash } })
+  }
+
+  async deleteSessionById(sessionId: string, userId: string): Promise<boolean> {
+    const result = await this.prisma.session.deleteMany({
+      where: { id: sessionId, userId },
+    })
+    return result.count > 0
+  }
+
+  async revokeAllUserSessions(
+    userId: string,
+    exceptSessionId?: string
+  ): Promise<number> {
+    const result = await this.prisma.session.deleteMany({
+      where: {
+        userId,
+        ...(exceptSessionId ? { id: { not: exceptSessionId } } : {}),
+      },
+    })
+    return result.count
+  }
+
+  async listUserSessions(
+    userId: string,
+    currentSessionId?: string
+  ): Promise<SessionListItem[]> {
+    const rows = await this.prisma.session.findMany({
+      where: { userId },
+      orderBy: { lastActiveAt: "desc" },
+    })
+    return rows.map((row) => ({
+      id: row.id,
+      createdAt: row.createdAt,
+      lastActiveAt: row.lastActiveAt,
+      expiresAt: row.expiresAt,
+      ipAddress: row.ipAddress,
+      userAgent: row.userAgent,
+      current: row.id === currentSessionId,
+    }))
   }
 
   /**
-   * Sliding refresh: when TTL is under the threshold, extend to a full 7-day window.
-   * Returns the updated session when refreshed, otherwise null.
+   * Extend TTL and/or rotate token when near expiry.
+   * Returns updated session with new raw token when rotation occurred.
    */
   async refreshSessionIfNeeded(
     session: SessionRecord
   ): Promise<SessionRecord | null> {
     const remainingMs = session.expiresAt.getTime() - Date.now()
-    if (remainingMs >= SESSION_REFRESH_THRESHOLD_SECONDS * 1000) {
+    const needsRefresh =
+      remainingMs < SESSION_REFRESH_THRESHOLD_SECONDS * 1000
+
+    if (!needsRefresh) {
+      await this.touchSession(session.id)
       return null
     }
 
+    const rawToken = this.generateSessionToken()
+    const tokenHash = this.hashSessionToken(rawToken)
     const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000)
-    return this.prisma.session.update({
+    const updated = await this.prisma.session.update({
       where: { id: session.id },
-      data: { expiresAt },
+      data: {
+        tokenHash,
+        expiresAt,
+        lastActiveAt: new Date(),
+      },
     })
+    return this.toRecord(updated, rawToken)
   }
 
   readSessionToken(req: Request): string | undefined {
     const cookieHeader = req.headers.cookie
     if (!cookieHeader) return undefined
+    const names = new Set([sessionCookieName(), "chhata_session"])
     for (const part of cookieHeader.split(";")) {
       const trimmed = part.trim()
-      if (!trimmed.startsWith(`${SESSION_COOKIE_NAME}=`)) continue
-      const value = trimmed.slice(SESSION_COOKIE_NAME.length + 1)
-      if (value.trim()) return decodeURIComponent(value.trim())
+      for (const name of names) {
+        if (!trimmed.startsWith(`${name}=`)) continue
+        const value = trimmed.slice(name.length + 1)
+        if (value.trim()) return decodeURIComponent(value.trim())
+      }
     }
     return undefined
   }
 
   attachSessionCookie(res: Response, token: string, expiresAt: Date): void {
+    const name = sessionCookieName()
     const parts = [
-      `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`,
+      `${name}=${encodeURIComponent(token)}`,
       "Path=/",
       "HttpOnly",
       "SameSite=Lax",
       `Expires=${expiresAt.toUTCString()}`,
       `Max-Age=${Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))}`,
     ]
-    if (this.shouldUseSecureCookie(res)) {
+    if (this.shouldUseSecureCookie(res) || name.startsWith("__Host-")) {
       parts.push("Secure")
     }
     res.append("Set-Cookie", parts.join("; "))
   }
 
   clearSessionCookie(res: Response): void {
+    const name = sessionCookieName()
     const parts = [
-      `${SESSION_COOKIE_NAME}=`,
+      `${name}=`,
       "Path=/",
       "HttpOnly",
       "SameSite=Lax",
       "Max-Age=0",
       "Expires=Thu, 01 Jan 1970 00:00:00 GMT",
     ]
-    if (this.shouldUseSecureCookie(res)) {
+    if (this.shouldUseSecureCookie(res) || name.startsWith("__Host-")) {
       parts.push("Secure")
     }
     res.append("Set-Cookie", parts.join("; "))
@@ -144,108 +268,74 @@ export class SessionService {
     return proto === "https"
   }
 
-  private hashOtp(otp: string): string {
-    return createHmac("sha256", resolveSessionSecret())
-      .update(`otp:${otp}`)
-      .digest("hex")
-  }
-
-  private otpIdentifier(email: string): string {
+  passwordResetIdentifier(email: string): string {
     return `${PASSWORD_RESET_IDENTIFIER_PREFIX}${email.trim().toLowerCase()}`
   }
 
-  private parseOtpRecord(value: string): { hash: string; attempts: number } {
-    const [hash, attemptsRaw] = value.split(":")
-    return {
-      hash: hash ?? "",
-      attempts: Number(attemptsRaw ?? "0") || 0,
-    }
-  }
-
-  private formatOtpRecord(hash: string, attempts: number): string {
-    return `${hash}:${attempts}`
-  }
-
-  generateOtpCode(): string {
-    return String(randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, "0")
-  }
-
-  async requestPasswordResetOtp(
-    email: string
-  ): Promise<{ devOtp?: string } | undefined> {
+  async createPasswordResetToken(email: string): Promise<{
+    rawToken: string
+    expiresAt: Date
+  } | null> {
     const normalized = email.trim().toLowerCase()
     const user = await this.prisma.user.findUnique({
       where: { email: normalized },
     })
-    if (!user?.passwordHash) {
-      return undefined
-    }
+    if (!user?.passwordHash) return null
 
-    const otp = this.generateOtpCode()
-    const identifier = this.otpIdentifier(normalized)
-    const expiresAt = new Date(Date.now() + OTP_TTL_SECONDS * 1000)
-    const value = this.formatOtpRecord(this.hashOtp(otp), 0)
+    const rawToken = randomBytes(32).toString("base64url")
+    const tokenHash = hashOpaqueToken(rawToken, "password-reset")
+    const identifier = this.passwordResetIdentifier(normalized)
+    const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_SECONDS * 1000)
 
     await this.prisma.verification.deleteMany({ where: { identifier } })
     await this.prisma.verification.create({
-      data: { identifier, value, expiresAt },
+      data: {
+        identifier,
+        value: `${tokenHash}:0`,
+        expiresAt,
+      },
     })
 
-    const delivery = await sendOtpEmail({
-      email: normalized,
-      otp,
-      type: "forget-password",
-    })
-
-    if (delivery.devOtp) {
-      return { devOtp: delivery.devOtp }
-    }
-    return undefined
+    return { rawToken, expiresAt }
   }
 
-  async verifyPasswordResetOtp(
+  async consumePasswordResetToken(
+    rawToken: string,
     email: string,
-    code: string,
-    newPassword: string,
-    hashNewPassword: (plain: string) => Promise<string>
+    hashNewPassword: (plain: string) => Promise<string>,
+    newPassword: string
   ): Promise<void> {
     const normalized = email.trim().toLowerCase()
-    const identifier = this.otpIdentifier(normalized)
+    const identifier = this.passwordResetIdentifier(normalized)
     const record = await this.prisma.verification.findFirst({
       where: { identifier },
       orderBy: { createdAt: "desc" },
     })
 
     if (!record || record.expiresAt.getTime() <= Date.now()) {
-      throw new Error("OTP_EXPIRED")
+      throw new Error("RESET_TOKEN_EXPIRED")
     }
 
-    const parsed = this.parseOtpRecord(record.value)
-    if (parsed.attempts >= OTP_MAX_ATTEMPTS) {
+    const [storedHash, attemptsRaw] = record.value.split(":")
+    const attempts = Number(attemptsRaw ?? "0") || 0
+    if (attempts >= PASSWORD_RESET_MAX_ATTEMPTS) {
       throw new Error("TOO_MANY_ATTEMPTS")
     }
 
-    const submitted = code.trim()
-    const expected = Buffer.from(parsed.hash, "hex")
-    const actual = Buffer.from(this.hashOtp(submitted), "hex")
-    const valid =
-      expected.length === actual.length && timingSafeEqual(expected, actual)
-
-    if (!valid) {
+    const submittedHash = hashOpaqueToken(rawToken.trim(), "password-reset")
+    if (submittedHash !== storedHash) {
       await this.prisma.verification.update({
         where: { id: record.id },
-        data: {
-          value: this.formatOtpRecord(parsed.hash, parsed.attempts + 1),
-        },
+        data: { value: `${storedHash}:${attempts + 1}` },
       })
-      throw new Error("OTP_INVALID")
+      throw new Error("RESET_TOKEN_INVALID")
     }
 
     const user = await this.prisma.user.findUnique({
       where: { email: normalized },
     })
     if (!user) {
-      throw new Error("OTP_INVALID")
+      throw new Error("RESET_TOKEN_INVALID")
     }
 
     const passwordHash = await hashNewPassword(newPassword)
@@ -262,4 +352,9 @@ export class SessionService {
 
 export function resolvePublicPortalOrigin(): string {
   return resolvePublicAppUrl()
+}
+
+export function buildPasswordResetUrl(rawToken: string): string {
+  const base = resolvePublicAppUrl()
+  return `${base}/reset-password?token=${encodeURIComponent(rawToken)}`
 }

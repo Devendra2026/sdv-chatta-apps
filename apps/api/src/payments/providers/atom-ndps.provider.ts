@@ -39,6 +39,7 @@ export function extractAtomTxnFields(decoded: unknown): {
   merchTxnId?: string
   atomTxnId?: string
   statusCode: string
+  gatewayAmount?: number
   redirectUrl?: string
   message?: string
 } {
@@ -47,6 +48,12 @@ export function extractAtomTxnFields(decoded: unknown): {
   const merchDetails = asObject(instrument?.merchDetails)
   const payDetails = asObject(instrument?.payDetails)
   const responseDetails = asObject(instrument?.responseDetails)
+
+  const amountRaw = pickString(payDetails?.amount, root?.amount)
+  const gatewayAmount =
+    amountRaw !== undefined && Number.isFinite(Number(amountRaw))
+      ? Number(amountRaw)
+      : undefined
 
   return {
     merchTxnId: pickString(
@@ -66,6 +73,7 @@ export function extractAtomTxnFields(decoded: unknown): {
         responseDetails?.statusCode,
         responseDetails?.message
       ) ?? "UNKNOWN",
+    gatewayAmount,
     redirectUrl: pickString(
       root?.redirectUrl,
       instrument?.redirectUrl,
@@ -74,6 +82,70 @@ export function extractAtomTxnFields(decoded: unknown): {
     ),
     message: pickString(responseDetails?.message, root?.message),
   }
+}
+
+export class AtomCallbackParseError extends Error {
+  readonly code: string
+
+  constructor(code: string, message: string) {
+    super(message)
+    this.name = "AtomCallbackParseError"
+    this.code = code
+  }
+}
+
+export type ParsedAtomCallback = {
+  decoded: unknown
+  fields: ReturnType<typeof extractAtomTxnFields>
+  normalized: Record<string, unknown>
+}
+
+/** Require encrypted Atom callback bodies — reject unsigned plain JSON. */
+export function parseAtomEncryptedCallback(
+  payload: Record<string, unknown>,
+  provider: Pick<AtomNdpsProvider, "decryptPayload">
+): ParsedAtomCallback {
+  const encData =
+    typeof payload.encData === "string" ? payload.encData.trim() : ""
+  if (!encData) {
+    throw new AtomCallbackParseError(
+      "MISSING_ENCDATA",
+      "Gateway callback must include encData"
+    )
+  }
+
+  if (!provider.decryptPayload) {
+    throw new AtomCallbackParseError(
+      "DECRYPT_UNAVAILABLE",
+      "Gateway provider cannot decrypt callback payload"
+    )
+  }
+
+  let decoded: unknown
+  try {
+    decoded = provider.decryptPayload(encData)
+  } catch {
+    throw new AtomCallbackParseError(
+      "DECRYPT_FAILED",
+      "Failed to decrypt gateway callback encData"
+    )
+  }
+
+  const fields = extractAtomTxnFields(decoded)
+  const normalized: Record<string, unknown> = {
+    ...payload,
+    ...(typeof decoded === "object" && decoded !== null
+      ? (decoded as Record<string, unknown>)
+      : {}),
+    merchTxnId: fields.merchTxnId,
+    atomTxnId: fields.atomTxnId,
+    statusCode: fields.statusCode,
+    gatewayAmount: fields.gatewayAmount,
+    _decoded: decoded,
+    _encDataVerified: true,
+  }
+
+  return { decoded, fields, normalized }
 }
 
 function tryParseJson(text: string): unknown {

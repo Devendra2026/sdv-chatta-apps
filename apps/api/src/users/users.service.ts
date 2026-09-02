@@ -197,6 +197,7 @@ export class UsersService {
     const status = dto.status
     const shouldRevokeSessions =
       status === "INACTIVE" || status === "SUSPENDED"
+    const rolesChanging = Boolean(dto.roleIds?.length || dto.role)
 
     await this.prisma.user.update({
       where: { id },
@@ -217,7 +218,7 @@ export class UsersService {
       }
     }
 
-    if (shouldRevokeSessions) {
+    if (shouldRevokeSessions || rolesChanging) {
       await this.sessionService.revokeAllUserSessions(id)
     }
 

@@ -41,15 +41,16 @@ enum UserStatus {
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  expiresAt DateTime
-  token     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ipAddress String?
-  userAgent String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  expiresAt    DateTime
+  tokenHash    String   @unique
+  lastActiveAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  ipAddress    String?
+  userAgent    String?
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("session")
@@ -527,7 +528,7 @@ model Payment {
   id                String        @id @default(cuid())
   paymentReference  String        @unique
   merchTxnId        String?       @unique
-  atomTxnId         String?
+  atomTxnId         String?       @unique
   surveyId          String?
   survey            Survey?       @relation(fields: [surveyId], references: [id])
   wardId            String?
@@ -558,7 +559,6 @@ model Payment {
 
   @@index([status])
   @@index([createdAt])
-  @@index([atomTxnId])
   @@index([surveyId])
   @@index([wardId])
   @@index([paymentMode])

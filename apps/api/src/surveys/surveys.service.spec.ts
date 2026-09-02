@@ -88,7 +88,14 @@ describe("SurveysService", () => {
     })
   }
 
-  const user = { id: "user-1", email: "a@b.com", name: "Admin" }
+  const user = {
+    id: "user-1",
+    email: "a@b.com",
+    name: "Admin",
+    status: "ACTIVE",
+    roles: ["SUPER_ADMIN"],
+    permissions: ["survey:read", "survey:create", "survey:update", "survey:delete"],
+  }
 
   it("updates owner only without changing survey id (Test 1)", async () => {
     mockFindOne()

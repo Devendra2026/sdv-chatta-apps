@@ -29,6 +29,7 @@ import {
   RequirePermission,
   type AuthUser,
 } from "../auth/auth.decorators"
+import { PASSWORD_MIN_LENGTH } from "../auth/password-policy"
 import { UsersService } from "./users.service"
 
 class CreateUserDto {
@@ -41,12 +42,12 @@ class CreateUserDto {
 
   @ValidateIf((o: CreateUserDto) => !o.initialPassword)
   @IsString()
-  @MinLength(8)
+  @MinLength(PASSWORD_MIN_LENGTH)
   password?: string
 
   @ValidateIf((o: CreateUserDto) => !o.password)
   @IsString()
-  @MinLength(8)
+  @MinLength(PASSWORD_MIN_LENGTH)
   initialPassword?: string
 
   @IsOptional()
@@ -108,10 +109,10 @@ export class UsersController {
   @RequirePermission("user:create")
   async create(@Body() dto: CreateUserDto, @CurrentUser() actor: AuthUser) {
     const plainPassword = dto.password ?? dto.initialPassword
-    if (!plainPassword || plainPassword.length < 8) {
+    if (!plainPassword || plainPassword.length < PASSWORD_MIN_LENGTH) {
       throw new BadRequestException({
         code: "PASSWORD_TOO_SHORT",
-        message: "Initial password must be at least 8 characters",
+        message: `Initial password must be at least ${PASSWORD_MIN_LENGTH} characters`,
       })
     }
 

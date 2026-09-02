@@ -2,16 +2,26 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Header,
+  NotFoundException,
+  Param,
   Patch,
   Post,
   Req,
   Res,
   ServiceUnavailableException,
 } from "@nestjs/common"
-import { IsEmail, IsString, MinLength } from "class-validator"
+import {
+  IsBoolean,
+  IsEmail,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from "class-validator"
 import type { Request, Response } from "express"
 
 import { AuditService } from "../audit/audit.service"
@@ -19,16 +29,25 @@ import { PrismaService } from "../prisma/prisma.service"
 import { CurrentUser, Public, type AuthUser } from "./auth.decorators"
 import { AuthService } from "./auth.service"
 import { hashPassword, verifyPassword } from "./password-hash"
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  assertPasswordPolicy,
+} from "./password-policy"
+import {
+  AuthEmailDeliveryError,
+  sendPasswordResetLinkEmail,
+  sendSecurityNotificationEmail,
+} from "./send-auth-email"
 import { assertTrustedOrigin } from "./session-options"
-import { SessionService } from "./session.service"
-import { OtpEmailDeliveryError } from "./send-otp-email"
+import { SessionService, buildPasswordResetUrl } from "./session.service"
 
 class LoginDto {
   @IsEmail()
   email!: string
 
   @IsString()
-  @MinLength(8)
+  @MaxLength(PASSWORD_MAX_LENGTH)
   password!: string
 }
 
@@ -37,7 +56,8 @@ class ChangePasswordDto {
   currentPassword!: string
 
   @IsString()
-  @MinLength(8)
+  @MinLength(PASSWORD_MIN_LENGTH)
+  @MaxLength(PASSWORD_MAX_LENGTH)
   newPassword!: string
 }
 
@@ -46,17 +66,24 @@ class ForgotPasswordRequestDto {
   email!: string
 }
 
-class ForgotPasswordVerifyDto {
+class ResetPasswordDto {
   @IsEmail()
   email!: string
 
   @IsString()
-  @MinLength(4)
-  code!: string
+  @MinLength(16)
+  token!: string
 
   @IsString()
-  @MinLength(8)
+  @MinLength(PASSWORD_MIN_LENGTH)
+  @MaxLength(PASSWORD_MAX_LENGTH)
   newPassword!: string
+}
+
+class RevokeAllSessionsDto {
+  @IsOptional()
+  @IsBoolean()
+  keepCurrent?: boolean
 }
 
 @Controller("api/v1/auth")
@@ -119,6 +146,74 @@ export class AuthController {
     }
   }
 
+  @Get("sessions")
+  @Header("Cache-Control", "private, no-store")
+  async listSessions(@CurrentUser() user: AuthUser, @Req() req: Request) {
+    const token = this.sessionService.readSessionToken(req)
+    const current = await this.sessionService.findValidSession(token)
+    const sessions = await this.sessionService.listUserSessions(
+      user.id,
+      current?.id
+    )
+    return { success: true, data: { sessions } }
+  }
+
+  @Delete("sessions/:id")
+  async revokeSession(
+    @CurrentUser() user: AuthUser,
+    @Param("id") sessionId: string,
+    @Req() req: Request
+  ) {
+    this.guardTrustedOrigin(req)
+    const removed = await this.sessionService.deleteSessionById(
+      sessionId,
+      user.id
+    )
+    if (!removed) {
+      throw new NotFoundException({
+        code: "SESSION_NOT_FOUND",
+        message: "Session not found",
+      })
+    }
+    await this.audit.log({
+      action: "auth.session_revoked",
+      entity: "Session",
+      entityId: sessionId,
+      actorId: user.id,
+      ipAddress: req.ip || undefined,
+    })
+    return { success: true, data: { revoked: true } }
+  }
+
+  @Post("sessions/revoke-all")
+  async revokeAllSessions(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: RevokeAllSessionsDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response
+  ) {
+    this.guardTrustedOrigin(req)
+    const token = this.sessionService.readSessionToken(req)
+    const current = await this.sessionService.findValidSession(token)
+    const exceptId = dto.keepCurrent !== false ? current?.id : undefined
+    const count = await this.sessionService.revokeAllUserSessions(
+      user.id,
+      exceptId
+    )
+    await this.audit.log({
+      action: "auth.logout_all",
+      entity: "User",
+      entityId: user.id,
+      actorId: user.id,
+      ipAddress: req.ip || undefined,
+      metadata: { revokedCount: count },
+    })
+    if (dto.keepCurrent === false) {
+      this.sessionService.clearSessionCookie(res)
+    }
+    return { success: true, data: { revokedCount: count } }
+  }
+
   @Patch("me/password")
   async changePassword(
     @CurrentUser() user: AuthUser,
@@ -126,13 +221,7 @@ export class AuthController {
     @Req() req: Request
   ) {
     this.guardTrustedOrigin(req)
-
-    if (dto.newPassword.length < 8) {
-      throw new BadRequestException({
-        code: "PASSWORD_TOO_SHORT",
-        message: "New password must be at least 8 characters",
-      })
-    }
+    assertPasswordPolicy(dto.newPassword)
 
     const dbUser = await this.prisma.user.findUnique({
       where: { id: user.id },
@@ -158,6 +247,11 @@ export class AuthController {
       data: { passwordHash: await hashPassword(dto.newPassword) },
     })
 
+    await sendSecurityNotificationEmail({
+      email: user.email,
+      event: "password_changed",
+    }).catch(() => undefined)
+
     await this.audit.log({
       action: "auth.password_change",
       entity: "User",
@@ -182,17 +276,26 @@ export class AuthController {
     const email = dto.email.trim().toLowerCase()
 
     try {
-      const delivery = await this.sessionService.requestPasswordResetOtp(email)
+      const created = await this.sessionService.createPasswordResetToken(email)
+      if (created) {
+        const resetUrl = buildPasswordResetUrl(created.rawToken)
+        await sendPasswordResetLinkEmail({ email, resetUrl })
+        await this.audit.log({
+          action: "auth.password_reset_requested",
+          entity: "User",
+          ipAddress: req.ip || undefined,
+          metadata: { email },
+        })
+      }
       return {
         success: true,
         data: {
           message:
-            "If an account exists for this email, a one-time code has been sent.",
-          ...(delivery?.devOtp ? { devOtp: delivery.devOtp } : {}),
+            "If an account exists for this email, a password reset link has been sent.",
         },
       }
     } catch (err) {
-      if (err instanceof OtpEmailDeliveryError) {
+      if (err instanceof AuthEmailDeliveryError) {
         throw new ServiceUnavailableException({
           code: "EMAIL_UNAVAILABLE",
           message:
@@ -204,37 +307,40 @@ export class AuthController {
   }
 
   @Public()
-  @Post("forgot-password/verify")
-  async forgotPasswordVerify(
-    @Body() dto: ForgotPasswordVerifyDto,
-    @Req() req: Request
-  ) {
+  @Post("reset-password")
+  async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
     this.guardTrustedOrigin(req)
+    assertPasswordPolicy(dto.newPassword)
     const email = dto.email.trim().toLowerCase()
 
     try {
-      await this.sessionService.verifyPasswordResetOtp(
+      await this.sessionService.consumePasswordResetToken(
+        dto.token,
         email,
-        dto.code,
-        dto.newPassword,
-        hashPassword
+        hashPassword,
+        dto.newPassword
       )
     } catch (err) {
-      const code = err instanceof Error ? err.message : "OTP_INVALID"
+      const code = err instanceof Error ? err.message : "RESET_TOKEN_INVALID"
       if (code === "TOO_MANY_ATTEMPTS") {
         throw new BadRequestException({
           code: "PASSWORD_RESET_FAILED",
-          message: "Too many attempts. Request a new code.",
+          message: "Too many attempts. Request a new reset link.",
         })
       }
       throw new BadRequestException({
         code: "PASSWORD_RESET_FAILED",
-        message: "Invalid or expired code. Request a new code and try again.",
+        message:
+          "Invalid or expired reset link. Request a new one and try again.",
       })
     }
 
     const user = await this.prisma.user.findUnique({ where: { email } })
     if (user) {
+      await sendSecurityNotificationEmail({
+        email,
+        event: "password_reset",
+      }).catch(() => undefined)
       await this.audit.log({
         action: "auth.password_reset",
         entity: "User",

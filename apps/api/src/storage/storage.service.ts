@@ -12,6 +12,14 @@ import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 import type { Readable } from "node:stream"
 
+import type { AuthUser } from "../auth/auth.decorators"
+import {
+  assertFileAccess,
+  parseSurveyIdFromObjectKey,
+  type FileResource,
+  type SurveyResource,
+} from "../auth/resource-access"
+
 const MIME_BY_EXT: Record<string, string> = {
   ".gif": "image/gif",
   ".jpeg": "image/jpeg",
@@ -86,6 +94,27 @@ export class StorageService implements OnModuleInit {
       sig,
     })
     return `/api/v1/files?${params.toString()}`
+  }
+
+  async getSignedUrlForUser(
+    user: AuthUser,
+    objectKey: string,
+    context: {
+      surveyId?: string | null
+      uploadedById?: string | null
+      createdById?: string | null
+      survey?: SurveyResource | null
+    } = {},
+    expirySeconds = 300
+  ): Promise<string> {
+    const file: FileResource = {
+      objectKey,
+      surveyId: context.surveyId ?? parseSurveyIdFromObjectKey(objectKey),
+      uploadedById: context.uploadedById,
+      createdById: context.createdById,
+    }
+    assertFileAccess(user, file, "read", context.survey)
+    return this.getSignedUrl(objectKey, expirySeconds)
   }
 
   assertDownloadSignature(objectKey: string, expRaw: string, sig: string) {

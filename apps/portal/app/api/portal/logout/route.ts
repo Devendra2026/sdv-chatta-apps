@@ -7,7 +7,10 @@ export const dynamic = "force-dynamic"
 
 function appendExpiredAuthCookies(res: NextResponse, req: NextRequest) {
   const existing = req.cookies.getAll().map((c) => c.name)
-  for (const header of expiredAuthCookieHeaders(existing)) {
+  for (const header of expiredAuthCookieHeaders(
+    existing,
+    process.env.SESSION_COOKIE_NAME
+  )) {
     res.headers.append("set-cookie", header)
   }
 }

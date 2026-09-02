@@ -38,13 +38,14 @@ describe("extractAtomTxnFields", () => {
     const fields = extractAtomTxnFields({
       payInstrument: {
         merchDetails: { merchTxnId: "CHH-1" },
-        payDetails: { atomTxnId: 987654321 },
+        payDetails: { atomTxnId: 987654321, amount: "1500.00" },
         responseDetails: { statusCode: "OTS0000", message: "SUCCESS" },
       },
     })
     expect(fields.merchTxnId).toBe("CHH-1")
     expect(fields.atomTxnId).toBe("987654321")
     expect(fields.statusCode).toBe("OTS0000")
+    expect(fields.gatewayAmount).toBe(1500)
   })
 
   it("reads flat payload fields", () => {

@@ -1,33 +1,50 @@
-describe("payment callback idempotency key", () => {
-  function buildKey(payload: {
-    merchTxnId?: string
-    atomTxnId?: string
-    statusCode?: string
-    idempotencyKey?: string
-  }) {
-    return (
-      payload.idempotencyKey ||
-      `${payload.merchTxnId ?? "na"}:${payload.atomTxnId ?? "na"}:${payload.statusCode ?? "UNKNOWN"}`
-    )
-  }
+import {
+  amountsMatchWithinTolerance,
+  buildPaymentCallbackIdempotencyKey,
+} from "./payments.service"
 
+describe("payment callback idempotency key", () => {
   it("is stable for duplicate callbacks", () => {
-    const a = buildKey({
+    const a = buildPaymentCallbackIdempotencyKey({
       merchTxnId: "CHH-1",
       atomTxnId: "ATM-9",
-      statusCode: "OTS0000",
     })
-    const b = buildKey({
+    const b = buildPaymentCallbackIdempotencyKey({
       merchTxnId: "CHH-1",
       atomTxnId: "ATM-9",
-      statusCode: "OTS0000",
+    })
+    expect(a).toBe(b)
+    expect(a).toBe("CHH-1:ATM-9")
+  })
+
+  it("ignores status code changes for the same gateway txn", () => {
+    const a = buildPaymentCallbackIdempotencyKey({
+      merchTxnId: "CHH-1",
+      atomTxnId: "ATM-9",
+    })
+    const b = buildPaymentCallbackIdempotencyKey({
+      merchTxnId: "CHH-1",
+      atomTxnId: "ATM-9",
     })
     expect(a).toBe(b)
   })
 
-  it("differs when status changes", () => {
-    const a = buildKey({ merchTxnId: "CHH-1", statusCode: "OTS0000" })
-    const b = buildKey({ merchTxnId: "CHH-1", statusCode: "FAILED" })
+  it("differs when atom txn id changes", () => {
+    const a = buildPaymentCallbackIdempotencyKey({
+      merchTxnId: "CHH-1",
+      atomTxnId: "ATM-9",
+    })
+    const b = buildPaymentCallbackIdempotencyKey({
+      merchTxnId: "CHH-1",
+      atomTxnId: "ATM-10",
+    })
     expect(a).not.toBe(b)
+  })
+})
+
+describe("amountsMatchWithinTolerance", () => {
+  it("accepts amounts within one paisa tolerance", () => {
+    expect(amountsMatchWithinTolerance(100, 100.009)).toBe(true)
+    expect(amountsMatchWithinTolerance(100, 100.02)).toBe(false)
   })
 })

@@ -48,9 +48,11 @@ export class AuthGuard implements CanActivate {
     if (refreshed) {
       this.sessionService.attachSessionCookie(
         response,
-        refreshed.token,
+        refreshed.rawToken,
         refreshed.expiresAt
       )
+    } else {
+      await this.sessionService.touchSession(session.id)
     }
 
     const user = await this.prisma.user.findUnique({

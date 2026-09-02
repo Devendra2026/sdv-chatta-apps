@@ -46,6 +46,18 @@ describe("assertRequiredEnv", () => {
     ).toThrow(/SMTP_HOST/)
   })
 
+  it("rejects sandbox payment provider in production", () => {
+    expect(() =>
+      assertRequiredEnv({
+        env: {
+          ...baseProdEnv,
+          PAYMENT_PROVIDER: "sandbox",
+        },
+        includeSeedAdmin: true,
+      })
+    ).toThrow(/PAYMENT_PROVIDER/)
+  })
+
   it("requires DATABASE_URL in all environments", () => {
     expect(() =>
       assertRequiredEnv({

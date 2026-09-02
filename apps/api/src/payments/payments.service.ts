@@ -8,13 +8,51 @@ import { randomUUID } from "node:crypto"
 
 import { AuditService } from "../audit/audit.service"
 import type { AuthUser } from "../auth/auth.decorators"
+import {
+  assertPaymentAccess,
+  assertSurveyAccess,
+} from "../auth/resource-access"
+import {
+  computePublicDuesPayload,
+  pickLatestPublishedConfig,
+} from "../public-property-tax/dues.util"
 import { PrismaService } from "../prisma/prisma.service"
 import {
   AtomNdpsProvider,
   extractAtomTxnFields,
+  parseAtomEncryptedCallback,
 } from "./providers/atom-ndps.provider"
 import type { PaymentGatewayProvider } from "./providers/payment-provider"
 import { SandboxPaymentProvider } from "./providers/sandbox.provider"
+
+const AMOUNT_TOLERANCE = 0.01
+
+export function buildPaymentCallbackIdempotencyKey(input: {
+  merchTxnId?: string
+  atomTxnId?: string
+  idempotencyKey?: string
+}) {
+  return (
+    input.idempotencyKey ||
+    `${input.merchTxnId ?? "na"}:${input.atomTxnId ?? "na"}`
+  )
+}
+
+export function amountsMatchWithinTolerance(
+  expected: number,
+  actual: number,
+  tolerance = AMOUNT_TOLERANCE
+) {
+  return Math.abs(expected - actual) <= tolerance
+}
+
+function isGatewaySuccess(statusCode: string) {
+  return (
+    statusCode === "OTS0000" ||
+    statusCode === "SUCCESS" ||
+    statusCode.toUpperCase() === "SUCCESS"
+  )
+}
 
 function defaultCitizenReturnUrl() {
   return (
@@ -73,7 +111,30 @@ export class PaymentsService {
     },
     user: AuthUser
   ) {
-    return this.createOnlinePayment(input, user.id)
+    if (!input.surveyId?.trim()) {
+      throw new BadRequestException({
+        code: "SURVEY_REQUIRED",
+        message: "Select a property/survey before starting online payment",
+      })
+    }
+
+    const { amount, survey, wardId } = await this.resolveSurveyPayableAmount(
+      input.surveyId
+    )
+    assertSurveyAccess(user, survey, "read")
+    assertPaymentAccess(user, { id: "", collectedById: user.id }, "create")
+
+    return this.createOnlinePayment(
+      {
+        amount,
+        surveyId: survey.id,
+        wardId: input.wardId?.trim() || wardId,
+        payerName: input.payerName?.trim() || survey.ownerName || undefined,
+        payerMobile: input.payerMobile?.trim() || survey.mobile || undefined,
+        payerEmail: input.payerEmail?.trim() || undefined,
+      },
+      user.id
+    )
   }
 
   /** Citizen website online payment — no staff collector. */
@@ -86,6 +147,93 @@ export class PaymentsService {
     payerEmail?: string
   }) {
     return this.createOnlinePayment(input, null)
+  }
+
+  private async resolveSurveyPayableAmount(surveyId: string) {
+    const id = surveyId.trim()
+    const survey = await this.prisma.survey.findFirst({
+      where: { id, status: "ACTIVE", deletedAt: null },
+      select: {
+        id: true,
+        surveyId: true,
+        ownerName: true,
+        mobile: true,
+        propertyNo: true,
+        parcelNo: true,
+        houseNo: true,
+        streetName: true,
+        locality: true,
+        colony: true,
+        city: true,
+        pincode: true,
+        propertyUse: true,
+        taxRateZone: true,
+        roadType: true,
+        hasMunicipalWaterSupply: true,
+        plotAreaSqFt: true,
+        plinthAreaSqFt: true,
+        totalBuiltUpAreaSqFt: true,
+        wardId: true,
+        createdById: true,
+        ward: { select: { id: true, number: true, name: true } },
+        floors: {
+          orderBy: { sortOrder: "asc" },
+          select: {
+            floorLabel: true,
+            usageType: true,
+            usageFactor: true,
+            buildingType: true,
+            areaSqFt: true,
+          },
+        },
+      },
+    })
+
+    if (!survey) {
+      throw new NotFoundException({
+        code: "SURVEY_NOT_FOUND",
+        message: "Property/survey was not found",
+      })
+    }
+
+    const published = await this.prisma.taxConfig.findMany({
+      where: {
+        wardId: survey.ward.id,
+        status: "PUBLISHED",
+      },
+      include: {
+        assessmentYear: {
+          select: { id: true, code: true, name: true },
+        },
+        cells: {
+          include: {
+            roadWidthEntry: { select: { code: true } },
+            constructionEntry: { select: { code: true } },
+          },
+        },
+      },
+    })
+
+    const config = pickLatestPublishedConfig(published)
+    if (!config) {
+      throw new NotFoundException({
+        code: "TAX_CONFIG_NOT_PUBLISHED",
+        message:
+          "Published tax rates are not available for this ward yet. Please contact the municipal office.",
+      })
+    }
+
+    const dues = computePublicDuesPayload(survey, config)
+    const amount = Number(dues.tax.totalDemand)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException({
+        code: "DUES_NOT_PAYABLE",
+        message:
+          "Tax dues are not payable for this property yet. Published rates may be missing or zero.",
+      })
+    }
+
+    return { amount, survey, wardId: survey.wardId }
   }
 
   private async createOnlinePayment(
@@ -210,7 +358,10 @@ export class PaymentsService {
 
     const survey = await this.prisma.survey.findUnique({
       where: { id: input.surveyId },
-      select: this.receiptSurveySelect,
+      select: {
+        ...this.receiptSurveySelect,
+        createdById: true,
+      },
     })
     if (!survey) {
       throw new NotFoundException({
@@ -218,6 +369,8 @@ export class PaymentsService {
         message: "Property/survey was not found",
       })
     }
+    assertSurveyAccess(user, survey, "read")
+    assertPaymentAccess(user, { id: "", collectedById: user.id }, "create_offline")
 
     const wardId = input.wardId?.trim() || survey.wardId
     const paymentReference = `OFF-${Date.now()}-${randomUUID().slice(0, 8)}`
@@ -280,7 +433,7 @@ export class PaymentsService {
     return this.toStaffReceipt(payment)
   }
 
-  async getStaffReceipt(paymentId: string) {
+  async getStaffReceipt(paymentId: string, user: AuthUser) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
       include: {
@@ -295,6 +448,7 @@ export class PaymentsService {
         message: "Payment was not found",
       })
     }
+    assertPaymentAccess(user, payment, "read")
     if (payment.status !== PaymentStatus.SUCCESS) {
       throw new BadRequestException({
         code: "RECEIPT_NOT_AVAILABLE",
@@ -408,8 +562,8 @@ export class PaymentsService {
   }
 
   /**
-   * Normalize Atom gateway bodies: decrypt encData when present and flatten
-   * nested payInstrument fields used by callback / browser return.
+   * Normalize Atom gateway bodies for sandbox / legacy paths.
+   * Production Atom callbacks must use parseAtomEncryptedCallback instead.
    */
   normalizeGatewayPayload(
     payload: Record<string, unknown>
@@ -418,11 +572,7 @@ export class PaymentsService {
     const encData =
       typeof payload.encData === "string" ? payload.encData.trim() : ""
     if (encData && this.provider.decryptPayload) {
-      try {
-        decoded = this.provider.decryptPayload(encData)
-      } catch {
-        decoded = payload
-      }
+      decoded = this.provider.decryptPayload(encData)
     }
 
     const fields = extractAtomTxnFields(decoded)
@@ -433,6 +583,7 @@ export class PaymentsService {
       fields.statusCode !== "UNKNOWN"
         ? fields.statusCode
         : flatFields.statusCode
+    const gatewayAmount = fields.gatewayAmount ?? flatFields.gatewayAmount
 
     return {
       ...payload,
@@ -442,22 +593,118 @@ export class PaymentsService {
       merchTxnId,
       atomTxnId,
       statusCode,
+      gatewayAmount,
       _decoded: decoded,
     }
   }
 
-  async handleCallback(payload: Record<string, unknown>) {
+  private parseCallbackPayload(payload: Record<string, unknown>): {
+    normalized: Record<string, unknown>
+    merchTxnId?: string
+    atomTxnId?: string
+    statusCode: string
+    gatewayAmount?: number
+  } {
+    if (this.provider.name === "atom-ndps") {
+      const parsed = parseAtomEncryptedCallback(
+        payload,
+        this.provider as AtomNdpsProvider
+      )
+      return {
+        normalized: parsed.normalized,
+        merchTxnId: parsed.fields.merchTxnId,
+        atomTxnId: parsed.fields.atomTxnId,
+        statusCode: parsed.fields.statusCode,
+        gatewayAmount: parsed.fields.gatewayAmount,
+      }
+    }
+
     const normalized = this.normalizeGatewayPayload(payload)
-    const merchTxnId =
-      (normalized.merchTxnId as string | undefined) ||
-      (normalized.merchantTxnId as string | undefined) ||
-      undefined
-    const atomTxnId = (normalized.atomTxnId as string | undefined) || undefined
-    const statusCode =
-      (normalized.statusCode as string | undefined) || "UNKNOWN"
-    const idempotencyKey =
-      (payload.idempotencyKey as string | undefined) ||
-      `${merchTxnId ?? "na"}:${atomTxnId ?? "na"}:${statusCode}`
+    const fields = extractAtomTxnFields(normalized)
+    return {
+      normalized,
+      merchTxnId:
+        fields.merchTxnId ??
+        (normalized.merchTxnId as string | undefined) ??
+        (normalized.merchantTxnId as string | undefined),
+      atomTxnId:
+        fields.atomTxnId ?? (normalized.atomTxnId as string | undefined),
+      statusCode: fields.statusCode,
+      gatewayAmount: fields.gatewayAmount,
+    }
+  }
+
+  private async rejectWebhook(
+    reason: string,
+    context: {
+      payload: Record<string, unknown>
+      merchTxnId?: string
+      atomTxnId?: string
+      paymentId?: string
+      code: string
+    }
+  ) {
+    await this.audit.log({
+      action: "PAYMENT_WEBHOOK_REJECTED",
+      entity: "Payment",
+      entityId: context.paymentId,
+      newValue: {
+        code: context.code,
+        reason,
+        merchTxnId: context.merchTxnId,
+        atomTxnId: context.atomTxnId,
+      },
+      metadata: { payload: context.payload as Prisma.InputJsonValue },
+    })
+
+    return {
+      rejected: true,
+      reason,
+      code: context.code,
+      merchTxnId: context.merchTxnId,
+    }
+  }
+
+  async handleCallback(payload: Record<string, unknown>) {
+    await this.audit.log({
+      action: "PAYMENT_WEBHOOK_RECEIVED",
+      entity: "PaymentCallback",
+      newValue: {
+        provider: this.provider.name,
+        hasEncData:
+          typeof payload.encData === "string" && payload.encData.trim().length > 0,
+      },
+      metadata: { payload: payload as Prisma.InputJsonValue },
+    })
+
+    let parsed: ReturnType<PaymentsService["parseCallbackPayload"]>
+    try {
+      parsed = this.parseCallbackPayload(payload)
+    } catch (error) {
+      const reason =
+        error instanceof Error
+          ? error.message
+          : "Invalid gateway callback payload"
+      const code =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        typeof (error as { code: unknown }).code === "string"
+          ? (error as { code: string }).code
+          : "CALLBACK_PARSE_FAILED"
+      return this.rejectWebhook(reason, {
+        payload,
+        code,
+      })
+    }
+
+    const { normalized, merchTxnId, atomTxnId, statusCode, gatewayAmount } =
+      parsed
+    const idempotencyKey = buildPaymentCallbackIdempotencyKey({
+      idempotencyKey: payload.idempotencyKey as string | undefined,
+      merchTxnId,
+      atomTxnId,
+    })
 
     const existing = await this.prisma.paymentCallback.findUnique({
       where: { idempotencyKey },
@@ -466,39 +713,72 @@ export class PaymentsService {
       return { duplicate: true, callback: existing, merchTxnId }
     }
 
-    const payment = merchTxnId
-      ? await this.prisma.payment.findFirst({ where: { merchTxnId } })
-      : null
+    if (!merchTxnId) {
+      return this.rejectWebhook("merchTxnId is required", {
+        payload: normalized,
+        atomTxnId,
+        code: "MISSING_MERCH_TXN_ID",
+      })
+    }
 
-    const callback = await this.prisma.paymentCallback.upsert({
-      where: { idempotencyKey },
-      update: {},
-      create: {
-        paymentId: payment?.id,
+    const payment = await this.prisma.payment.findFirst({
+      where: { merchTxnId },
+    })
+    if (!payment) {
+      return this.rejectWebhook("Payment not found for merchTxnId", {
+        payload: normalized,
         merchTxnId,
         atomTxnId,
-        statusCode,
-        rawPayload: normalized as Prisma.InputJsonValue,
-        idempotencyKey,
-        processed: false,
-      },
-    })
+        code: "UNKNOWN_MERCH_TXN_ID",
+      })
+    }
 
-    if (payment) {
-      const success =
-        statusCode === "OTS0000" ||
-        statusCode === "SUCCESS" ||
-        statusCode.toUpperCase() === "SUCCESS"
-      // Avoid marking FAILED when status is still unknown (e.g. decrypt miss).
-      const nextStatus = success
+    if (
+      this.provider.name === "atom-ndps" &&
+      (gatewayAmount === undefined ||
+        !amountsMatchWithinTolerance(Number(payment.amount), gatewayAmount))
+    ) {
+      return this.rejectWebhook("Gateway amount does not match payment amount", {
+        payload: normalized,
+        merchTxnId,
+        atomTxnId,
+        paymentId: payment.id,
+        code: "AMOUNT_MISMATCH",
+      })
+    }
+
+    const success = isGatewaySuccess(statusCode)
+    const nextStatus = success
+      ? PaymentStatus.SUCCESS
+      : statusCode === "UNKNOWN"
+        ? payment.status
+        : PaymentStatus.FAILED
+
+    const effectiveStatus =
+      payment.status === PaymentStatus.SUCCESS && !success
         ? PaymentStatus.SUCCESS
-        : statusCode === "UNKNOWN"
-          ? payment.status
-          : PaymentStatus.FAILED
-      await this.prisma.payment.update({
+        : nextStatus
+
+    const statusChanged = effectiveStatus !== payment.status
+    const result = await this.prisma.$transaction(async (tx) => {
+      const callback = await tx.paymentCallback.upsert({
+        where: { idempotencyKey },
+        update: {},
+        create: {
+          paymentId: payment.id,
+          merchTxnId,
+          atomTxnId,
+          statusCode,
+          rawPayload: normalized as Prisma.InputJsonValue,
+          idempotencyKey,
+          processed: false,
+        },
+      })
+
+      const updatedPayment = await tx.payment.update({
         where: { id: payment.id },
         data: {
-          status: nextStatus,
+          status: effectiveStatus,
           atomTxnId: atomTxnId ?? payment.atomTxnId,
           gatewayReference: atomTxnId ?? payment.gatewayReference,
           ...(success && !payment.receiptNumber
@@ -509,7 +789,8 @@ export class PaymentsService {
             : {}),
         },
       })
-      await this.prisma.paymentTransaction.create({
+
+      await tx.paymentTransaction.create({
         data: {
           paymentId: payment.id,
           direction: "callback",
@@ -517,14 +798,53 @@ export class PaymentsService {
           statusCode,
         },
       })
-    }
 
-    const updated = await this.prisma.paymentCallback.update({
-      where: { id: callback.id },
-      data: { processed: true },
+      const processedCallback = await tx.paymentCallback.update({
+        where: { id: callback.id },
+        data: { processed: true },
+      })
+
+      return { callback: processedCallback, payment: updatedPayment }
     })
 
-    return { duplicate: false, callback: updated, merchTxnId }
+    if (success && statusChanged) {
+      await this.audit.log({
+        action: "PAYMENT_SUCCESS",
+        entity: "Payment",
+        entityId: payment.id,
+        oldValue: { status: payment.status },
+        newValue: {
+          status: effectiveStatus,
+          merchTxnId,
+          atomTxnId,
+          gatewayAmount,
+        },
+      })
+    } else if (
+      !success &&
+      statusChanged &&
+      effectiveStatus === PaymentStatus.FAILED
+    ) {
+      await this.audit.log({
+        action: "PAYMENT_FAILED",
+        entity: "Payment",
+        entityId: payment.id,
+        oldValue: { status: payment.status },
+        newValue: {
+          status: effectiveStatus,
+          merchTxnId,
+          atomTxnId,
+          statusCode,
+        },
+      })
+    }
+
+    return {
+      duplicate: false,
+      callback: result.callback,
+      merchTxnId,
+      payment: result.payment,
+    }
   }
 
   /**
@@ -547,6 +867,7 @@ export class PaymentsService {
       where: { id: paymentId },
     })
     if (!payment?.merchTxnId) throw new NotFoundException("Payment not found")
+    assertPaymentAccess(user, payment, "requery")
 
     const result = await this.provider.requery({
       merchTxnId: payment.merchTxnId,
@@ -646,6 +967,7 @@ export class PaymentsService {
       where: { id: paymentId },
     })
     if (!payment) throw new NotFoundException("Payment not found")
+    assertPaymentAccess(user, payment, "refund")
     if (payment.status !== PaymentStatus.SUCCESS) {
       throw new BadRequestException("Only successful payments can be refunded")
     }
@@ -690,19 +1012,27 @@ export class PaymentsService {
     return refund
   }
 
-  async list(query: {
-    page?: number
-    pageSize?: number
-    status?: PaymentStatus
-    paymentMode?: PaymentMode
-    wardId?: string
-  }) {
+  async list(
+    query: {
+      page?: number
+      pageSize?: number
+      status?: PaymentStatus
+      paymentMode?: PaymentMode
+      wardId?: string
+    },
+    user: AuthUser
+  ) {
+    assertPaymentAccess(user, { id: "", collectedById: user.id }, "read")
+
     const page = query.page ?? 1
     const pageSize = query.pageSize ?? 20
     const where: Prisma.PaymentWhereInput = {
       ...(query.status ? { status: query.status } : {}),
       ...(query.paymentMode ? { paymentMode: query.paymentMode } : {}),
       ...(query.wardId ? { wardId: query.wardId } : {}),
+      ...(this.operatorPaymentScope(user)
+        ? { collectedById: user.id }
+        : {}),
     }
     const [total, items] = await this.prisma.$transaction([
       this.prisma.payment.count({ where }),
@@ -758,5 +1088,14 @@ export class PaymentsService {
         rawPayload: raw as Prisma.InputJsonValue,
       },
     })
+  }
+
+  private operatorPaymentScope(user: AuthUser): boolean {
+    return (
+      user.roles.includes("OPERATOR") &&
+      !user.roles.includes("SUPER_ADMIN") &&
+      !user.roles.includes("DEPARTMENT_ADMIN") &&
+      !user.roles.includes("CLERK")
+    )
   }
 }

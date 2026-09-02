@@ -47,18 +47,21 @@ export class SurveysController {
 
   @Get()
   @RequirePermission("survey:read")
-  async findAll(@Query() query: ListSurveysQueryDto) {
-    const { items, meta } = await this.surveysService.findAll(query)
+  async findAll(
+    @Query() query: ListSurveysQueryDto,
+    @CurrentUser() user: AuthUser
+  ) {
+    const { items, meta } = await this.surveysService.findAll(query, user)
     return { success: true, data: items, meta }
   }
 
   @Get(":id")
   @RequirePermission("survey:read")
   async findOne(@Param("id") id: string, @CurrentUser() user: AuthUser) {
-    const survey = await this.surveysService.findOne(id)
+    const survey = await this.surveysService.findOne(id, user)
     const neighbors = await this.surveysService.findNeighbors(survey)
     const masked = this.surveysService.maskPii(survey, canReadSurveyPii(user))
-    const data = await this.surveysService.withAttachmentUrls(masked)
+    const data = await this.surveysService.withAttachmentUrls(masked, user)
     return { success: true, data: { ...data, neighbors } }
   }
 

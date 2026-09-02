@@ -6,7 +6,25 @@ import {
   HttpStatus,
   Logger,
 } from "@nestjs/common"
+import { Prisma } from "@prisma/client"
 import type { Request, Response } from "express"
+
+function isProduction(): boolean {
+  return process.env.NODE_ENV === "production"
+}
+
+function looksLikeInternalMessage(message: string): boolean {
+  const lower = message.toLowerCase()
+  return (
+    lower.includes("prisma") ||
+    lower.includes("postgres") ||
+    lower.includes("sql") ||
+    lower.includes("constraint") ||
+    lower.includes("stack") ||
+    lower.includes("econnrefused") ||
+    lower.includes("socket")
+  )
+}
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -62,9 +80,42 @@ export class AllExceptionsFilter implements ExceptionFilter {
       code = (exceptionResponse as { code: string }).code
     }
 
+    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      code = "DATABASE_ERROR"
+      message = isProduction()
+        ? "A database error occurred"
+        : `Database error (${exception.code})`
+      if (status === HttpStatus.INTERNAL_SERVER_ERROR) {
+        // Prisma errors surface as 500 unless wrapped in HttpException.
+      }
+    } else if (exception instanceof Prisma.PrismaClientValidationError) {
+      code = "DATABASE_ERROR"
+      message = isProduction()
+        ? "A database error occurred"
+        : "Database validation error"
+    }
+
+    if (isProduction()) {
+      if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+        message = "An unexpected error occurred"
+        if (!code.startsWith("DATABASE")) {
+          code = "INTERNAL_ERROR"
+        }
+      } else if (looksLikeInternalMessage(message)) {
+        message = "Request could not be completed"
+      }
+    }
+
+    const logMessage =
+      exception instanceof Error ? exception.message : String(exception)
+
     this.logger.error(
-      `${request.method} ${request.url} status=${status} code=${code} requestId=${request.requestId ?? "-"} message=${message}`
+      `${request.method} ${request.url} status=${status} code=${code} requestId=${request.requestId ?? "-"} message=${logMessage}`
     )
+
+    if (exception instanceof Error && exception.stack) {
+      this.logger.debug(exception.stack)
+    }
 
     response.status(status).json({
       success: false,

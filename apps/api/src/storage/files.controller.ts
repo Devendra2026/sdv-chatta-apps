@@ -24,6 +24,10 @@ class FileDownloadQueryDto {
 export class FilesController {
   constructor(private readonly storage: StorageService) {}
 
+  /**
+   * Signed download endpoint. Object ownership is enforced when staff services
+   * mint URLs via StorageService.getSignedUrlForUser (assertFileAccess).
+   */
   @Get()
   download(@Query() query: FileDownloadQueryDto): StreamableFile {
     this.storage.assertDownloadSignature(query.key, query.exp, query.sig)

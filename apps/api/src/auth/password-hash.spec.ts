@@ -1,3 +1,5 @@
+import bcrypt from "bcryptjs"
+
 import {
   hashPassword,
   shouldUpgradePasswordHash,
@@ -5,12 +7,20 @@ import {
 } from "./password-hash"
 
 describe("password-hash", () => {
-  it("hashes and verifies with bcrypt", async () => {
+  it("hashes and verifies with Argon2id", async () => {
     const hash = await hashPassword("test-password-1")
-    expect(hash.startsWith("$2")).toBe(true)
+    expect(hash.startsWith("$argon2")).toBe(true)
     expect(await verifyPassword("test-password-1", hash)).toBe(true)
     expect(await verifyPassword("wrong", hash)).toBe(false)
     expect(shouldUpgradePasswordHash(hash)).toBe(false)
+  })
+
+  it("verifies legacy bcrypt hashes and flags upgrade", async () => {
+    const legacyBcrypt = await bcrypt.hash("legacy-pass-1", 12)
+    expect(legacyBcrypt.startsWith("$2")).toBe(true)
+    expect(await verifyPassword("legacy-pass-1", legacyBcrypt)).toBe(true)
+    expect(await verifyPassword("wrong", legacyBcrypt)).toBe(false)
+    expect(shouldUpgradePasswordHash(legacyBcrypt)).toBe(true)
   })
 
   it("verifies legacy Better Auth scrypt hashes and flags upgrade", async () => {

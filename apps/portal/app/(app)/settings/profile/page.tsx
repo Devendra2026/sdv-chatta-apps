@@ -7,7 +7,7 @@ import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 
-import { api } from "@/lib/api"
+import { api, type AuthSessionItem } from "@/lib/api"
 import { SettingsPageHeader } from "../_components/settings-page-header"
 
 export default function ProfileSettingsPage() {
@@ -15,6 +15,23 @@ export default function ProfileSettingsPage() {
   const [newPassword, setNewPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
   const [loading, setLoading] = React.useState(false)
+  const [sessions, setSessions] = React.useState<AuthSessionItem[]>([])
+  const [sessionsLoading, setSessionsLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    void (async () => {
+      try {
+        const res = await api.get<{ sessions: AuthSessionItem[] }>(
+          "/api/v1/auth/sessions"
+        )
+        setSessions(res.data.sessions)
+      } catch {
+        toast.error("Could not load active sessions")
+      } finally {
+        setSessionsLoading(false)
+      }
+    })()
+  }, [])
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -22,8 +39,8 @@ export default function ProfileSettingsPage() {
       toast.error("New passwords do not match")
       return
     }
-    if (newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters")
+    if (newPassword.length < 12) {
+      toast.error("Password must be at least 12 characters")
       return
     }
 
@@ -46,11 +63,31 @@ export default function ProfileSettingsPage() {
     }
   }
 
+  async function revokeSession(id: string) {
+    try {
+      await api.delete(`/api/v1/auth/sessions/${id}`)
+      setSessions((prev) => prev.filter((s) => s.id !== id))
+      toast.success("Session revoked")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not revoke session")
+    }
+  }
+
+  async function revokeAllOthers() {
+    try {
+      await api.post("/api/v1/auth/sessions/revoke-all", { keepCurrent: true })
+      setSessions((prev) => prev.filter((s) => s.current))
+      toast.success("Other sessions signed out")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not revoke sessions")
+    }
+  }
+
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div className="mx-auto max-w-lg space-y-6">
       <SettingsPageHeader
         title="Profile"
-        description="Update your account password. All staff roles can change their own password here."
+        description="Update your password and manage active sign-in sessions."
       />
 
       <form
@@ -70,7 +107,7 @@ export default function ProfileSettingsPage() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="new-password">New password</Label>
+          <Label htmlFor="new-password">New password (min 12 characters)</Label>
           <Input
             id="new-password"
             type="password"
@@ -78,7 +115,7 @@ export default function ProfileSettingsPage() {
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             required
-            minLength={8}
+            minLength={12}
             className="h-10"
           />
         </div>
@@ -91,7 +128,7 @@ export default function ProfileSettingsPage() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
-            minLength={8}
+            minLength={12}
             className="h-10"
           />
         </div>
@@ -99,6 +136,71 @@ export default function ProfileSettingsPage() {
           {loading ? "Saving…" : "Change password"}
         </Button>
       </form>
+
+      <section className="space-y-3 rounded-xl border bg-card p-6 shadow-[var(--shadow-premium)]">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h2 className="font-medium">Active sessions</h2>
+            <p className="text-sm text-muted-foreground">
+              Devices where you are signed in to the staff portal.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="cursor-pointer shrink-0"
+            disabled={sessionsLoading || sessions.filter((s) => !s.current).length === 0}
+            onClick={() => void revokeAllOthers()}
+          >
+            Sign out others
+          </Button>
+        </div>
+        {sessionsLoading ? (
+          <p className="text-sm text-muted-foreground">Loading sessions…</p>
+        ) : sessions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No active sessions.</p>
+        ) : (
+          <ul className="divide-y rounded-md border">
+            {sessions.map((session) => (
+              <li
+                key={session.id}
+                className="flex items-start justify-between gap-3 px-3 py-3 text-sm"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    {session.current ? "This device" : "Other device"}
+                    {session.current ? (
+                      <span className="ml-2 text-xs font-normal text-emerald-700">
+                        Current
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="truncate text-muted-foreground">
+                    {session.userAgent ?? "Unknown browser"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Last active{" "}
+                    {new Date(session.lastActiveAt).toLocaleString()}
+                    {session.ipAddress ? ` · ${session.ipAddress}` : ""}
+                  </p>
+                </div>
+                {!session.current ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="cursor-pointer shrink-0"
+                    onClick={() => void revokeSession(session.id)}
+                  >
+                    Revoke
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   )
 }

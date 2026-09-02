@@ -6,6 +6,7 @@ import { AuthGuard } from "./auth.guard"
 import { AuthService } from "./auth.service"
 import { PermissionGuard } from "./permission.guard"
 import { RolesGuard } from "./roles.guard"
+import { LoginProtectionService } from "./login-protection.service"
 import { SessionService } from "./session.service"
 
 @Module({
@@ -14,6 +15,7 @@ import { SessionService } from "./session.service"
   providers: [
     AuthService,
     SessionService,
+    LoginProtectionService,
     AuthGuard,
     PermissionGuard,
     RolesGuard,

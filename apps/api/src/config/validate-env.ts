@@ -45,7 +45,14 @@ function collectProductionErrors(env: NodeJS.ProcessEnv): string[] {
 
   if (!env.SMTP_HOST?.trim() || !env.SMTP_FROM?.trim()) {
     errors.push(
-      "SMTP_HOST and SMTP_FROM are required in production for password-reset OTP emails"
+      "SMTP_HOST and SMTP_FROM are required in production for password-reset link emails"
+    )
+  }
+
+  const paymentProvider = env.PAYMENT_PROVIDER?.trim().toLowerCase()
+  if (paymentProvider === "sandbox") {
+    errors.push(
+      "PAYMENT_PROVIDER must not be sandbox in production (set PAYMENT_PROVIDER=atom)"
     )
   }
 

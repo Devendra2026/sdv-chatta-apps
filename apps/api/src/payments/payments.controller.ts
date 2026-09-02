@@ -176,19 +176,23 @@ export class PaymentsController {
   @Get()
   @RequirePermission("payment:read")
   async list(
+    @CurrentUser() user: AuthUser,
     @Query("page") page?: string,
     @Query("pageSize") pageSize?: string,
     @Query("status") status?: PaymentStatus,
     @Query("paymentMode") paymentMode?: PaymentMode,
     @Query("wardId") wardId?: string
   ) {
-    const { items, meta } = await this.paymentsService.list({
-      page: Number(page ?? 1),
-      pageSize: Number(pageSize ?? 20),
-      status,
-      paymentMode,
-      wardId,
-    })
+    const { items, meta } = await this.paymentsService.list(
+      {
+        page: Number(page ?? 1),
+        pageSize: Number(pageSize ?? 20),
+        status,
+        paymentMode,
+        wardId,
+      },
+      user
+    )
     return { success: true, data: items, meta }
   }
 
@@ -208,8 +212,11 @@ export class PaymentsController {
 
   @Get(":id/receipt")
   @RequirePermission("payment:read")
-  async staffReceipt(@Param("id") id: string) {
-    const data = await this.paymentsService.getStaffReceipt(id)
+  async staffReceipt(
+    @Param("id") id: string,
+    @CurrentUser() user: AuthUser
+  ) {
+    const data = await this.paymentsService.getStaffReceipt(id, user)
     return { success: true, data }
   }
 

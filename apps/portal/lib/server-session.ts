@@ -31,6 +31,7 @@ export async function fetchCurrentUser(): Promise<CurrentUserResult> {
       ...describeCookieForwardingState({
         rawHeader: rawCookie,
         forwardedHeader: cookie,
+        sessionCookieName: process.env.SESSION_COOKIE_NAME,
       }),
     })
     return { status: "unauthenticated" }

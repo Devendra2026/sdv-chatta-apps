@@ -1,7 +1,9 @@
 import { scrypt } from "node:crypto"
+import argon2 from "argon2"
 import bcrypt from "bcryptjs"
 
 const BCRYPT_PREFIX = "$2"
+const ARGON2_PREFIX = "$argon2"
 const BCRYPT_ROUNDS = 12
 
 const LEGACY_SCRYPT = {
@@ -12,8 +14,24 @@ const LEGACY_SCRYPT = {
   maxmem: 128 * 16384 * 16 * 2,
 } as const
 
+function resolveArgon2Options() {
+  const memoryCost = Number(process.env.ARGON2_MEMORY_KB ?? 19456)
+  const timeCost = Number(process.env.ARGON2_TIME_COST ?? 2)
+  const parallelism = Number(process.env.ARGON2_PARALLELISM ?? 1)
+  return {
+    type: argon2.argon2id,
+    memoryCost,
+    timeCost,
+    parallelism,
+  } as const
+}
+
 function isBcryptHash(hash: string): boolean {
   return hash.startsWith(BCRYPT_PREFIX)
+}
+
+function isArgon2Hash(hash: string): boolean {
+  return hash.startsWith(ARGON2_PREFIX)
 }
 
 function isLegacyBetterAuthHash(hash: string): boolean {
@@ -48,7 +66,7 @@ async function verifyLegacyBetterAuthHash(
 }
 
 export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, BCRYPT_ROUNDS)
+  return argon2.hash(password, resolveArgon2Options())
 }
 
 export async function verifyPassword(
@@ -56,6 +74,13 @@ export async function verifyPassword(
   storedHash: string
 ): Promise<boolean> {
   if (!storedHash) return false
+  if (isArgon2Hash(storedHash)) {
+    try {
+      return await argon2.verify(storedHash, password)
+    } catch {
+      return false
+    }
+  }
   if (isBcryptHash(storedHash)) {
     return bcrypt.compare(password, storedHash)
   }
@@ -65,7 +90,7 @@ export async function verifyPassword(
   return false
 }
 
-/** Rehash legacy Better Auth scrypt hashes to bcrypt after successful login. */
+/** Rehash legacy bcrypt/scrypt hashes to Argon2id after successful login. */
 export function shouldUpgradePasswordHash(storedHash: string): boolean {
-  return isLegacyBetterAuthHash(storedHash)
+  return isLegacyBetterAuthHash(storedHash) || isBcryptHash(storedHash)
 }
