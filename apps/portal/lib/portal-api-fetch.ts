@@ -1,4 +1,9 @@
-import { describeCookieForwardingState, describeHttpFailure } from "@workspace/types"
+import {
+  describeCookieForwardingState,
+  describeHttpFailure,
+} from "@workspace/types"
+import http, { type IncomingMessage } from "node:http"
+import https from "node:https"
 
 const RETRY_BACKOFF_MS = [200, 500]
 
@@ -45,6 +50,86 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function incomingToHeaders(res: IncomingMessage): Headers {
+  const headers = new Headers()
+  for (const [key, value] of Object.entries(res.headers)) {
+    if (value === undefined) continue
+    if (Array.isArray(value)) {
+      for (const item of value) headers.append(key, item)
+    } else {
+      headers.set(key, value)
+    }
+  }
+  return headers
+}
+
+/**
+ * TCP request to Nest. Must not use global fetch — Next.js 16 patches
+ * fetch and can treat `http://api:4000/api/...` as an internal portal
+ * request when that URL is a rewrite destination, returning a 404 with
+ * no `x-api-build-id` / `x-api-pid`.
+ */
+export function upstreamApiRequest(
+  url: string,
+  init: {
+    method: string
+    headers: Record<string, string>
+    signal?: AbortSignal
+  }
+): Promise<Response> {
+  const parsed = new URL(url)
+  const lib = parsed.protocol === "https:" ? https : http
+
+  return new Promise((resolve, reject) => {
+    if (init.signal?.aborted) {
+      const abortErr = new Error("The operation was aborted")
+      abortErr.name = "AbortError"
+      reject(abortErr)
+      return
+    }
+
+    const req = lib.request(
+      {
+        protocol: parsed.protocol,
+        hostname: parsed.hostname,
+        port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
+        path: `${parsed.pathname}${parsed.search}`,
+        method: init.method,
+        headers: init.headers,
+        family: 4,
+      },
+      (res) => {
+        const chunks: Buffer[] = []
+        res.on("data", (chunk: Buffer) => chunks.push(chunk))
+        res.on("end", () => {
+          init.signal?.removeEventListener("abort", onAbort)
+          resolve(
+            new Response(Buffer.concat(chunks), {
+              status: res.statusCode ?? 502,
+              statusText: res.statusMessage,
+              headers: incomingToHeaders(res),
+            })
+          )
+        })
+      }
+    )
+
+    const onAbort = () => {
+      req.destroy()
+      const abortErr = new Error("The operation was aborted")
+      abortErr.name = "AbortError"
+      reject(abortErr)
+    }
+
+    init.signal?.addEventListener("abort", onAbort, { once: true })
+    req.on("error", (err) => {
+      init.signal?.removeEventListener("abort", onAbort)
+      reject(err)
+    })
+    req.end()
+  })
+}
+
 export type PortalApiJson = {
   success?: boolean
   data?: unknown
@@ -71,7 +156,9 @@ export type PortalApiFetchOptions = {
   sessionCookieName?: string | null
 }
 
-function buildRequestHeaders(options: PortalApiFetchOptions): HeadersInit {
+function buildRequestHeaders(
+  options: PortalApiFetchOptions
+): Record<string, string> {
   const headers: Record<string, string> = {
     accept: "application/json",
     origin: options.origin,
@@ -96,10 +183,9 @@ export async function fetchPortalApi(
 
   for (let attempt = 0; attempt <= PORTAL_API_MAX_RETRIES; attempt++) {
     try {
-      const response = await fetch(url, {
+      const response = await upstreamApiRequest(url, {
         method,
         headers,
-        cache: "no-store",
         signal: AbortSignal.timeout(PORTAL_API_TIMEOUT_MS),
       })
 
