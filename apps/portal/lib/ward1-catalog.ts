@@ -19,6 +19,7 @@ export const TAX_RATE_ZONES = [
   "RATE ZONE 1 (Upto 9 Meters)",
   "RATE ZONE 2 (9 meters and upto 12 meters)",
   "RATE ZONE 3 (12 Meters And Upto 24 Meters)",
+  "RATE ZONE 4 (Above 24 Meters)",
 ] as const
 
 export const PROPERTY_OWNERSHIPS = [

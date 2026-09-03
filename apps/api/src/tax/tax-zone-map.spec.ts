@@ -1,4 +1,45 @@
-import { classifyGisUseCode, isResidentialUsage } from "./tax-zone-map"
+import {
+  classifyGisUseCode,
+  isResidentialUsage,
+  mapTaxRateZoneCode,
+} from "./tax-zone-map"
+
+describe("mapTaxRateZoneCode", () => {
+  it("maps Rate Zone 1–4 catalog labels to matrix row codes", () => {
+    expect(mapTaxRateZoneCode("RATE ZONE 1 (Upto 9 Meters)")).toBe("BELOW_9M")
+    expect(
+      mapTaxRateZoneCode("RATE ZONE 2 (9 meters and upto 12 meters)")
+    ).toBe("METER_9_TO_12")
+    expect(
+      mapTaxRateZoneCode("RATE ZONE 3 (12 Meters And Upto 24 Meters)")
+    ).toBe("METER_12_TO_24")
+    expect(mapTaxRateZoneCode("RATE ZONE 4 (Above 24 Meters)")).toBe(
+      "ABOVE_24M"
+    )
+  })
+
+  it("maps panel row labels and codes", () => {
+    expect(mapTaxRateZoneCode("Below 9m")).toBe("BELOW_9M")
+    expect(mapTaxRateZoneCode("9m to 12m")).toBe("METER_9_TO_12")
+    expect(mapTaxRateZoneCode("12m to 24m")).toBe("METER_12_TO_24")
+    expect(mapTaxRateZoneCode("Above 24m")).toBe("ABOVE_24M")
+    expect(mapTaxRateZoneCode("BELOW_9M")).toBe("BELOW_9M")
+    expect(mapTaxRateZoneCode("METER_9_TO_12")).toBe("METER_9_TO_12")
+    expect(mapTaxRateZoneCode("METER_12_TO_24")).toBe("METER_12_TO_24")
+    expect(mapTaxRateZoneCode("ABOVE_24M")).toBe("ABOVE_24M")
+  })
+
+  it("does not treat Zone 2/3 'upto' text as Zone 1", () => {
+    expect(mapTaxRateZoneCode("Rate Zone 2")).toBe("METER_9_TO_12")
+    expect(mapTaxRateZoneCode("zone 3")).toBe("METER_12_TO_24")
+    expect(mapTaxRateZoneCode("upto 9 meters")).toBe("BELOW_9M")
+  })
+
+  it("returns null for empty values", () => {
+    expect(mapTaxRateZoneCode(null)).toBeNull()
+    expect(mapTaxRateZoneCode("")).toBeNull()
+  })
+})
 
 describe("classifyGisUseCode", () => {
   it("returns null for missing or unparseable values", () => {

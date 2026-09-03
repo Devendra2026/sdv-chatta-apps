@@ -20,8 +20,13 @@ const TAX_ZONE: Record<string, string> = {
   rate_zone_1_upto_9_meters: "BELOW_9M",
   meter_9_to_12: "METER_9_TO_12",
   rate_zone_2: "METER_9_TO_12",
+  rate_zone_2_9_meters_and_upto_12_meters: "METER_9_TO_12",
   meter_12_to_24: "METER_12_TO_24",
+  rate_zone_3: "METER_12_TO_24",
+  rate_zone_3_12_meters_and_upto_24_meters: "METER_12_TO_24",
   above_24m: "ABOVE_24M",
+  rate_zone_4: "ABOVE_24M",
+  rate_zone_4_above_24_meters: "ABOVE_24M",
 }
 
 const CONSTRUCTION: Record<string, string> = {
@@ -37,15 +42,47 @@ const CONSTRUCTION: Record<string, string> = {
   open: "OPEN_LAND",
 }
 
+/**
+ * Map survey Tax Rate Zone text → matrix row code.
+ * Rate Zone 1 → BELOW_9M
+ * Rate Zone 2 → METER_9_TO_12
+ * Rate Zone 3 → METER_12_TO_24
+ * Rate Zone 4 → ABOVE_24M
+ */
 export function mapTaxRateZoneCode(raw?: string | null): string | null {
   if (!raw?.trim()) return null
   const n = norm(raw)
   if (TAX_ZONE[n]) return TAX_ZONE[n]
-  if (n.includes("9") && n.includes("meter") && !n.includes("12"))
-    return "BELOW_9M"
+
+  // Explicit "Rate Zone N" must win before "upto" / meter heuristics
+  // (Zone 2/3 labels also contain "upto", which must not become Zone 1).
+  if (/zone_4(?!\d)/.test(n)) return "ABOVE_24M"
+  if (/zone_3(?!\d)/.test(n)) return "METER_12_TO_24"
+  if (/zone_2(?!\d)/.test(n)) return "METER_9_TO_12"
+  if (/zone_1(?!\d)/.test(n)) return "BELOW_9M"
+
+  // Meter-width buckets (panel row labels / codes)
+  if (n.includes("above") && n.includes("24")) return "ABOVE_24M"
   if (n.includes("12") && n.includes("24")) return "METER_12_TO_24"
-  if (n.includes("above") || n.includes("24")) return "ABOVE_24M"
-  if (n.includes("zone_1") || n.includes("upto")) return "BELOW_9M"
+  if (
+    (n.includes("9") && n.includes("12")) ||
+    n.includes("9m_to_12") ||
+    n.includes("9_to_12")
+  ) {
+    return "METER_9_TO_12"
+  }
+  if (
+    n.includes("below_9") ||
+    n.includes("upto_9") ||
+    n.includes("up_to_9") ||
+    (n.includes("9") && n.includes("meter") && !n.includes("12"))
+  ) {
+    return "BELOW_9M"
+  }
+  if (n.includes("above_24") || n.includes(">24") || n.includes("24m")) {
+    return "ABOVE_24M"
+  }
+
   return null
 }
 
