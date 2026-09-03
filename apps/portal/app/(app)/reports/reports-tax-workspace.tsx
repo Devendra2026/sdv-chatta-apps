@@ -67,7 +67,8 @@ type TaxConfig = {
 const GIS_USE_PREVIEW_OPTIONS = [
   { code: "R", name: "R - Residential" },
   { code: "C", name: "C - Commercial" },
-  { code: "O", name: "O - Open land" },
+  { code: "M", name: "M - Mix Property" },
+  { code: "P", name: "P - Open plot" },
 ] as const
 
 function num(v: string | number | undefined): number {

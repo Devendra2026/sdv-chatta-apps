@@ -1,9 +1,6 @@
 /** Pure tax helpers for ward demand reports and citizen dues. */
 
-import {
-  classifyGisUseCode,
-  type GisUseClass,
-} from "./tax-zone-map"
+import { classifyGisUseCode, type GisUseClass } from "./tax-zone-map"
 
 export function roundMoney(amount: number): number {
   return Math.round(amount * 100) / 100
@@ -29,6 +26,7 @@ export function resolveAssessablePct(
   if (gisUseClass === "open_land") return 100
   if (gisUseClass === "commercial") return options.commercialPct
   if (gisUseClass === "residential") return options.residentialPct
+  // mixed or null → property / floor usage heuristics
   const key =
     `${usageFactor ?? ""} ${usageType ?? ""} ${propertyUse ?? ""}`.toLowerCase()
   if (key.includes("open")) return 100
@@ -54,6 +52,7 @@ export function resolveUsageRateMult(
 ): number {
   if (gisUseClass === "commercial") return 2
   if (gisUseClass === "residential" || gisUseClass === "open_land") return 1
+  // mixed or null → property / floor usage heuristics
   const key =
     `${usageFactor ?? ""} ${usageType ?? ""} ${propertyUse ?? ""}`.toLowerCase()
   if (
@@ -154,14 +153,15 @@ export function computeGisPreviewDemand(input: {
   penalty: number
   demand: number
 } {
-  const gisClass =
-    classifyGisUseCode(input.gisUseCode ?? "R") ?? "residential"
+  const gisClass = classifyGisUseCode(input.gisUseCode ?? "R") ?? "residential"
+  // Mix has no floor usage in preview → residential heuristics
+  const rateGisClass = gisClass === "mixed" ? null : gisClass
   const effectiveMonthlyRate = resolveEffectiveMonthlyRate(
     input.baseMonthlyRate,
     null,
     null,
     null,
-    gisClass
+    rateGisClass
   )
   const assessablePct = resolveAssessablePct(
     null,
@@ -171,7 +171,7 @@ export function computeGisPreviewDemand(input: {
       residentialPct: input.assessablePct,
       commercialPct: input.commercialAssessablePct,
     },
-    gisClass
+    rateGisClass
   )
   const { grossAlv, assessableAlv, propertyTax } = computeFloorAlv(
     input.areaSqFt,
@@ -313,9 +313,13 @@ export function computeSurveyExportTax(input: {
   }
 
   for (const floor of input.floors) {
-    const usageResidential = gisClass
-      ? gisClass === "residential"
-      : floor.usageResidential
+    const usageResidential =
+      gisClass === "residential"
+        ? true
+        : gisClass === "commercial" || gisClass === "open_land"
+          ? false
+          : floor.usageResidential
+    const rateGisClass = gisClass === "mixed" ? null : gisClass
     const slot = slotForFloor(floor.floorKey, usageResidential)
     if (slot >= 0 && slot < 8) {
       floorAreaBySlot[slot] = roundMoney(
@@ -334,7 +338,7 @@ export function computeSurveyExportTax(input: {
       floor.usageFactor,
       floor.usageType,
       input.propertyUse,
-      gisClass
+      rateGisClass
     )
 
     const floorAssessablePct = resolveAssessablePct(
@@ -342,7 +346,7 @@ export function computeSurveyExportTax(input: {
       floor.usageType,
       floor.usageFactor,
       assessableOpts,
-      gisClass
+      rateGisClass
     )
     const { assessableAlv, propertyTax: floorTax } = computeFloorAlv(
       floor.areaSqFt,
