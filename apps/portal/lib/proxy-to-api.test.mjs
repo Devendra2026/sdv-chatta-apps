@@ -16,10 +16,16 @@ describe("portal proxyToApi cookie forwarding", () => {
     assert.doesNotMatch(src, /await cookies\(\)/)
   })
 
-  it("forwards Cookie on the upstream fetch and logs when it is missing", () => {
+  it("forwards Cookie on the upstream request and logs when it is missing", () => {
     assert.match(src, /headers\.set\("cookie", cookieHeader\)/)
     assert.match(src, /\[proxy-to-api\] cookie header missing/)
     assert.match(src, /headersToRecord\(headers\)/)
+  })
+
+  it("uses upstreamApiRequest instead of Next-patched fetch to api:4000", () => {
+    assert.match(src, /upstreamApiRequest/)
+    assert.match(src, /upstreamApiRequest\(target\.toString\(\)/)
+    assert.doesNotMatch(src, /await fetch\(target/)
   })
 
   it("does not warn about missing session cookies on login or logout", () => {

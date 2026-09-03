@@ -14,6 +14,7 @@ import {
   PORTAL_API_TIMEOUT_MS,
   sanitizeApiHost,
   sleep,
+  upstreamApiRequest,
   type PortalApiJson,
 } from "@/lib/portal-api-fetch"
 
@@ -176,14 +177,13 @@ export async function proxyToApi(
 
   for (let attempt = 0; attempt <= PORTAL_API_MAX_RETRIES; attempt++) {
     try {
-      // Plain record so Node/undici fetch does not drop Cookie as a
-      // forbidden Headers-guard name.
-      const response = await fetch(target, {
+      // node:http via resolved IP — never Next-patched fetch(target).
+      // Plain record so Cookie is not dropped as a forbidden header name.
+      const response = await upstreamApiRequest(target.toString(), {
         method,
         headers: headersToRecord(headers),
-        body,
-        redirect: "manual",
-        cache: "no-store",
+        body:
+          body === undefined ? undefined : Buffer.from(new Uint8Array(body)),
         signal: AbortSignal.timeout(PORTAL_API_TIMEOUT_MS),
       })
 

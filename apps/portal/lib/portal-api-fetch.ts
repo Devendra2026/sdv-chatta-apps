@@ -2,8 +2,10 @@ import {
   describeCookieForwardingState,
   describeHttpFailure,
 } from "@workspace/types"
+import dns from "node:dns/promises"
 import http, { type IncomingMessage } from "node:http"
 import https from "node:https"
+import { isIP } from "node:net"
 
 const RETRY_BACKOFF_MS = [200, 500]
 
@@ -66,19 +68,57 @@ function incomingToHeaders(res: IncomingMessage): Headers {
 /**
  * TCP request to Nest. Must not use global fetch — Next.js 16 patches
  * fetch and can treat `http://api:4000/api/...` as an internal portal
- * request when that URL is a rewrite destination, returning a 404 with
- * no `x-api-build-id` / `x-api-pid`.
+ * request when that URL matches a local /api route or old rewrite
+ * destination, returning a 404 with no `x-api-build-id` / `x-api-pid`.
+ *
+ * Connect by resolved IP (not hostname) so Next cannot short-circuit
+ * the Docker service name as a local route. Set Host explicitly.
  */
-export function upstreamApiRequest(
+export async function upstreamApiRequest(
   url: string,
   init: {
     method: string
     headers: Record<string, string>
+    body?: Buffer | Uint8Array | ArrayBuffer | null
     signal?: AbortSignal
   }
 ): Promise<Response> {
   const parsed = new URL(url)
   const lib = parsed.protocol === "https:" ? https : http
+  const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80")
+  const hostname = parsed.hostname
+
+  let connectHost = hostname
+  if (!isIP(hostname)) {
+    const lookedUp = await dns.lookup(hostname)
+    connectHost = lookedUp.address
+  }
+
+  const requestHeaders: Record<string, string> = { ...init.headers }
+  if (!Object.keys(requestHeaders).some((k) => k.toLowerCase() === "host")) {
+    requestHeaders.host =
+      port === "80" || port === "443" ? hostname : `${hostname}:${port}`
+  }
+
+  const bodyBuffer =
+    init.body == null
+      ? undefined
+      : Buffer.isBuffer(init.body)
+        ? init.body
+        : Buffer.from(
+            init.body instanceof ArrayBuffer
+              ? new Uint8Array(init.body)
+              : init.body
+          )
+  if (bodyBuffer && bodyBuffer.byteLength > 0) {
+    if (
+      !Object.keys(requestHeaders).some(
+        (k) => k.toLowerCase() === "content-length"
+      )
+    ) {
+      requestHeaders["content-length"] = String(bodyBuffer.byteLength)
+    }
+  }
 
   return new Promise((resolve, reject) => {
     if (init.signal?.aborted) {
@@ -91,12 +131,12 @@ export function upstreamApiRequest(
     const req = lib.request(
       {
         protocol: parsed.protocol,
-        hostname: parsed.hostname,
-        port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
+        hostname: connectHost,
+        port,
         path: `${parsed.pathname}${parsed.search}`,
         method: init.method,
-        headers: init.headers,
-        family: 4,
+        headers: requestHeaders,
+        servername: parsed.protocol === "https:" ? hostname : undefined,
       },
       (res) => {
         const chunks: Buffer[] = []
@@ -126,7 +166,11 @@ export function upstreamApiRequest(
       init.signal?.removeEventListener("abort", onAbort)
       reject(err)
     })
-    req.end()
+    if (bodyBuffer && bodyBuffer.byteLength > 0) {
+      req.end(bodyBuffer)
+    } else {
+      req.end()
+    }
   })
 }
 
