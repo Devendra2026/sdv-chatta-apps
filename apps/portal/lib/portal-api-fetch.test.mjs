@@ -31,7 +31,10 @@ describe("portal-api-fetch internal URL", () => {
   it("uses node:http to Nest instead of Next-patched global fetch", () => {
     assert.match(src, /from "node:http"/)
     assert.match(src, /from "node:dns\/promises"/)
-    assert.match(src, /export (?:async )?function upstreamApiRequest/)
+    assert.match(src, /export (?:async )?function resolveAllowedConnectHost/)
+    assert.match(src, /isAllowedApiConnectAddress/)
+    assert.match(src, /127\.0\.0\.11/)
+    assert.match(src, /agent:\s*false/)
     assert.match(src, /dns\.lookup/)
     assert.match(src, /connectHost/)
     assert.match(src, /requestHeaders\.host/)
