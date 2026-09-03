@@ -81,6 +81,8 @@ describe("isResidentialUsage", () => {
   it("for mixed uses floor / property text (both R and C apply)", () => {
     expect(isResidentialUsage("Residential", null, "mixed")).toBe(true)
     expect(isResidentialUsage("Commercial", null, "mixed")).toBe(false)
+    expect(isResidentialUsage("Residential", "Shops/Banks", "mixed")).toBe(true)
+    expect(isResidentialUsage("Commercial", "Residential", "mixed")).toBe(false)
   })
 
   it("falls back to usage text when GIS class is missing", () => {

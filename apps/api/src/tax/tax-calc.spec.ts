@@ -4,6 +4,7 @@ import {
   computeGisPreviewDemand,
   computeSurveyExportTax,
   resolveAssessablePct,
+  resolveEffectiveMonthlyRate,
   roundMoney,
   taxRateKey,
 } from "./tax-calc"
@@ -284,6 +285,27 @@ describe("tax-calc", () => {
     expect(r.totalDemand).toBe(129.6)
   })
 
+  it("mixed GIS: floor usage wins over property use Shops/Banks", () => {
+    expect(
+      resolveEffectiveMonthlyRate(
+        1.1,
+        "Self Occupied",
+        "Residential",
+        "Shops/Banks",
+        null
+      )
+    ).toBe(1.1)
+    expect(
+      resolveEffectiveMonthlyRate(
+        1.1,
+        "Self Occupied",
+        "Commercial",
+        "Shops/Banks",
+        null
+      )
+    ).toBe(2.2)
+  })
+
   it("GIS Use Code M applies both residential and commercial per floor", () => {
     const rates = {
       assessablePct: 80,
@@ -294,8 +316,12 @@ describe("tax-calc", () => {
       penaltyPct: 0,
       rateByZoneAndConstruction: new Map([
         [taxRateKey("BELOW_9M", "PAKKA_BUILDING_WITH_RCC_ROOF"), 0.6],
+        [taxRateKey("ABOVE_24M", "PAKKA_BUILDING_WITH_RCC_ROOF"), 1.1],
       ]),
-      anyRateByZone: new Map([["BELOW_9M", 0.6]]),
+      anyRateByZone: new Map([
+        ["BELOW_9M", 0.6],
+        ["ABOVE_24M", 1.1],
+      ]),
     }
     const r = computeSurveyExportTax({
       taxRateZoneCode: "BELOW_9M",
@@ -325,6 +351,45 @@ describe("tax-calc", () => {
     expect(r.waterTax).toBe(129.6)
     expect(r.drainageTax).toBe(43.2)
     expect(r.totalDemand).toBe(345.6)
+
+    // Notice case: property use Shops/Banks must not double residential floors
+    const mixedShops = computeSurveyExportTax({
+      taxRateZoneCode: "ABOVE_24M",
+      propertyUse: "Shops/Banks",
+      surveyId: "249044-002-000010-001-M",
+      floors: [
+        {
+          floorKey: "Basement",
+          constructionCode: "PAKKA_BUILDING_WITH_RCC_ROOF",
+          usageResidential: false,
+          areaSqFt: 252,
+          usageType: "Commercial",
+          usageFactor: "Self Occupied",
+        },
+        {
+          floorKey: "Ground",
+          constructionCode: "PAKKA_BUILDING_WITH_RCC_ROOF",
+          usageResidential: false,
+          areaSqFt: 432,
+          usageType: "Commercial",
+          usageFactor: "Self Occupied",
+        },
+        {
+          floorKey: "First",
+          constructionCode: "PAKKA_BUILDING_WITH_RCC_ROOF",
+          usageResidential: true,
+          areaSqFt: 252,
+          usageType: "Residential",
+          usageFactor: "Self Occupied",
+        },
+      ],
+      rates,
+    })
+    // Comm: (252+432)×2.2×12×80%×10%; Res: 252×1.1×12×80%×10%
+    expect(mixedShops.propertyTax).toBe(1710.71)
+    expect(mixedShops.waterTax).toBe(1283.04)
+    expect(mixedShops.drainageTax).toBe(427.68)
+    expect(mixedShops.totalDemand).toBe(3421.43)
   })
 
   it("computeGisPreviewDemand applies C ×2 and P open-plot exemptions; M defaults residential", () => {

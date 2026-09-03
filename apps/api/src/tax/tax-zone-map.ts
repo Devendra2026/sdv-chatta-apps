@@ -126,12 +126,25 @@ export function isResidentialUsage(
 ): boolean {
   if (gisUseClass === "commercial" || gisUseClass === "open_land") return false
   if (gisUseClass === "residential") return true
-  // mixed or null → floor / property text
-  const key = `${usageType ?? ""} ${propertyUse ?? ""}`.toLowerCase()
+  // mixed or null → floor Usage Type wins over property-wide Property Use
+  const floor = (usageType ?? "").trim().toLowerCase()
+  if (floor) {
+    if (
+      floor.includes("commercial") ||
+      floor.includes("shop") ||
+      floor.includes("godown") ||
+      floor.includes("non-res")
+    ) {
+      return false
+    }
+    if (floor.includes("residential")) return true
+  }
+  const prop = (propertyUse ?? "").toLowerCase()
   if (
-    key.includes("commercial") ||
-    key.includes("non-res") ||
-    key.includes("shop")
+    prop.includes("commercial") ||
+    prop.includes("shop") ||
+    prop.includes("godown") ||
+    prop.includes("non-res")
   ) {
     return false
   }

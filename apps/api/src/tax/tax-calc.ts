@@ -11,6 +11,39 @@ export type AssessablePctOptions = {
   commercialPct: number
 }
 
+function usageLooksCommercial(text: string): boolean {
+  const key = text.toLowerCase()
+  return (
+    key.includes("commercial") ||
+    key.includes("shop") ||
+    key.includes("godown") ||
+    key.includes("non-res")
+  )
+}
+
+function usageLooksOpenLand(text: string): boolean {
+  return text.toLowerCase().includes("open")
+}
+
+function usageLooksResidential(text: string): boolean {
+  return text.toLowerCase().includes("residential")
+}
+
+/**
+ * Floor Usage Type wins over property-wide Property Use.
+ * Mixed GIS properties often have Property Use "Shops/Banks" while some
+ * floors are Residential — those floors must keep the base rate (×1).
+ */
+function resolveHeuristicUsageKey(
+  usageType?: string | null,
+  usageFactor?: string | null,
+  propertyUse?: string | null
+): string {
+  const floor = (usageType ?? "").trim()
+  if (floor) return floor.toLowerCase()
+  return `${usageFactor ?? ""} ${propertyUse ?? ""}`.toLowerCase().trim()
+}
+
 /**
  * Resolve assessable % from GIS Use Code when present, else property / floor usage.
  * Residential → residentialPct; commercial/shop/godown → commercialPct;
@@ -26,23 +59,17 @@ export function resolveAssessablePct(
   if (gisUseClass === "open_land") return 100
   if (gisUseClass === "commercial") return options.commercialPct
   if (gisUseClass === "residential") return options.residentialPct
-  // mixed or null → property / floor usage heuristics
-  const key =
-    `${usageFactor ?? ""} ${usageType ?? ""} ${propertyUse ?? ""}`.toLowerCase()
-  if (key.includes("open")) return 100
-  if (
-    key.includes("commercial") ||
-    key.includes("shop") ||
-    key.includes("godown")
-  ) {
-    return options.commercialPct
-  }
+  // mixed or null → floor usage first, then property use
+  const key = resolveHeuristicUsageKey(usageType, usageFactor, propertyUse)
+  if (usageLooksOpenLand(key)) return 100
+  if (usageLooksCommercial(key)) return options.commercialPct
   return options.residentialPct
 }
 
 /**
  * Commercial GIS Use Code (or shop/godown usage when GIS is missing) doubles
  * the matrix monthly rate. Residential and open land keep the published base.
+ * For mixed GIS, each floor's Usage Type decides ×1 vs ×2 — not Property Use.
  */
 export function resolveUsageRateMult(
   usageFactor?: string | null,
@@ -52,16 +79,10 @@ export function resolveUsageRateMult(
 ): number {
   if (gisUseClass === "commercial") return 2
   if (gisUseClass === "residential" || gisUseClass === "open_land") return 1
-  // mixed or null → property / floor usage heuristics
-  const key =
-    `${usageFactor ?? ""} ${usageType ?? ""} ${propertyUse ?? ""}`.toLowerCase()
-  if (
-    key.includes("commercial") ||
-    key.includes("shop") ||
-    key.includes("godown")
-  ) {
-    return 2
-  }
+  // mixed or null → floor usage first, then property use
+  const key = resolveHeuristicUsageKey(usageType, usageFactor, propertyUse)
+  if (usageLooksCommercial(key)) return 2
+  if (usageLooksResidential(key)) return 1
   return 1
 }
 
