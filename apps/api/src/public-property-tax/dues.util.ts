@@ -4,6 +4,7 @@ import {
   computeSurveyExportTax,
   resolveAssessablePct,
   resolveEffectiveMonthlyRate,
+  resolveSurveyGisUseClass,
   roundMoney,
   taxRateKey,
   toTaxNumber,
@@ -93,6 +94,7 @@ export function buildNoticeFloorLines(
   survey: SurveyForDues,
   rates: ExportTaxRateTable
 ): NoticeFloorLine[] {
+  const gisClass = resolveSurveyGisUseClass(null, survey.surveyId)
   const zoneCode = mapTaxRateZoneCode(survey.taxRateZone) ?? "BELOW_9M"
   const lines: NoticeFloorLine[] = []
   const assessableOpts = {
@@ -113,13 +115,15 @@ export function buildNoticeFloorLines(
       baseRate,
       floor.usageFactor,
       floor.usageType,
-      survey.propertyUse
+      survey.propertyUse,
+      gisClass
     )
     const floorAssessablePct = resolveAssessablePct(
       survey.propertyUse,
       floor.usageType,
       floor.usageFactor,
-      assessableOpts
+      assessableOpts,
+      gisClass
     )
     const { assessableAlv, propertyTax } = computeFloorAlv(
       areaSqFt,
@@ -139,9 +143,12 @@ export function buildNoticeFloorLines(
     })
   }
 
-  const openLand = String(survey.propertyUse ?? "")
-    .toLowerCase()
-    .includes("open")
+  const openLand =
+    gisClass === "open_land" ||
+    (gisClass == null &&
+      String(survey.propertyUse ?? "")
+        .toLowerCase()
+        .includes("open"))
   if (lines.length === 0 && openLand) {
     const area =
       toTaxNumber(survey.plotAreaSqFt) ||
@@ -178,10 +185,15 @@ export function computePublicDuesPayload(
 ) {
   const rates = taxConfigToRateTable(config)
   const zoneCode = mapTaxRateZoneCode(survey.taxRateZone) ?? "BELOW_9M"
+  const gisClass = resolveSurveyGisUseClass(null, survey.surveyId)
   const floorInputs = survey.floors.map((f) => ({
     floorKey: f.floorLabel,
     constructionCode: mapConstructionCode(f.buildingType ?? f.usageType),
-    usageResidential: isResidentialUsage(f.usageType, survey.propertyUse),
+    usageResidential: isResidentialUsage(
+      f.usageType,
+      survey.propertyUse,
+      gisClass
+    ),
     areaSqFt: toTaxNumber(f.areaSqFt),
     usageType: f.usageType,
     usageFactor: f.usageFactor,
@@ -191,6 +203,7 @@ export function computePublicDuesPayload(
     taxRateZoneCode: zoneCode,
     propertyUse: survey.propertyUse,
     hasMunicipalWater: survey.hasMunicipalWaterSupply,
+    surveyId: survey.surveyId,
     floors: floorInputs,
     plotAreaSqFt: toTaxNumber(survey.plotAreaSqFt),
     plinthAreaSqFt: toTaxNumber(survey.plinthAreaSqFt),

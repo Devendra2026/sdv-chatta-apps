@@ -34,6 +34,7 @@ function sampleSurvey(
 ): DashboardTaxSurvey {
   return {
     id: "s1",
+    surveyId: "249044-001-000001-001-R",
     wardId,
     propertyUse: "Residential",
     taxRateZone: "BELOW_9M",
@@ -79,6 +80,23 @@ describe("aggregateTaxDemand", () => {
     expect(result.drainageTaxPct).toBe(2.5)
     expect(result.byWard.get(wardId)?.surveyedWithDemand).toBe(2)
     expect(result.byWard.get("w2")?.totalTaxDemand).toBe(0)
+  })
+
+  it("applies GIS Use Code C commercial rate multiplier", () => {
+    const wardId = "w1"
+    const result = aggregateTaxDemand({
+      wardIds: [wardId],
+      surveys: [
+        sampleSurvey(wardId, {
+          surveyId: "249044-001-000001-001-C",
+        }),
+      ],
+      configsByWardId: new Map([[wardId, [sampleConfig()]]]),
+    })
+    // 100 × 0.72 × 12 × 80% = 691.2 → house 69.12, water 51.84, drainage 17.28
+    expect(result.byWard.get(wardId)?.propertyTaxDemand).toBeCloseTo(69.12, 2)
+    expect(result.byWard.get(wardId)?.waterTaxDemand).toBeCloseTo(51.84, 2)
+    expect(result.byWard.get(wardId)?.drainageTaxDemand).toBeCloseTo(17.28, 2)
   })
 
   it("skips surveys without zone or published config", () => {

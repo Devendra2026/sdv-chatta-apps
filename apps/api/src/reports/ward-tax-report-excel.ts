@@ -3,6 +3,7 @@ import ExcelJS from "exceljs"
 import type { SurveyExportRecord } from "../imports/survey-excel-export"
 import {
   computeSurveyExportTax,
+  resolveSurveyGisUseClass,
   type ExportTaxRateTable,
   toTaxNumber,
 } from "../tax/tax-calc"
@@ -298,11 +299,16 @@ export function buildWardTaxDataRow(
   row[14] = floorsAbbrev(survey.floorsRaw)
 
   const zoneCode = mapTaxRateZoneCode(survey.taxRateZone) ?? "BELOW_9M"
+  const gisClass = resolveSurveyGisUseClass(null, survey.surveyId)
 
   const floorInputs = (survey.floors ?? []).map((f) => ({
     floorKey: f.floorLabel,
     constructionCode: mapConstructionCode(f.buildingType ?? f.usageType),
-    usageResidential: isResidentialUsage(f.usageType, survey.propertyUse),
+    usageResidential: isResidentialUsage(
+      f.usageType,
+      survey.propertyUse,
+      gisClass
+    ),
     areaSqFt: toTaxNumber(f.areaSqFt),
     usageType: f.usageType,
     usageFactor: f.usageFactor,
@@ -312,6 +318,7 @@ export function buildWardTaxDataRow(
     taxRateZoneCode: zoneCode,
     propertyUse: survey.propertyUse,
     hasMunicipalWater: survey.hasMunicipalWaterSupply,
+    surveyId: survey.surveyId,
     floors: floorInputs,
     plotAreaSqFt: toTaxNumber(survey.plotAreaSqFt),
     plinthAreaSqFt: toTaxNumber(survey.plinthAreaSqFt),

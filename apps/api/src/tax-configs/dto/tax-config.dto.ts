@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Min,
   ValidateNested,
 } from "class-validator"
@@ -87,6 +88,13 @@ export class TaxPreviewDto {
 
   @IsString()
   constructionEntryId!: string
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z]$/, {
+    message: "GIS use code must be a single letter (A–Z)",
+  })
+  gisUseCode?: string
 }
 
 export class PublishTaxConfigDto {

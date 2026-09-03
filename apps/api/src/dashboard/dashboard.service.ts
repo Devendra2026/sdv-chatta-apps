@@ -143,6 +143,7 @@ export class DashboardService {
         where: surveyWhere,
         select: {
           id: true,
+          surveyId: true,
           wardId: true,
           propertyUse: true,
           taxRateZone: true,

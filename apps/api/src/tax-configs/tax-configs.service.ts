@@ -8,7 +8,7 @@ import type { Prisma } from "@prisma/client"
 
 import { AuditService } from "../audit/audit.service"
 import { PrismaService } from "../prisma/prisma.service"
-import { computeDemandTotals, computeFloorAlv } from "../tax/tax-calc"
+import { computeGisPreviewDemand } from "../tax/tax-calc"
 import type {
   CopyTaxToWardsDto,
   PublishTaxConfigDto,
@@ -265,7 +265,7 @@ export class TaxConfigsService {
         c.roadWidthEntryId === dto.roadWidthEntryId &&
         c.constructionEntryId === dto.constructionEntryId
     )
-    const annualRate = cell ? toNumber(cell.annualRatePerSqFt) : 0
+    const baseMonthlyRate = cell ? toNumber(cell.annualRatePerSqFt) : 0
     const assessablePct = toNumber(config.assessablePct)
     const commercialAssessablePct = toNumber(config.commercialAssessablePct)
     const propertyTaxPct = toNumber(config.propertyTaxPct)
@@ -273,28 +273,23 @@ export class TaxConfigsService {
     const drainageTaxPct = toNumber(config.drainageTaxPct)
     const penaltyPct = toNumber(config.penaltyPct)
 
-    const { grossAlv, assessableAlv, propertyTax } = computeFloorAlv(
-      dto.areaSqFt,
-      annualRate,
+    const preview = computeGisPreviewDemand({
+      areaSqFt: dto.areaSqFt,
+      baseMonthlyRate,
+      gisUseCode: dto.gisUseCode ?? "R",
       assessablePct,
-      propertyTaxPct
-    )
-    const { waterTax, drainageTax, penalty, totalAnnualDemand } =
-      computeDemandTotals(
-        assessableAlv,
-        propertyTax,
-        waterTaxPct,
-        drainageTaxPct,
-        penaltyPct,
-        true,
-        true
-      )
+      commercialAssessablePct,
+      propertyTaxPct,
+      waterTaxPct,
+      drainageTaxPct,
+      penaltyPct,
+    })
 
     return {
       inputs: dto,
       rates: {
-        annualRate,
-        assessablePct,
+        annualRate: preview.effectiveMonthlyRate,
+        assessablePct: preview.assessablePct,
         commercialAssessablePct,
         propertyTaxPct,
         waterTaxPct,
@@ -302,13 +297,13 @@ export class TaxConfigsService {
         penaltyPct,
       },
       calculation: {
-        grossAlv,
-        assessableAlv,
-        propertyTax,
-        waterTax,
-        drainageTax,
-        penalty,
-        demand: totalAnnualDemand,
+        grossAlv: preview.grossAlv,
+        assessableAlv: preview.assessableAlv,
+        propertyTax: preview.propertyTax,
+        waterTax: preview.waterTax,
+        drainageTax: preview.drainageTax,
+        penalty: preview.penalty,
+        demand: preview.demand,
       },
     }
   }

@@ -64,6 +64,12 @@ type TaxConfig = {
   cells: TaxCell[]
 }
 
+const GIS_USE_PREVIEW_OPTIONS = [
+  { code: "R", name: "R - Residential" },
+  { code: "C", name: "C - Commercial" },
+  { code: "O", name: "O - Open land" },
+] as const
+
 function num(v: string | number | undefined): number {
   if (v == null) return 0
   return typeof v === "number" ? v : Number(v)
@@ -103,6 +109,7 @@ export function ReportsTaxWorkspace({
   const [previewArea, setPreviewArea] = React.useState("100")
   const [previewRoadId, setPreviewRoadId] = React.useState("")
   const [previewConstructionId, setPreviewConstructionId] = React.useState("")
+  const [previewGisUseCode, setPreviewGisUseCode] = React.useState("R")
 
   const wardsQuery = useQuery({
     queryKey: ["wards"],
@@ -208,6 +215,16 @@ export function ReportsTaxWorkspace({
         (c) => c.name
       ),
     [constructions]
+  )
+
+  const gisUseItems = React.useMemo(
+    () =>
+      buildSelectItems(
+        GIS_USE_PREVIEW_OPTIONS,
+        (g) => g.code,
+        (g) => g.name
+      ),
+    []
   )
 
   const configIdentity = config ? `${config.id}:${config.version}` : ""
@@ -322,6 +339,7 @@ export function ReportsTaxWorkspace({
       previewArea,
       previewRoadId,
       previewConstructionId,
+      previewGisUseCode,
     ],
     enabled: Boolean(
       wardId && assessmentYearId && previewRoadId && previewConstructionId
@@ -342,6 +360,7 @@ export function ReportsTaxWorkspace({
           areaSqFt: Number(previewArea) || 0,
           roadWidthEntryId: previewRoadId,
           constructionEntryId: previewConstructionId,
+          gisUseCode: previewGisUseCode,
         })
       ).data,
   })
@@ -631,6 +650,30 @@ export function ReportsTaxWorkspace({
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="space-y-1">
+                <Label>GIS Use Code</Label>
+                <Select
+                  value={previewGisUseCode || null}
+                  items={gisUseItems}
+                  onValueChange={(v) => setPreviewGisUseCode(v ?? "R")}
+                >
+                  <SelectTrigger className="cursor-pointer">
+                    <SelectValue placeholder="GIS Use Code" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GIS_USE_PREVIEW_OPTIONS.map((g) => (
+                      <SelectItem
+                        key={g.code}
+                        value={g.code}
+                        label={g.name}
+                        className="cursor-pointer"
+                      >
+                        {g.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <Label>Construction</Label>

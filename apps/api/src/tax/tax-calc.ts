@@ -1,5 +1,10 @@
 /** Pure tax helpers for ward demand reports and citizen dues. */
 
+import {
+  classifyGisUseCode,
+  type GisUseClass,
+} from "./tax-zone-map"
+
 export function roundMoney(amount: number): number {
   return Math.round(amount * 100) / 100
 }
@@ -10,7 +15,7 @@ export type AssessablePctOptions = {
 }
 
 /**
- * Resolve assessable % from property use / floor usage.
+ * Resolve assessable % from GIS Use Code when present, else property / floor usage.
  * Residential → residentialPct; commercial/shop/godown → commercialPct;
  * open land → 100.
  */
@@ -18,8 +23,12 @@ export function resolveAssessablePct(
   propertyUse?: string | null,
   usageType?: string | null,
   usageFactor?: string | null,
-  options: AssessablePctOptions = { residentialPct: 80, commercialPct: 80 }
+  options: AssessablePctOptions = { residentialPct: 80, commercialPct: 80 },
+  gisUseClass?: GisUseClass | null
 ): number {
+  if (gisUseClass === "open_land") return 100
+  if (gisUseClass === "commercial") return options.commercialPct
+  if (gisUseClass === "residential") return options.residentialPct
   const key =
     `${usageFactor ?? ""} ${usageType ?? ""} ${propertyUse ?? ""}`.toLowerCase()
   if (key.includes("open")) return 100
@@ -34,14 +43,17 @@ export function resolveAssessablePct(
 }
 
 /**
- * Commercial / shop / godown usage doubles the matrix monthly rate on demand notices.
- * Residential and open land keep the published base rate.
+ * Commercial GIS Use Code (or shop/godown usage when GIS is missing) doubles
+ * the matrix monthly rate. Residential and open land keep the published base.
  */
 export function resolveUsageRateMult(
   usageFactor?: string | null,
   usageType?: string | null,
-  propertyUse?: string | null
+  propertyUse?: string | null,
+  gisUseClass?: GisUseClass | null
 ): number {
+  if (gisUseClass === "commercial") return 2
+  if (gisUseClass === "residential" || gisUseClass === "open_land") return 1
   const key =
     `${usageFactor ?? ""} ${usageType ?? ""} ${propertyUse ?? ""}`.toLowerCase()
   if (
@@ -58,11 +70,20 @@ export function resolveEffectiveMonthlyRate(
   baseRate: number,
   usageFactor?: string | null,
   usageType?: string | null,
-  propertyUse?: string | null
+  propertyUse?: string | null,
+  gisUseClass?: GisUseClass | null
 ): number {
   return roundMoney(
-    baseRate * resolveUsageRateMult(usageFactor, usageType, propertyUse)
+    baseRate *
+      resolveUsageRateMult(usageFactor, usageType, propertyUse, gisUseClass)
   )
+}
+
+export function resolveSurveyGisUseClass(
+  gisUseCode?: string | null,
+  surveyId?: string | null
+): GisUseClass | null {
+  return classifyGisUseCode(gisUseCode) ?? classifyGisUseCode(surveyId)
 }
 
 /**
@@ -110,6 +131,79 @@ export function computeDemandTotals(
   return { waterTax, drainageTax, penalty, totalAnnualDemand }
 }
 
+/** Live Tax Rates preview: GIS Use Code drives rate ×2, assessable %, water/drainage. */
+export function computeGisPreviewDemand(input: {
+  areaSqFt: number
+  baseMonthlyRate: number
+  gisUseCode?: string | null
+  assessablePct: number
+  commercialAssessablePct: number
+  propertyTaxPct: number
+  waterTaxPct: number
+  drainageTaxPct: number
+  penaltyPct: number
+}): {
+  gisClass: GisUseClass
+  effectiveMonthlyRate: number
+  assessablePct: number
+  grossAlv: number
+  assessableAlv: number
+  propertyTax: number
+  waterTax: number
+  drainageTax: number
+  penalty: number
+  demand: number
+} {
+  const gisClass =
+    classifyGisUseCode(input.gisUseCode ?? "R") ?? "residential"
+  const effectiveMonthlyRate = resolveEffectiveMonthlyRate(
+    input.baseMonthlyRate,
+    null,
+    null,
+    null,
+    gisClass
+  )
+  const assessablePct = resolveAssessablePct(
+    null,
+    null,
+    null,
+    {
+      residentialPct: input.assessablePct,
+      commercialPct: input.commercialAssessablePct,
+    },
+    gisClass
+  )
+  const { grossAlv, assessableAlv, propertyTax } = computeFloorAlv(
+    input.areaSqFt,
+    effectiveMonthlyRate,
+    assessablePct,
+    input.propertyTaxPct
+  )
+  const includeWater = gisClass !== "open_land"
+  const { waterTax, drainageTax, penalty, totalAnnualDemand } =
+    computeDemandTotals(
+      assessableAlv,
+      propertyTax,
+      input.waterTaxPct,
+      input.drainageTaxPct,
+      input.penaltyPct,
+      includeWater,
+      includeWater
+    )
+  return {
+    gisClass,
+    effectiveMonthlyRate,
+    assessablePct,
+    grossAlv,
+    assessableAlv,
+    propertyTax,
+    waterTax,
+    drainageTax,
+    penalty,
+    demand: totalAnnualDemand,
+  }
+}
+
 export function toTaxNumber(
   value: { toString(): string } | number | string | null | undefined
 ): number {
@@ -155,6 +249,8 @@ export function computeSurveyExportTax(input: {
   taxRateZoneCode: string
   propertyUse?: string | null
   hasMunicipalWater?: boolean | null
+  gisUseCode?: string | null
+  surveyId?: string | null
   floors: ExportTaxFloorInput[]
   plotAreaSqFt?: number | null
   plinthAreaSqFt?: number | null
@@ -180,6 +276,8 @@ export function computeSurveyExportTax(input: {
     drainageTaxPct,
     penaltyPct,
   } = input.rates
+
+  const gisClass = resolveSurveyGisUseClass(input.gisUseCode, input.surveyId)
 
   const assessableOpts: AssessablePctOptions = {
     residentialPct: residentialAssessablePct,
@@ -215,7 +313,10 @@ export function computeSurveyExportTax(input: {
   }
 
   for (const floor of input.floors) {
-    const slot = slotForFloor(floor.floorKey, floor.usageResidential)
+    const usageResidential = gisClass
+      ? gisClass === "residential"
+      : floor.usageResidential
+    const slot = slotForFloor(floor.floorKey, usageResidential)
     if (slot >= 0 && slot < 8) {
       floorAreaBySlot[slot] = roundMoney(
         (floorAreaBySlot[slot] ?? 0) + floor.areaSqFt
@@ -232,14 +333,16 @@ export function computeSurveyExportTax(input: {
       baseRate,
       floor.usageFactor,
       floor.usageType,
-      input.propertyUse
+      input.propertyUse,
+      gisClass
     )
 
     const floorAssessablePct = resolveAssessablePct(
       input.propertyUse,
       floor.usageType,
       floor.usageFactor,
-      assessableOpts
+      assessableOpts,
+      gisClass
     )
     const { assessableAlv, propertyTax: floorTax } = computeFloorAlv(
       floor.areaSqFt,
@@ -252,7 +355,7 @@ export function computeSurveyExportTax(input: {
 
     const band = constructionBand(floor.constructionCode)
     if (band) {
-      const target = floor.usageResidential
+      const target = usageResidential
         ? residentialTaxCells
         : nonResidentialTaxCells
       const offset = band === "RCC" ? 0 : band === "TEEN" ? 3 : 6
@@ -261,9 +364,12 @@ export function computeSurveyExportTax(input: {
     }
   }
 
-  const openLand = String(input.propertyUse ?? "")
-    .toLowerCase()
-    .includes("open")
+  const openLand =
+    gisClass === "open_land" ||
+    (gisClass == null &&
+      String(input.propertyUse ?? "")
+        .toLowerCase()
+        .includes("open"))
   if (totalAssessableAlv === 0 && input.floors.length === 0) {
     const area =
       toTaxNumber(input.plotAreaSqFt) ||
@@ -281,7 +387,8 @@ export function computeSurveyExportTax(input: {
         input.propertyUse,
         null,
         null,
-        assessableOpts
+        assessableOpts,
+        gisClass
       )
       const { assessableAlv, propertyTax: floorTax } = computeFloorAlv(
         area,

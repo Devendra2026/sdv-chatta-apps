@@ -55,4 +55,40 @@ describe("ward-tax-report-excel", () => {
     expect(row.length).toBe(48)
     expect(row[47]).toBeGreaterThan(0)
   })
+
+  it("uses GIS Use Code C to double demand even when propertyUse is Residential", () => {
+    const rates: ExportTaxRateTable = {
+      assessablePct: 80,
+      commercialAssessablePct: 80,
+      propertyTaxPct: 10,
+      waterTaxPct: 7.5,
+      drainageTaxPct: 2.5,
+      penaltyPct: 0,
+      rateByZoneAndConstruction: new Map([
+        [taxRateKey("BELOW_9M", "PAKKA_BUILDING_WITH_RCC_ROOF"), 0.36],
+      ]),
+      anyRateByZone: new Map([["BELOW_9M", 0.36]]),
+    }
+
+    const row = buildWardTaxDataRow(
+      {
+        surveyId: "249044-001-000001-001-C",
+        ownerName: "Test",
+        taxRateZone: "Below 9m",
+        propertyUse: "Residential",
+        floors: [
+          {
+            floorLabel: "Ground",
+            usageType: "Residential",
+            buildingType: "RCC",
+            areaSqFt: { toString: () => "100" },
+          },
+        ],
+      },
+      1,
+      rates
+    ) as unknown[]
+
+    expect(row[47]).toBe(138.24)
+  })
 })

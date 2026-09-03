@@ -1,6 +1,7 @@
 import {
   computeDemandTotals,
   computeFloorAlv,
+  computeGisPreviewDemand,
   computeSurveyExportTax,
   resolveAssessablePct,
   roundMoney,
@@ -186,5 +187,146 @@ describe("tax-calc", () => {
     expect(commercial.waterTax).toBe(362.88)
     expect(commercial.drainageTax).toBe(120.96)
     expect(commercial.totalDemand).toBe(967.68)
+  })
+
+  it("GIS Use Code C doubles the rate even when propertyUse is Residential", () => {
+    const rates = {
+      assessablePct: 80,
+      commercialAssessablePct: 80,
+      propertyTaxPct: 10,
+      waterTaxPct: 7.5,
+      drainageTaxPct: 2.5,
+      penaltyPct: 0,
+      rateByZoneAndConstruction: new Map([
+        [taxRateKey("BELOW_9M", "PAKKA_BUILDING_WITH_RCC_ROOF"), 0.6],
+      ]),
+      anyRateByZone: new Map([["BELOW_9M", 0.6]]),
+    }
+    const r = computeSurveyExportTax({
+      taxRateZoneCode: "BELOW_9M",
+      propertyUse: "Residential",
+      surveyId: "249044-001-000131-001-C",
+      floors: [
+        {
+          floorKey: "Ground",
+          constructionCode: "PAKKA_BUILDING_WITH_RCC_ROOF",
+          usageResidential: true,
+          areaSqFt: 420,
+          usageType: "Residential",
+        },
+      ],
+      rates,
+    })
+    expect(r.propertyTax).toBe(483.84)
+    expect(r.waterTax).toBe(362.88)
+    expect(r.drainageTax).toBe(120.96)
+    expect(r.totalDemand).toBe(967.68)
+  })
+
+  it("GIS Use Code R does not double even when floor usage is Commercial", () => {
+    const rates = {
+      assessablePct: 80,
+      commercialAssessablePct: 80,
+      propertyTaxPct: 10,
+      waterTaxPct: 7.5,
+      drainageTaxPct: 2.5,
+      penaltyPct: 0,
+      rateByZoneAndConstruction: new Map([
+        [taxRateKey("BELOW_9M", "PAKKA_BUILDING_WITH_RCC_ROOF"), 0.6],
+      ]),
+      anyRateByZone: new Map([["BELOW_9M", 0.6]]),
+    }
+    const r = computeSurveyExportTax({
+      taxRateZoneCode: "BELOW_9M",
+      propertyUse: "Residential Self",
+      gisUseCode: "R",
+      floors: [
+        {
+          floorKey: "Ground",
+          constructionCode: "PAKKA_BUILDING_WITH_RCC_ROOF",
+          usageResidential: false,
+          areaSqFt: 420,
+          usageType: "Commercial",
+        },
+      ],
+      rates,
+    })
+    expect(r.propertyTax).toBe(241.92)
+    expect(r.waterTax).toBe(181.44)
+    expect(r.drainageTax).toBe(60.48)
+    expect(r.totalDemand).toBe(483.84)
+  })
+
+  it("GIS Use Code O uses 100% assessable and zero water/drainage", () => {
+    const rates = {
+      assessablePct: 80,
+      commercialAssessablePct: 80,
+      propertyTaxPct: 10,
+      waterTaxPct: 7.5,
+      drainageTaxPct: 2.5,
+      penaltyPct: 0,
+      rateByZoneAndConstruction: new Map([
+        [taxRateKey("BELOW_9M", "OPEN_LAND"), 0.36],
+      ]),
+      anyRateByZone: new Map([["BELOW_9M", 0.36]]),
+    }
+    const r = computeSurveyExportTax({
+      taxRateZoneCode: "BELOW_9M",
+      propertyUse: "Residential",
+      gisUseCode: "O",
+      floors: [],
+      plotAreaSqFt: 300,
+      rates,
+    })
+    expect(r.plotTax).toBe(129.6)
+    expect(r.waterTax).toBe(0)
+    expect(r.drainageTax).toBe(0)
+    expect(r.totalDemand).toBe(129.6)
+  })
+
+  it("computeGisPreviewDemand applies C ×2 and O open-land exemptions", () => {
+    const residential = computeGisPreviewDemand({
+      areaSqFt: 100,
+      baseMonthlyRate: 0.36,
+      gisUseCode: "R",
+      assessablePct: 80,
+      commercialAssessablePct: 80,
+      propertyTaxPct: 10,
+      waterTaxPct: 7.5,
+      drainageTaxPct: 2.5,
+      penaltyPct: 0,
+    })
+    expect(residential.effectiveMonthlyRate).toBe(0.36)
+    expect(residential.demand).toBe(69.12)
+
+    const commercial = computeGisPreviewDemand({
+      areaSqFt: 100,
+      baseMonthlyRate: 0.36,
+      gisUseCode: "C",
+      assessablePct: 80,
+      commercialAssessablePct: 80,
+      propertyTaxPct: 10,
+      waterTaxPct: 7.5,
+      drainageTaxPct: 2.5,
+      penaltyPct: 0,
+    })
+    expect(commercial.effectiveMonthlyRate).toBe(0.72)
+    expect(commercial.demand).toBe(138.24)
+
+    const open = computeGisPreviewDemand({
+      areaSqFt: 300,
+      baseMonthlyRate: 0.36,
+      gisUseCode: "O",
+      assessablePct: 80,
+      commercialAssessablePct: 80,
+      propertyTaxPct: 10,
+      waterTaxPct: 7.5,
+      drainageTaxPct: 2.5,
+      penaltyPct: 0,
+    })
+    expect(open.assessablePct).toBe(100)
+    expect(open.waterTax).toBe(0)
+    expect(open.drainageTax).toBe(0)
+    expect(open.demand).toBe(129.6)
   })
 })

@@ -1,5 +1,9 @@
 /** Map survey text fields → reference entry codes for tax lookup. */
 
+import { parseGisSurveyId } from "@workspace/types"
+
+export type GisUseClass = "residential" | "commercial" | "open_land"
+
 function norm(value: string): string {
   return value
     .trim()
@@ -54,10 +58,36 @@ export function mapConstructionCode(raw?: string | null): string {
   return "PAKKA_BUILDING_WITH_RCC_ROOF"
 }
 
+/**
+ * Classify GIS Use Code from a single letter or a full Survey Id.
+ * R (and unknown letters) → residential; C → commercial; O → open land.
+ * Returns null when the value is missing or not a letter / parseable Survey Id
+ * so callers can fall back to propertyUse / floor usage heuristics.
+ */
+export function classifyGisUseCode(
+  codeOrSurveyId?: string | null
+): GisUseClass | null {
+  if (!codeOrSurveyId?.trim()) return null
+  const trimmed = codeOrSurveyId.trim()
+  const parsed = parseGisSurveyId(trimmed)
+  const letter = parsed?.gisUseCode
+    ? parsed.gisUseCode
+    : /^[A-Za-z]$/.test(trimmed)
+      ? trimmed.toUpperCase()
+      : null
+  if (!letter) return null
+  if (letter === "C") return "commercial"
+  if (letter === "O") return "open_land"
+  return "residential"
+}
+
 export function isResidentialUsage(
   usageType?: string | null,
-  propertyUse?: string | null
+  propertyUse?: string | null,
+  gisUseClass?: GisUseClass | null
 ): boolean {
+  if (gisUseClass === "commercial" || gisUseClass === "open_land") return false
+  if (gisUseClass === "residential") return true
   const key = `${usageType ?? ""} ${propertyUse ?? ""}`.toLowerCase()
   if (
     key.includes("commercial") ||

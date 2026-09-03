@@ -3,7 +3,11 @@ import {
   type TaxConfigForDues,
 } from "../public-property-tax/dues.util"
 import { taxConfigToRateTable } from "../reports/ward-tax-report-excel"
-import { computeSurveyExportTax, toTaxNumber } from "../tax/tax-calc"
+import {
+  computeSurveyExportTax,
+  resolveSurveyGisUseClass,
+  toTaxNumber,
+} from "../tax/tax-calc"
 import {
   isResidentialUsage,
   mapConstructionCode,
@@ -12,6 +16,7 @@ import {
 
 export type DashboardTaxSurvey = {
   id: string
+  surveyId: string
   wardId: string
   propertyUse: string | null
   taxRateZone: string | null
@@ -128,10 +133,15 @@ export function aggregateTaxDemand(input: {
     }
 
     try {
+      const gisClass = resolveSurveyGisUseClass(null, survey.surveyId)
       const floorInputs = survey.floors.map((f) => ({
         floorKey: f.floorLabel,
         constructionCode: mapConstructionCode(f.buildingType ?? f.usageType),
-        usageResidential: isResidentialUsage(f.usageType, survey.propertyUse),
+        usageResidential: isResidentialUsage(
+          f.usageType,
+          survey.propertyUse,
+          gisClass
+        ),
         areaSqFt: toTaxNumber(f.areaSqFt),
         usageType: f.usageType,
         usageFactor: f.usageFactor,
@@ -141,6 +151,7 @@ export function aggregateTaxDemand(input: {
         taxRateZoneCode: zoneCode,
         propertyUse: survey.propertyUse,
         hasMunicipalWater: survey.hasMunicipalWaterSupply,
+        surveyId: survey.surveyId,
         floors: floorInputs,
         plotAreaSqFt: toTaxNumber(survey.plotAreaSqFt),
         plinthAreaSqFt: toTaxNumber(survey.plinthAreaSqFt),
