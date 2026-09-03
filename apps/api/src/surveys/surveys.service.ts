@@ -28,6 +28,7 @@ import {
   resolveSurveyIdentity,
   verifySurveyIdMatchesRecord,
 } from "./survey-id.util"
+import { buildSurveySearchOr } from "./survey-search.util"
 
 type SurveyIdentityDto = Pick<
   CreateSurveyDto,
@@ -451,16 +452,7 @@ export class SurveysService {
     }
 
     if (query.search?.trim()) {
-      const q = query.search.trim()
-      where.OR = [
-        { surveyId: { contains: q, mode: "insensitive" } },
-        { ownerName: { contains: q, mode: "insensitive" } },
-        { ownerFatherName: { contains: q, mode: "insensitive" } },
-        { mobile: { contains: q } },
-        { parcelNo: { contains: q, mode: "insensitive" } },
-        { propertyNo: { contains: q, mode: "insensitive" } },
-        { locality: { contains: q, mode: "insensitive" } },
-      ]
+      where.OR = buildSurveySearchOr(query.search)
     }
 
     return where

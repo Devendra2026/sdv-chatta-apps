@@ -54,6 +54,7 @@ import {
   formatParcelNo,
   formatPropertyNo,
   parseGisSurveyId,
+  pickBestSurveySearchMatch,
   qualityLabel,
   toNumber,
 } from "@/lib/survey-format"
@@ -147,7 +148,11 @@ type AuditLog = {
   newValue?: Record<string, unknown> | null
 }
 
-type SurveySearchRow = { id: string; surveyId: string }
+type SurveySearchRow = {
+  id: string
+  surveyId: string
+  parcelNo: string | null
+}
 
 export default function SurveyDetailPage() {
   const params = useParams<{ id: string }>()
@@ -157,6 +162,7 @@ export default function SurveyDetailPage() {
   const { allowed: canDelete } = useCan("survey:delete")
   const { allowed: canAudit } = useCan("audit:read")
   const [parcelQuery, setParcelQuery] = React.useState("")
+  const [goPending, setGoPending] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
 
   const query = useQuery({
@@ -209,16 +215,17 @@ export default function SurveyDetailPage() {
     }
     const paramsQs = new URLSearchParams({
       search: q,
-      pageSize: "5",
+      pageSize: "20",
       sortBy: "parcelNo",
       sortOrder: "asc",
     })
     if (query.data?.wardId) paramsQs.set("wardId", query.data.wardId)
+    setGoPending(true)
     try {
       const res = await api.get<SurveySearchRow[]>(
         `/api/v1/surveys?${paramsQs}`
       )
-      const match = res.data[0]
+      const match = pickBestSurveySearchMatch(res.data ?? [], q)
       if (!match) {
         toast.error("No parcel found in this ward")
         return
@@ -230,8 +237,10 @@ export default function SurveyDetailPage() {
       router.push(`/surveys/${match.id}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Search failed")
+    } finally {
+      setGoPending(false)
     }
-  }, [parcelQuery, query.data?.id, query.data?.wardId, router])
+  }, [parcelQuery, query.data, router])
 
   if (query.isLoading) return <DetailSkeleton />
   if (query.isError || !query.data) {
@@ -387,8 +396,13 @@ export default function SurveyDetailPage() {
             className="pl-8"
           />
         </div>
-        <Button type="submit" size="sm" className="cursor-pointer">
-          Go
+        <Button
+          type="submit"
+          size="sm"
+          className="cursor-pointer"
+          disabled={goPending}
+        >
+          {goPending ? "…" : "Go"}
         </Button>
       </form>
 
@@ -797,7 +811,16 @@ function auditDetails(log: AuditLog) {
   const payload = log.newValue ?? log.oldValue
   if (!payload || typeof payload !== "object") return "—"
 
-  const changes = (payload as { changes?: Array<{ field: string; old?: unknown; new?: unknown; value?: unknown }> }).changes
+  const changes = (
+    payload as {
+      changes?: Array<{
+        field: string
+        old?: unknown
+        new?: unknown
+        value?: unknown
+      }>
+    }
+  ).changes
   if (Array.isArray(changes) && changes.length > 0) {
     return changes
       .map((change) => {
@@ -830,5 +853,8 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
 }
 
 function auditFieldLabel(field: string): string {
-  return AUDIT_FIELD_LABELS[field] ?? field.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase())
+  return (
+    AUDIT_FIELD_LABELS[field] ??
+    field.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase())
+  )
 }

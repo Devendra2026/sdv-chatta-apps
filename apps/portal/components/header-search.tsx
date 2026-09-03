@@ -55,7 +55,7 @@ export function HeaderSearch({ className }: { className?: string }) {
           ref={inputRef}
           id="header-survey-search"
           className="h-10 w-full max-w-xl rounded-xl border-transparent bg-muted/70 pr-16 pl-10 shadow-none transition-colors duration-200 focus-visible:border-ring focus-visible:bg-card"
-          placeholder="Search surveys, parcels, wards…"
+          placeholder="Search surveys, parcels, owners…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />

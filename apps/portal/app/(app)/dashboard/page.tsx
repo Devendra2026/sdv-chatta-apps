@@ -56,7 +56,7 @@ import { useCan } from "@/hooks/use-permission"
 import { api } from "@/lib/api"
 import { formatApiError } from "@/lib/format-api-error"
 
-type WardCardStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED"
+type WardCardStatus = "PENDING" | "COMPLETED"
 
 type WardBreakdown = {
   wardId: string
@@ -792,24 +792,30 @@ function WardCollectionCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <MetricRow
-          label={`Property Tax Rate ${formatPct(ward.propertyTaxPct)}`}
-          value={formatRs(propertyAmount)}
-          pct={propertyShare}
-          barClass="bg-blue-600"
-        />
-        <MetricRow
-          label={`Water Tax Rate ${formatPct(ward.waterTaxPct)}`}
-          value={formatRs(waterAmount)}
-          pct={waterShare}
-          barClass="bg-cyan-600"
-        />
-        <MetricRow
-          label={`Drainage Tax Rate ${formatPct(ward.drainageTaxPct)}`}
-          value={formatRs(drainageAmount)}
-          pct={drainageShare}
-          barClass="bg-amber-500"
-        />
+        {ward.propertyTaxPct > 0 ? (
+          <MetricRow
+            label={`Property Tax Rate ${formatPct(ward.propertyTaxPct)}`}
+            value={formatRs(propertyAmount)}
+            pct={propertyShare}
+            barClass="bg-blue-600"
+          />
+        ) : null}
+        {ward.waterTaxPct > 0 ? (
+          <MetricRow
+            label={`Water Tax Rate ${formatPct(ward.waterTaxPct)}`}
+            value={formatRs(waterAmount)}
+            pct={waterShare}
+            barClass="bg-cyan-600"
+          />
+        ) : null}
+        {ward.drainageTaxPct > 0 ? (
+          <MetricRow
+            label={`Drainage Tax Rate ${formatPct(ward.drainageTaxPct)}`}
+            value={formatRs(drainageAmount)}
+            pct={drainageShare}
+            barClass="bg-amber-500"
+          />
+        ) : null}
         <div className="flex items-center justify-between border-t pt-3">
           <div>
             <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
@@ -864,13 +870,6 @@ function StatusBadge({ status }: { status: WardCardStatus }) {
     return (
       <Badge className="bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/15 dark:text-emerald-300">
         Completed
-      </Badge>
-    )
-  }
-  if (status === "IN_PROGRESS") {
-    return (
-      <Badge className="bg-amber-500/15 text-amber-900 hover:bg-amber-500/15 dark:text-amber-300">
-        In progress
       </Badge>
     )
   }

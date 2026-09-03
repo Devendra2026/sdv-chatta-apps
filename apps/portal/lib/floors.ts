@@ -21,6 +21,23 @@ export const FLOOR_LABELS = [
   "Terrace",
 ] as const
 
+/** Extra floor label when property use is open land. */
+export const OPEN_FLOOR_LABEL = "Open"
+
+export function isOpenLandPropertyUse(propertyUse?: string | null): boolean {
+  return (propertyUse ?? "").trim().toLowerCase().includes("open land")
+}
+
+/** Floor dropdown options; includes "Open" when Property Use is Open Land. */
+export function floorLabelsForPropertyUse(
+  propertyUse?: string | null
+): readonly string[] {
+  if (isOpenLandPropertyUse(propertyUse)) {
+    return [...FLOOR_LABELS, OPEN_FLOOR_LABEL]
+  }
+  return FLOOR_LABELS
+}
+
 export const FLOOR_USAGE_TYPES = [
   "Residential",
   "Commercial",
@@ -64,9 +81,7 @@ export function parseFloorsRaw(floorsRaw?: string | null): FloorRow[] {
     const labelMatch = head.match(/^(.+?)\s*-\s*([\d.]+)\s*SqFt/i)
     const sqmMatch = head.match(/([\d.]+)\s*SqMt/i)
 
-    let usageType: string | undefined
     let usageFactor: string | undefined
-    let buildingType: string | undefined
     const usageTypeValues: string[] = []
 
     for (const part of parts.slice(1)) {
@@ -80,8 +95,8 @@ export function parseFloorsRaw(floorsRaw?: string | null): FloorRow[] {
       if (factor?.[1]) usageFactor = factor[1].trim()
     }
 
-    usageType = usageTypeValues[0]
-    buildingType = usageTypeValues[1]
+    const usageType = usageTypeValues[0]
+    const buildingType = usageTypeValues[1]
 
     return {
       id: `floor-${index}-${labelMatch?.[1]?.trim() ?? index}`,

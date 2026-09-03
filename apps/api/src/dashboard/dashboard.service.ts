@@ -7,6 +7,7 @@ import {
 } from "../public-property-tax/dues.util"
 import { StorageService } from "../storage/storage.service"
 import { aggregateTaxDemand } from "./dashboard-tax.util"
+import { wardSurveyStatus } from "./ward-survey-status"
 
 @Injectable()
 export class DashboardService {
@@ -209,10 +210,8 @@ export class DashboardService {
     const wardsWithSurveys = wards.filter(
       (w) => (countByWard.get(w.id) ?? 0) > 0
     ).length
-    const wardsInProgress = wards.filter((w) => {
-      const count = countByWard.get(w.id) ?? 0
-      return count > 0 && (moneyByWard.get(w.id)?.total ?? 0) === 0
-    }).length
+    // Wards not yet surveyed (survey work remaining), not "tax not calculated".
+    const wardsInProgress = wards.length - wardsWithSurveys
 
     const onlineCollection = Number(onlineCollectionAgg._sum.amount ?? 0)
     const offlineCollection = Number(offlineCollectionAgg._sum.amount ?? 0)
@@ -283,12 +282,7 @@ export class DashboardService {
         waterTaxPct: demand?.waterTaxPct ?? 0,
         drainageTaxPct: demand?.drainageTaxPct ?? 0,
         assessmentYearName: latest?.assessmentYear.name ?? null,
-        status:
-          surveyCount === 0
-            ? ("PENDING" as const)
-            : money.total > 0 || (demand?.totalTaxDemand ?? 0) > 0
-              ? ("COMPLETED" as const)
-              : ("IN_PROGRESS" as const),
+        status: wardSurveyStatus(surveyCount),
       }
     })
 

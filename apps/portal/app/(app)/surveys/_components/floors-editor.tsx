@@ -26,10 +26,10 @@ import { buildStringSelectItems } from "@workspace/ui/lib/select-items"
 
 import {
   FLOOR_CONSTRUCTION_TYPES,
-  FLOOR_LABELS,
   FLOOR_USAGE_FACTORS,
   FLOOR_USAGE_TYPES,
   type FloorRow,
+  floorLabelsForPropertyUse,
   parseFloorsRaw,
   serializeFloorsRaw,
   sqFtToSqM,
@@ -57,6 +57,7 @@ const emptyDraft = (): FloorDraft => ({
 type FloorsEditorProps = {
   value: string
   onChange: (floorsRaw: string) => void
+  propertyUse?: string
   plotAreaSqFt?: string
   plinthAreaSqFt?: string
   onBuiltUpChange?: (sqFt: string, sqM: string) => void
@@ -65,11 +66,16 @@ type FloorsEditorProps = {
 export function FloorsEditor({
   value,
   onChange,
+  propertyUse,
   plotAreaSqFt,
   plinthAreaSqFt,
   onBuiltUpChange,
 }: FloorsEditorProps) {
   const floors = React.useMemo(() => parseFloorsRaw(value), [value])
+  const floorLabels = React.useMemo(
+    () => floorLabelsForPropertyUse(propertyUse),
+    [propertyUse]
+  )
   const [draft, setDraft] = React.useState<FloorDraft>(emptyDraft)
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [formError, setFormError] = React.useState<string | null>(null)
@@ -271,12 +277,12 @@ export function FloorsEditor({
           ) : null}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(7rem,0.9fr)_minmax(7rem,0.9fr)_minmax(7rem,0.9fr)_minmax(12rem,1.6fr)_minmax(5.5rem,0.7fr)]">
           <FloorSelect
             id="floor-label"
             label="Floor"
             value={draft.floorLabel}
-            options={FLOOR_LABELS}
+            options={floorLabels}
             onChange={(floorLabel) =>
               setDraft((prev) => ({ ...prev, floorLabel }))
             }
@@ -304,6 +310,7 @@ export function FloorsEditor({
             label="Construction"
             value={draft.buildingType}
             options={FLOOR_CONSTRUCTION_TYPES}
+            truncate
             onChange={(buildingType) =>
               setDraft((prev) => ({ ...prev, buildingType }))
             }
@@ -313,7 +320,7 @@ export function FloorsEditor({
             <Input
               id="floor-area"
               inputMode="decimal"
-              className="tabular-nums"
+              className="w-full tabular-nums"
               value={draft.areaSqFt}
               placeholder="0"
               onChange={(event) =>
@@ -356,23 +363,32 @@ function FloorSelect({
   value,
   options,
   onChange,
+  truncate = false,
 }: {
   id: string
   label: string
   value: string
   options: readonly string[]
   onChange: (value: string) => void
+  truncate?: boolean
 }) {
   const optionList = withCurrentOption(options, value)
   return (
-    <div className="space-y-1.5">
+    <div className="min-w-0 space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
       <Select
         value={value === "" ? null : value}
         items={buildStringSelectItems(optionList)}
         onValueChange={(next) => onChange(next ?? "")}
       >
-        <SelectTrigger id={id} className="cursor-pointer">
+        <SelectTrigger
+          id={id}
+          className={
+            truncate
+              ? "w-full cursor-pointer [&>span]:truncate"
+              : "w-full cursor-pointer"
+          }
+        >
           <SelectValue placeholder="—" />
         </SelectTrigger>
         <SelectContent>

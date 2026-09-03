@@ -4,6 +4,7 @@ import {
   buildSurveyIdFromRecord,
   formatParcelNo as formatParcelNoShared,
   formatPropertyNo as formatPropertyNoShared,
+  normalizeParcelNo as normalizeParcelNoStrict,
   parseGisSurveyId as parseGisSurveyIdShared,
 } from "@workspace/types"
 
@@ -41,6 +42,42 @@ export {
   normalizePropertyNo,
   normalizeWardCode,
 } from "@workspace/types"
+
+/** Safe parcel pad; returns null when input has no digits. */
+export function tryNormalizeParcelNo(value: string): string | null {
+  try {
+    return normalizeParcelNoStrict(value)
+  } catch {
+    return null
+  }
+}
+
+/** Prefer exact padded parcel, then exact survey ID, else first hit. */
+export function pickBestSurveySearchMatch<
+  T extends { id: string; surveyId: string; parcelNo?: string | null },
+>(rows: T[], query: string): T | undefined {
+  if (!rows.length) return undefined
+  const q = query.trim()
+  const paddedQuery = tryNormalizeParcelNo(q)
+
+  if (paddedQuery) {
+    const exactParcel = rows.find((row) => {
+      const paddedRow = tryNormalizeParcelNo(row.parcelNo ?? "")
+      return (
+        paddedRow === paddedQuery ||
+        (row.parcelNo ?? "").trim().toLowerCase() === q.toLowerCase()
+      )
+    })
+    if (exactParcel) return exactParcel
+  }
+
+  const exactSurveyId = rows.find(
+    (row) => row.surveyId.trim().toLowerCase() === q.toLowerCase()
+  )
+  if (exactSurveyId) return exactSurveyId
+
+  return rows[0]
+}
 
 /** Display canonical survey id (ward from record, not placeholder `000` in stored id). */
 export function formatSurveyId(input: {

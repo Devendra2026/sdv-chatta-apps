@@ -275,6 +275,7 @@ export default function SurveyFormPage() {
   const control = form.control
   const plotAreaSqFt = form.watch("plotAreaSqFt")
   const plinthAreaSqFt = form.watch("plinthAreaSqFt")
+  const propertyUse = form.watch("propertyUse")
   const wardId = form.watch("wardId")
   const parcelNo = form.watch("parcelNo")
   const propertyNo = form.watch("propertyNo")
@@ -609,6 +610,7 @@ export default function SurveyFormPage() {
             <FloorsEditor
               value={field.value}
               onChange={field.onChange}
+              propertyUse={propertyUse}
               plotAreaSqFt={plotAreaSqFt}
               plinthAreaSqFt={plinthAreaSqFt}
               onBuiltUpChange={(sqFt, sqM) => {
