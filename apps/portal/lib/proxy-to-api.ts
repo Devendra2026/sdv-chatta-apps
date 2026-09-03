@@ -185,7 +185,6 @@ export async function proxyToApi(
         body:
           body === undefined ? undefined : Buffer.from(new Uint8Array(body)),
         signal: AbortSignal.timeout(PORTAL_API_TIMEOUT_MS),
-        debugSource: "proxy-to-api",
       })
 
       if (

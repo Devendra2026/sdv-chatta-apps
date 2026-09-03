@@ -54,8 +54,9 @@ Dokploy owns Traefik, TLS, and the Environment tab. Use `docker-compose.prod.yml
 | `web`    | `3001` | citizen site (`PUBLIC_WEB_URL`)    |
 | `portal` | `3000` | admin portal (`PUBLIC_PORTAL_URL`) |
 
-5. Staff auth: portal BFF proxies `/api/v1/auth/*` to Nest; session cookie `chhata_session` (HttpOnly, SameSite=Lax, Secure on HTTPS). Active sessions live in Redis; PostgreSQL stores durable session metadata.
-6. Do not map domains to Postgres or Redis.
+5. Internal API URL is `http://chhata-api:4000` (Compose alias on the `api` service). Do not use `http://api:4000`: Dokploy Traefik attaches a shared network, and Docker merges A records for the short name `api` with any other stack that also has a service named `api`.
+6. Staff auth: portal BFF proxies `/api/v1/auth/*` to Nest; session cookie `chhata_session` (HttpOnly, SameSite=Lax, Secure on HTTPS). Active sessions live in Redis; PostgreSQL stores durable session metadata.
+7. Do not map domains to Postgres or Redis. Do not set `container_name` in production Compose.
 
 Full local Docker (same architecture as production):
 
@@ -69,20 +70,20 @@ On each API container start: **migrations** then **idempotent Super Admin seed**
 
 ## Commands
 
-| What | Command |
-| --- | --- |
-| Infra only (Postgres 5433, Redis 6380) | `docker compose up -d` |
-| Local API | `pnpm dev:api` |
-| Local portal | `pnpm dev:portal` |
-| Generate Prisma client | `pnpm db:generate` |
-| Dev migrations | `pnpm db:migrate` |
-| Production migrations | `pnpm --filter api prisma:deploy` |
-| Seed Super Admin | `pnpm db:seed` |
-| Production-like local stack | `docker compose --profile app up --build` |
-| Production compose config check | `pnpm docker:prod:config` |
-| Health | `curl http://localhost:4000/api/v1/health` |
-| Readiness | `curl http://localhost:4000/api/v1/health/ready` |
-| Unauthenticated session | `curl -i http://localhost:4000/api/v1/auth/me` (401) |
+| What                                   | Command                                              |
+| -------------------------------------- | ---------------------------------------------------- |
+| Infra only (Postgres 5433, Redis 6380) | `docker compose up -d`                               |
+| Local API                              | `pnpm dev:api`                                       |
+| Local portal                           | `pnpm dev:portal`                                    |
+| Generate Prisma client                 | `pnpm db:generate`                                   |
+| Dev migrations                         | `pnpm db:migrate`                                    |
+| Production migrations                  | `pnpm --filter api prisma:deploy`                    |
+| Seed Super Admin                       | `pnpm db:seed`                                       |
+| Production-like local stack            | `docker compose --profile app up --build`            |
+| Production compose config check        | `pnpm docker:prod:config`                            |
+| Health                                 | `curl http://localhost:4000/api/v1/health`           |
+| Readiness                              | `curl http://localhost:4000/api/v1/health/ready`     |
+| Unauthenticated session                | `curl -i http://localhost:4000/api/v1/auth/me` (401) |
 
 Production deploys must run **one** API replica (or many replicas of the **same** image sharing Redis + Postgres). Do not leave an old `api` container on the same Docker network during a rolling update — Compose DNS `api` round-robins every task with that name, including stale ones.
 

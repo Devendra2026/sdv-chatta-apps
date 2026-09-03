@@ -9,7 +9,7 @@ COPY . .
 RUN turbo prune portal --docker
 
 FROM base AS installer
-ARG API_INTERNAL_URL=http://api:4000
+ARG API_INTERNAL_URL=http://chhata-api:4000
 ARG NEXT_PUBLIC_APP_URL
 ARG NEXT_PUBLIC_CITIZEN_WEB_URL
 ENV API_INTERNAL_URL=$API_INTERNAL_URL
@@ -34,7 +34,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
-ENV API_INTERNAL_URL=http://api:4000
+ENV API_INTERNAL_URL=http://chhata-api:4000
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=installer --chown=nextjs:nodejs /app/apps/portal/.next/standalone ./
 COPY --from=installer --chown=nextjs:nodejs /app/apps/portal/.next/static ./apps/portal/.next/static

@@ -16,6 +16,13 @@
 #
 # Do not publish Postgres or Redis. Do not add container_name
 # (Isolated Deployments suffixes resources).
+#
+# Internal API DNS: portal/web MUST use http://chhata-api:4000, not
+# http://api:4000. Dokploy Traefik attaches a shared network to portal/web;
+# Docker then merges A records for the short name `api` across every network
+# the container is on. Another Compose stack named `api` on that shared
+# network (stale or unrelated) answers HTTP 404 on :4000 with no Nest
+# identity headers. Alias `chhata-api` exists only on this project's API.
 
 services:
   postgres:
@@ -103,13 +110,17 @@ services:
       start_period: 120s
     expose:
       - "4000"
+    networks:
+      default:
+        aliases:
+          - chhata-api
 
   portal:
     build:
       context: .
       dockerfile: docker/portal.Dockerfile
       args:
-        API_INTERNAL_URL: http://api:4000
+        API_INTERNAL_URL: http://chhata-api:4000
         NEXT_PUBLIC_APP_URL: ${PUBLIC_PORTAL_URL}
         NEXT_PUBLIC_CITIZEN_WEB_URL: ${PUBLIC_WEB_URL}
     restart: unless-stopped
@@ -118,7 +129,7 @@ services:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: 0.0.0.0
-      API_INTERNAL_URL: http://api:4000
+      API_INTERNAL_URL: http://chhata-api:4000
       NEXT_PUBLIC_APP_URL: ${PUBLIC_PORTAL_URL}
       NEXT_PUBLIC_CITIZEN_WEB_URL: ${PUBLIC_WEB_URL}
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-chhata_session}
@@ -145,14 +156,14 @@ services:
       context: .
       dockerfile: docker/web.Dockerfile
       args:
-        API_INTERNAL_URL: http://api:4000
+        API_INTERNAL_URL: http://chhata-api:4000
     restart: unless-stopped
     env_file: .env
     environment:
       NODE_ENV: production
       PORT: "3001"
       HOSTNAME: 0.0.0.0
-      API_INTERNAL_URL: http://api:4000
+      API_INTERNAL_URL: http://chhata-api:4000
     depends_on:
       api:
         condition: service_healthy

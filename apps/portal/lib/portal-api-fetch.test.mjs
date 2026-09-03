@@ -31,14 +31,14 @@ describe("portal-api-fetch internal URL", () => {
   it("uses node:http to Nest instead of Next-patched global fetch", () => {
     assert.match(src, /from "node:http"/)
     assert.match(src, /from "node:dns\/promises"/)
-    assert.match(src, /export (?:async )?function resolveAllowedConnectHost/)
-    assert.match(src, /isAllowedApiConnectAddress/)
-    assert.match(src, /127\.0\.0\.11/)
-    assert.match(src, /agent:\s*false/)
+    assert.match(src, /export (?:async )?function upstreamApiRequest/)
     assert.match(src, /dns\.lookup/)
     assert.match(src, /connectHost/)
     assert.match(src, /requestHeaders\.host/)
+    assert.match(src, /agent:\s*false/)
     assert.doesNotMatch(src, /family:\s*4/)
+    assert.doesNotMatch(src, /isAllowedApiConnectAddress/)
+    assert.doesNotMatch(src, /127\.0\.0\.1:7787/)
     assert.match(src, /upstreamApiRequest\(url/)
     assert.doesNotMatch(
       src,
@@ -54,5 +54,20 @@ describe("portal next.config does not rewrite /api to api:4000", () => {
     assert.doesNotMatch(src, /rewrites\s*\(/)
     assert.doesNotMatch(src, /api:4000/)
     assert.doesNotMatch(src, /API_INTERNAL_URL/)
+  })
+})
+
+describe("production compose uses unique API DNS alias", () => {
+  const composePath = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../../docker-compose.prod.yml"
+  )
+  const src = readFileSync(composePath, "utf8")
+
+  it("registers chhata-api on the API service and uses it for portal/web", () => {
+    assert.match(src, /aliases:\s*\n\s+- chhata-api/)
+    assert.match(src, /API_INTERNAL_URL: http:\/\/chhata-api:4000/)
+    assert.doesNotMatch(src, /API_INTERNAL_URL: http:\/\/api:4000/)
+    assert.doesNotMatch(src, /container_name:/)
   })
 })
