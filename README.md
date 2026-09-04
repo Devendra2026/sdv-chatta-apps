@@ -20,16 +20,26 @@ docker compose up -d
 cp .env.example .env
 cp apps/api/.env.example apps/api/.env
 cp apps/portal/.env.example apps/portal/.env
+cp apps/web/.env.example apps/web/.env
 
 # 3. DB
 pnpm db:generate
 pnpm --filter api prisma:migrate
 pnpm db:seed
 
-# 4. Dev
-pnpm dev:api
-pnpm dev:portal
+# 4. Dev (host processes; infra from step 1)
+pnpm dev
+# Or separately: pnpm dev:api / pnpm dev:portal / pnpm dev:web
 ```
+
+Day-to-day local work uses **infra-only** Compose (`postgres` / `redis`) plus host `pnpm` watchers. If you previously ran the production-like app profile, stop those containers first so host ports stay free:
+
+```bash
+docker compose --profile app stop
+docker compose up -d
+```
+
+On Windows, stopping `pnpm`/`turbo` with Ctrl+C may show `Terminate batch job (Y/N)?` and exit code `1`. That is shell shutdown noise after a successful session — confirm health with `curl http://localhost:4000/api/v1/health` while the stack is running, not the stop exit code.
 
 Local Docker ports (avoids clashes with other stacks like `api-survey-local`):
 
@@ -73,8 +83,12 @@ On each API container start: **migrations** then **idempotent Super Admin seed**
 | What                                   | Command                                              |
 | -------------------------------------- | ---------------------------------------------------- |
 | Infra only (Postgres 5433, Redis 6380) | `docker compose up -d`                               |
+| Check local app ports free             | `pnpm dev:check-ports`                               |
+| All local apps (API + portal + web)    | `pnpm dev`                                           |
 | Local API                              | `pnpm dev:api`                                       |
 | Local portal                           | `pnpm dev:portal`                                    |
+| Local citizen web                      | `pnpm dev:web`                                       |
+| Stop Docker app profile (free 3000/4000) | `docker compose --profile app stop`                |
 | Generate Prisma client                 | `pnpm db:generate`                                   |
 | Dev migrations                         | `pnpm db:migrate`                                    |
 | Production migrations                  | `pnpm --filter api prisma:deploy`                    |

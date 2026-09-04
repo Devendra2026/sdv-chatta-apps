@@ -75,6 +75,8 @@ type WardBreakdown = {
   propertyTaxPct: number
   waterTaxPct: number
   drainageTaxPct: number
+  surveyedWithDemand?: number
+  skippedSurveys?: number
   assessmentYearName: string | null
   status: WardCardStatus
 }
@@ -792,30 +794,36 @@ function WardCollectionCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {ward.propertyTaxPct > 0 ? (
-          <MetricRow
-            label={`Property Tax Rate ${formatPct(ward.propertyTaxPct)}`}
-            value={formatRs(propertyAmount)}
-            pct={propertyShare}
-            barClass="bg-blue-600"
-          />
-        ) : null}
-        {ward.waterTaxPct > 0 ? (
-          <MetricRow
-            label={`Water Tax Rate ${formatPct(ward.waterTaxPct)}`}
-            value={formatRs(waterAmount)}
-            pct={waterShare}
-            barClass="bg-cyan-600"
-          />
-        ) : null}
-        {ward.drainageTaxPct > 0 ? (
-          <MetricRow
-            label={`Drainage Tax Rate ${formatPct(ward.drainageTaxPct)}`}
-            value={formatRs(drainageAmount)}
-            pct={drainageShare}
-            barClass="bg-amber-500"
-          />
-        ) : null}
+        <MetricRow
+          label={
+            ward.propertyTaxPct > 0
+              ? `Property Tax Rate ${formatPct(ward.propertyTaxPct)}`
+              : "Property Tax"
+          }
+          value={formatRs(propertyAmount)}
+          pct={propertyShare}
+          barClass="bg-blue-600"
+        />
+        <MetricRow
+          label={
+            ward.waterTaxPct > 0
+              ? `Water Tax Rate ${formatPct(ward.waterTaxPct)}`
+              : "Water Tax"
+          }
+          value={formatRs(waterAmount)}
+          pct={waterShare}
+          barClass="bg-cyan-600"
+        />
+        <MetricRow
+          label={
+            ward.drainageTaxPct > 0
+              ? `Drainage Tax Rate ${formatPct(ward.drainageTaxPct)}`
+              : "Drainage Tax"
+          }
+          value={formatRs(drainageAmount)}
+          pct={drainageShare}
+          barClass="bg-amber-500"
+        />
         <div className="flex items-center justify-between border-t pt-3">
           <div>
             <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">

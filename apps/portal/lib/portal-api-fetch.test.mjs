@@ -36,7 +36,9 @@ describe("portal-api-fetch internal URL", () => {
     assert.match(src, /connectHost/)
     assert.match(src, /requestHeaders\.host/)
     assert.match(src, /agent:\s*false/)
-    assert.doesNotMatch(src, /family:\s*4/)
+    // Local Windows: localhost → IPv4 only (Nest binds 0.0.0.0, not ::1).
+    assert.match(src, /hostname === "localhost"/)
+    assert.match(src, /family:\s*4/)
     assert.doesNotMatch(src, /isAllowedApiConnectAddress/)
     assert.doesNotMatch(src, /127\.0\.0\.1:7787/)
     assert.match(src, /upstreamApiRequest\(url/)
@@ -44,6 +46,24 @@ describe("portal-api-fetch internal URL", () => {
       src,
       /await fetch\(url,\s*\{\s*method,\s*headers,\s*cache: "no-store"/
     )
+  })
+
+  it("exposes a longer multipart upload timeout separate from default API timeout", () => {
+    assert.match(src, /PORTAL_API_TIMEOUT_MS = 10_000/)
+    assert.match(src, /PORTAL_API_UPLOAD_TIMEOUT_DEFAULT_MS = 120_000/)
+    assert.match(src, /export function resolvePortalApiUploadTimeoutMs/)
+    assert.match(src, /export function isPortalApiUploadRequest/)
+    assert.match(src, /export function resolvePortalApiTimeoutMs/)
+    assert.match(src, /PORTAL_API_UPLOAD_TIMEOUT_MS/)
+    assert.match(src, /multipart\/form-data/)
+    assert.match(src, /\/imports\/upload/)
+    assert.match(src, /attachments/)
+  })
+
+  it("distinguishes abort/timeout errors for upload timeout handling", () => {
+    assert.match(src, /export function isAbortTimeoutError/)
+    assert.match(src, /AbortError/)
+    assert.match(src, /TimeoutError/)
   })
 })
 

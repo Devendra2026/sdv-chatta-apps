@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=.vscode/schemas/compose-spec.json
 services:
   postgres:
     image: postgres:16-alpine
@@ -13,7 +14,7 @@ services:
     volumes:
       - chhata_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U chhata -d chhata"]
+      test: [ "CMD-SHELL", "pg_isready -U chhata -d chhata" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -27,7 +28,7 @@ services:
     volumes:
       - chhata_redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -44,7 +45,7 @@ services:
   # Uses the same Dockerfiles as production. Leave this profile off for
   # `pnpm dev:api` / `pnpm dev:portal` so ports 3000/4000 stay free.
   api:
-    profiles: ["app"]
+    profiles: [ "app" ]
     build:
       context: .
       dockerfile: docker/api.Dockerfile
@@ -74,13 +75,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:4000/api/v1/health/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/v1/health/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -91,7 +86,7 @@ services:
           - chhata-api
 
   portal:
-    profiles: ["app"]
+    profiles: [ "app" ]
     build:
       context: .
       dockerfile: docker/portal.Dockerfile

@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=.vscode/schemas/compose-spec.json
 # Production Compose for Dokploy.
 #
 # Dokploy writes Environment-tab values to `.env` next to this file.
@@ -22,7 +23,6 @@
 # Docker then merges A records for the short name `api` across every network
 # the container is on. Another Compose stack named `api` on that shared
 # network (stale or unrelated) answers HTTP 404 on :4000 with no Nest
-# identity headers. Alias `chhata-api` exists only on this project's API.
 
 services:
   postgres:
@@ -36,7 +36,7 @@ services:
     volumes:
       - chhata_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      test: [ "CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\"" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -53,7 +53,7 @@ services:
     volumes:
       - chhata_redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -97,13 +97,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:4000/api/v1/health/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/v1/health/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -137,13 +131,7 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:3000/').then((r)=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))",
-        ]
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then((r)=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))" ]
       interval: 15s
       timeout: 5s
       retries: 8
@@ -168,13 +156,7 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:3001/').then((r)=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))",
-        ]
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3001/').then((r)=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))" ]
       interval: 15s
       timeout: 5s
       retries: 8

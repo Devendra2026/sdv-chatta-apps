@@ -8,10 +8,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { applyUpstreamSetCookies } from "@/lib/forward-set-cookies"
 import {
   apiInternalUrl,
+  isAbortTimeoutError,
+  isPortalApiUploadRequest,
   isRetryableFetchError,
   isRetryableUpstreamStatus,
   PORTAL_API_MAX_RETRIES,
-  PORTAL_API_TIMEOUT_MS,
+  resolvePortalApiTimeoutMs,
   sanitizeApiHost,
   sleep,
   upstreamApiRequest,
@@ -71,6 +73,19 @@ function apiUnavailableResponse(apiHost: string): NextResponse {
   )
 }
 
+function apiTimeoutResponse(apiHost: string): NextResponse {
+  return NextResponse.json(
+    {
+      success: false,
+      error: {
+        code: "API_TIMEOUT",
+        message: `Upload timed out waiting for API at ${apiHost}`,
+      },
+    },
+    { status: 504, headers: { "cache-control": "private, no-store" } }
+  )
+}
+
 function upstreamErrorResponse(status: number, message: string): NextResponse {
   return NextResponse.json(
     {
@@ -83,6 +98,17 @@ function upstreamErrorResponse(status: number, message: string): NextResponse {
     },
     { status, headers: { "cache-control": "private, no-store" } }
   )
+}
+
+function proxyFailureResponse(
+  err: unknown,
+  apiHost: string,
+  isUpload: boolean
+): NextResponse {
+  if (isUpload && isAbortTimeoutError(err)) {
+    return apiTimeoutResponse(apiHost)
+  }
+  return apiUnavailableResponse(apiHost)
 }
 
 async function readUpstreamErrorMessage(response: Response): Promise<string> {
@@ -172,6 +198,9 @@ export async function proxyToApi(
   const body =
     method === "GET" || method === "HEAD" ? undefined : await req.arrayBuffer()
   const canRetry = method === "GET" || method === "HEAD"
+  const contentType = headers.get("content-type")
+  const uploadRequest = isPortalApiUploadRequest(contentType, apiPath)
+  const timeoutMs = resolvePortalApiTimeoutMs({ contentType, apiPath })
 
   let upstream: Response | null = null
 
@@ -184,7 +213,7 @@ export async function proxyToApi(
         headers: headersToRecord(headers),
         body:
           body === undefined ? undefined : Buffer.from(new Uint8Array(body)),
-        signal: AbortSignal.timeout(PORTAL_API_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       })
 
       if (
@@ -228,9 +257,14 @@ export async function proxyToApi(
         status: 0,
         durationMs: Date.now() - started,
         apiHost,
+        timeoutMs,
+        code:
+          uploadRequest && isAbortTimeoutError(err)
+            ? "API_TIMEOUT"
+            : "API_UNAVAILABLE",
         error: err instanceof Error ? err.message : String(err),
       })
-      return apiUnavailableResponse(apiHost)
+      return proxyFailureResponse(err, apiHost, uploadRequest)
     }
   }
 

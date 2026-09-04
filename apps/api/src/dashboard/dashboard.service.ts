@@ -281,6 +281,8 @@ export class DashboardService {
         propertyTaxPct: demand?.propertyTaxPct ?? 0,
         waterTaxPct: demand?.waterTaxPct ?? 0,
         drainageTaxPct: demand?.drainageTaxPct ?? 0,
+        surveyedWithDemand: demand?.surveyedWithDemand ?? 0,
+        skippedSurveys: demand?.skippedSurveys ?? 0,
         assessmentYearName: latest?.assessmentYear.name ?? null,
         status: wardSurveyStatus(surveyCount),
       }

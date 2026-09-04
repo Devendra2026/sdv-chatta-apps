@@ -7,6 +7,7 @@ import { Search } from "lucide-react"
 import { Input } from "@workspace/ui/components/input"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
+import { useEffect } from "react"
 
 export function HeaderSearch({ className }: { className?: string }) {
   const router = useRouter()
@@ -14,7 +15,7 @@ export function HeaderSearch({ className }: { className?: string }) {
   const [query, setQuery] = React.useState("")
   const [expanded, setExpanded] = React.useState(false)
 
-  function submit(e?: React.FormEvent) {
+  function submit(e?: React.SyntheticEvent<HTMLFormElement>) {
     e?.preventDefault()
     const q = query.trim()
     if (q) {
@@ -25,7 +26,7 @@ export function HeaderSearch({ className }: { className?: string }) {
     setExpanded(false)
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented || event.repeat) return
       const isMod = event.metaKey || event.ctrlKey

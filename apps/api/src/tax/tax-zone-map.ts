@@ -8,8 +8,9 @@ function norm(value: string): string {
   return value
     .trim()
     .toLowerCase()
-    .replace(/[\s/()-]+/g, "_")
+    .replace(/[\s/()[\].,;:+#-]+/g, "_")
     .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "")
 }
 
 const TAX_ZONE: Record<string, string> = {
@@ -18,15 +19,27 @@ const TAX_ZONE: Record<string, string> = {
   up_to_9_meters: "BELOW_9M",
   rate_zone_1: "BELOW_9M",
   rate_zone_1_upto_9_meters: "BELOW_9M",
+  rz_1: "BELOW_9M",
+  rz1: "BELOW_9M",
+  "1": "BELOW_9M",
   meter_9_to_12: "METER_9_TO_12",
   rate_zone_2: "METER_9_TO_12",
   rate_zone_2_9_meters_and_upto_12_meters: "METER_9_TO_12",
+  rz_2: "METER_9_TO_12",
+  rz2: "METER_9_TO_12",
+  "2": "METER_9_TO_12",
   meter_12_to_24: "METER_12_TO_24",
   rate_zone_3: "METER_12_TO_24",
   rate_zone_3_12_meters_and_upto_24_meters: "METER_12_TO_24",
+  rz_3: "METER_12_TO_24",
+  rz3: "METER_12_TO_24",
+  "3": "METER_12_TO_24",
   above_24m: "ABOVE_24M",
   rate_zone_4: "ABOVE_24M",
   rate_zone_4_above_24_meters: "ABOVE_24M",
+  rz_4: "ABOVE_24M",
+  rz4: "ABOVE_24M",
+  "4": "ABOVE_24M",
 }
 
 const CONSTRUCTION: Record<string, string> = {
@@ -54,12 +67,20 @@ export function mapTaxRateZoneCode(raw?: string | null): string | null {
   const n = norm(raw)
   if (TAX_ZONE[n]) return TAX_ZONE[n]
 
-  // Explicit "Rate Zone N" must win before "upto" / meter heuristics
+  // Explicit "Rate Zone N" / "RZ N" must win before "upto" / meter heuristics
   // (Zone 2/3 labels also contain "upto", which must not become Zone 1).
-  if (/zone_4(?!\d)/.test(n)) return "ABOVE_24M"
-  if (/zone_3(?!\d)/.test(n)) return "METER_12_TO_24"
-  if (/zone_2(?!\d)/.test(n)) return "METER_9_TO_12"
-  if (/zone_1(?!\d)/.test(n)) return "BELOW_9M"
+  if (/(?:^|_)(?:rate_?)?zone_?4(?!\d)|(?:^|_)rz_?4(?!\d)/.test(n)) {
+    return "ABOVE_24M"
+  }
+  if (/(?:^|_)(?:rate_?)?zone_?3(?!\d)|(?:^|_)rz_?3(?!\d)/.test(n)) {
+    return "METER_12_TO_24"
+  }
+  if (/(?:^|_)(?:rate_?)?zone_?2(?!\d)|(?:^|_)rz_?2(?!\d)/.test(n)) {
+    return "METER_9_TO_12"
+  }
+  if (/(?:^|_)(?:rate_?)?zone_?1(?!\d)|(?:^|_)rz_?1(?!\d)/.test(n)) {
+    return "BELOW_9M"
+  }
 
   // Meter-width buckets (panel row labels / codes)
   if (n.includes("above") && n.includes("24")) return "ABOVE_24M"

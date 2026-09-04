@@ -29,6 +29,8 @@ export function apiInternalUrl() {
 }
 
 export const PORTAL_API_TIMEOUT_MS = 10_000
+/** Default upstream wait for multipart uploads (Excel import, attachments). */
+export const PORTAL_API_UPLOAD_TIMEOUT_DEFAULT_MS = 120_000
 export const PORTAL_API_MAX_RETRIES = 2
 
 export function sanitizeApiHost(baseUrl: string): string {
@@ -39,13 +41,47 @@ export function sanitizeApiHost(baseUrl: string): string {
   }
 }
 
+export function resolvePortalApiUploadTimeoutMs(
+  envValue = process.env.PORTAL_API_UPLOAD_TIMEOUT_MS
+): number {
+  const parsed = Number(envValue)
+  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed)
+  return PORTAL_API_UPLOAD_TIMEOUT_DEFAULT_MS
+}
+
+/** Multipart body or known upload routes — need a longer BFF wait than health/auth. */
+export function isPortalApiUploadRequest(
+  contentType: string | null | undefined,
+  apiPath: string
+): boolean {
+  const ct = contentType?.split(";")[0]?.trim().toLowerCase() ?? ""
+  if (ct.startsWith("multipart/form-data")) return true
+  if (apiPath.includes("/imports/upload")) return true
+  if (/\/surveys\/[^/]+\/attachments(?:\/|$)/.test(apiPath)) return true
+  return false
+}
+
+export function resolvePortalApiTimeoutMs(options: {
+  contentType?: string | null
+  apiPath: string
+}): number {
+  if (isPortalApiUploadRequest(options.contentType, options.apiPath)) {
+    return resolvePortalApiUploadTimeoutMs()
+  }
+  return PORTAL_API_TIMEOUT_MS
+}
+
+export function isAbortTimeoutError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  return err.name === "AbortError" || err.name === "TimeoutError"
+}
+
 export function isRetryableUpstreamStatus(status: number): boolean {
   return status === 502 || status === 503 || status === 504
 }
 
 export function isRetryableFetchError(err: unknown): boolean {
-  if (!(err instanceof Error)) return false
-  return err.name === "AbortError" || err.name === "TimeoutError"
+  return isAbortTimeoutError(err)
 }
 
 export function sleep(ms: number): Promise<void> {
@@ -91,7 +127,13 @@ export async function upstreamApiRequest(
 
   let connectHost = hostname
   if (!isIP(hostname)) {
-    const lookedUp = await dns.lookup(hostname)
+    // Windows: Node resolves `localhost` to ::1 first, but Nest listens on
+    // 0.0.0.0 (IPv4). Prefer IPv4 for localhost only — Docker/production
+    // hosts like `chhata-api` are unchanged.
+    const isLocalhost = hostname === "localhost" || hostname === "localhost."
+    const lookedUp = isLocalhost
+      ? await dns.lookup(hostname, { family: 4 })
+      : await dns.lookup(hostname)
     connectHost = lookedUp.address
   }
 

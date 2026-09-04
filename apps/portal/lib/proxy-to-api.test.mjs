@@ -28,6 +28,23 @@ describe("portal proxyToApi cookie forwarding", () => {
     assert.doesNotMatch(src, /await fetch\(target/)
   })
 
+  it("uses a longer timeout for multipart uploads than for normal API calls", () => {
+    assert.match(src, /resolvePortalApiTimeoutMs/)
+    assert.match(src, /isPortalApiUploadRequest/)
+    assert.match(src, /AbortSignal\.timeout\(timeoutMs\)/)
+    assert.doesNotMatch(src, /AbortSignal\.timeout\(PORTAL_API_TIMEOUT_MS\)/)
+  })
+
+  it("returns API_TIMEOUT for upload aborts and API_UNAVAILABLE for connect failures", () => {
+    assert.match(src, /API_TIMEOUT/)
+    assert.match(src, /Upload timed out waiting for API/)
+    assert.match(src, /apiTimeoutResponse/)
+    assert.match(src, /proxyFailureResponse/)
+    assert.match(src, /isAbortTimeoutError/)
+    assert.match(src, /API_UNAVAILABLE/)
+    assert.match(src, /Cannot reach API at/)
+  })
+
   it("does not warn about missing session cookies on login or logout", () => {
     assert.match(src, /\/api\/v1\/auth\/login/)
     assert.match(src, /\/api\/v1\/auth\/logout/)

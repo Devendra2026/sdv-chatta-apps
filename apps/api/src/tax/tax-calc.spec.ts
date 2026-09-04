@@ -74,6 +74,76 @@ describe("tax-calc", () => {
     expect(r.totalDemand).toBe(129.6)
   })
 
+  it("uses built-up/plinth fallback when stub floors have null area", () => {
+    const rates = {
+      assessablePct: 80,
+      commercialAssessablePct: 80,
+      propertyTaxPct: 10,
+      waterTaxPct: 7.5,
+      drainageTaxPct: 2.5,
+      penaltyPct: 0,
+      rateByZoneAndConstruction: new Map([
+        [taxRateKey("BELOW_9M", "OPEN_LAND"), 0.36],
+        [taxRateKey("BELOW_9M", "PAKKA_BUILDING_WITH_RCC_ROOF"), 0.36],
+      ]),
+      anyRateByZone: new Map([["BELOW_9M", 0.36]]),
+    }
+    const r = computeSurveyExportTax({
+      taxRateZoneCode: "BELOW_9M",
+      propertyUse: "Residential",
+      floors: [
+        {
+          floorKey: "Floor 1",
+          constructionCode: "PAKKA_BUILDING_WITH_RCC_ROOF",
+          usageResidential: true,
+          areaSqFt: 0,
+          usageType: null,
+        },
+      ],
+      plotAreaSqFt: null,
+      totalBuiltUpAreaSqFt: 100,
+      plinthAreaSqFt: 150,
+      rates,
+    })
+    // uses built-up 100 (preferred over plinth): same as 100 sqft floor path
+    expect(r.propertyTax).toBe(34.56)
+    expect(r.waterTax).toBe(25.92)
+    expect(r.drainageTax).toBe(8.64)
+    expect(r.totalDemand).toBe(69.12)
+  })
+
+  it("does not override floor-based ALV with plot fallback", () => {
+    const rates = {
+      assessablePct: 80,
+      commercialAssessablePct: 80,
+      propertyTaxPct: 10,
+      waterTaxPct: 7.5,
+      drainageTaxPct: 2.5,
+      penaltyPct: 0,
+      rateByZoneAndConstruction: new Map([
+        [taxRateKey("BELOW_9M", "PAKKA_BUILDING_WITH_RCC_ROOF"), 0.36],
+      ]),
+      anyRateByZone: new Map([["BELOW_9M", 0.36]]),
+    }
+    const r = computeSurveyExportTax({
+      taxRateZoneCode: "BELOW_9M",
+      propertyUse: "Residential",
+      floors: [
+        {
+          floorKey: "Ground",
+          constructionCode: "PAKKA_BUILDING_WITH_RCC_ROOF",
+          usageResidential: true,
+          areaSqFt: 100,
+          usageType: "Residential",
+        },
+      ],
+      totalBuiltUpAreaSqFt: 9999,
+      rates,
+    })
+    expect(r.propertyTax).toBe(34.56)
+    expect(r.totalDemand).toBe(69.12)
+  })
+
   it("computeSurveyExportTax residential floor with water and drainage", () => {
     const rates = {
       assessablePct: 80,

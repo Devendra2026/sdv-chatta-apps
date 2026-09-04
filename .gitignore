@@ -54,3 +54,5 @@ test-results/
 # Local uploads / temp
 tmp/
 uploads/
+
+.vscode/*

@@ -395,7 +395,11 @@ export function computeSurveyExportTax(input: {
       String(input.propertyUse ?? "")
         .toLowerCase()
         .includes("open"))
-  if (totalAssessableAlv === 0 && input.floors.length === 0) {
+  // Plot/plinth/built-up fallback when no floor contributes area (empty floors
+  // OR stub floors with null/zero areaSqFt — common on some ward imports).
+  // Does not run when floors already produced ALV (normal ward path unchanged).
+  const floorsHaveArea = input.floors.some((f) => toTaxNumber(f.areaSqFt) > 0)
+  if (totalAssessableAlv === 0 && !floorsHaveArea) {
     const area =
       toTaxNumber(input.plotAreaSqFt) ||
       toTaxNumber(input.totalBuiltUpAreaSqFt) ||

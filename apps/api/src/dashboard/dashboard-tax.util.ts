@@ -84,7 +84,8 @@ function emptyWardDemand(rates?: {
 /**
  * Aggregate Property / Water / Drainage tax demand from surveys + published
  * tax configs (latest assessment year per ward).
- * Surveys missing zone or config are skipped (counted in skippedSurveys).
+ * Surveys missing a published config are skipped (counted in skippedSurveys).
+ * Missing/unmapped taxRateZone falls back to BELOW_9M (same as citizen dues).
  */
 export function aggregateTaxDemand(input: {
   wardIds: string[]
@@ -125,12 +126,8 @@ export function aggregateTaxDemand(input: {
       continue
     }
 
-    const zoneCode = mapTaxRateZoneCode(survey.taxRateZone)
-    if (!zoneCode) {
-      current.skippedSurveys += 1
-      byWard.set(survey.wardId, current)
-      continue
-    }
+    // Align with citizen dues: missing/unmapped zone → BELOW_9M (Rate Zone 1).
+    const zoneCode = mapTaxRateZoneCode(survey.taxRateZone) ?? "BELOW_9M"
 
     try {
       const gisClass = resolveSurveyGisUseClass(null, survey.surveyId)

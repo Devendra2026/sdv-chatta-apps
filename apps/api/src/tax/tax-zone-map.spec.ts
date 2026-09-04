@@ -35,6 +35,16 @@ describe("mapTaxRateZoneCode", () => {
     expect(mapTaxRateZoneCode("upto 9 meters")).toBe("BELOW_9M")
   })
 
+  it("maps numeric and RZ shorthand zone labels", () => {
+    expect(mapTaxRateZoneCode("1")).toBe("BELOW_9M")
+    expect(mapTaxRateZoneCode("2")).toBe("METER_9_TO_12")
+    expect(mapTaxRateZoneCode("3")).toBe("METER_12_TO_24")
+    expect(mapTaxRateZoneCode("4")).toBe("ABOVE_24M")
+    expect(mapTaxRateZoneCode("RZ-1")).toBe("BELOW_9M")
+    expect(mapTaxRateZoneCode("RZ 2")).toBe("METER_9_TO_12")
+    expect(mapTaxRateZoneCode("Rate Zone: 3")).toBe("METER_12_TO_24")
+  })
+
   it("returns null for empty values", () => {
     expect(mapTaxRateZoneCode(null)).toBeNull()
     expect(mapTaxRateZoneCode("")).toBeNull()

@@ -99,7 +99,7 @@ describe("aggregateTaxDemand", () => {
     expect(result.byWard.get(wardId)?.drainageTaxDemand).toBeCloseTo(17.28, 2)
   })
 
-  it("skips surveys without zone or published config", () => {
+  it("falls back to BELOW_9M when zone is missing (same as citizen dues)", () => {
     const wardId = "w1"
     const result = aggregateTaxDemand({
       wardIds: [wardId],
@@ -110,8 +110,25 @@ describe("aggregateTaxDemand", () => {
       configsByWardId: new Map([[wardId, [sampleConfig()]]]),
     })
 
+    // null zone → BELOW_9M; same floor calc as sample (34.56 + water + drainage)
+    expect(result.byWard.get(wardId)?.propertyTaxDemand).toBeCloseTo(34.56, 2)
+    expect(result.byWard.get(wardId)?.surveyedWithDemand).toBe(1)
+    expect(result.byWard.get(wardId)?.skippedSurveys).toBe(0)
+    // orphan ward has no published config → skipped
+    expect(result.byWard.get("orphan")?.skippedSurveys).toBe(1)
+  })
+
+  it("skips surveys without a published config", () => {
+    const wardId = "w1"
+    const result = aggregateTaxDemand({
+      wardIds: [wardId],
+      surveys: [sampleSurvey(wardId)],
+      configsByWardId: new Map(),
+    })
+
     expect(result.totalTaxDemand).toBe(0)
     expect(result.byWard.get(wardId)?.skippedSurveys).toBe(1)
+    expect(result.byWard.get(wardId)?.surveyedWithDemand).toBe(0)
   })
 
   it("exposes rate keys used by taxRateKey for matrix cells", () => {
