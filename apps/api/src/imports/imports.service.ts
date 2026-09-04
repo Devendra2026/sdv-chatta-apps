@@ -22,14 +22,15 @@ import {
 import { getUlbCode } from "../surveys/survey-id.util"
 import {
   cell,
+  detectPresetFromHeaders,
   extractWardNumber,
+  getMapping,
   normalizeParcelNo,
   normalizePropertyNo,
   parseBool,
   parseNumber,
   parseSurveyedAt,
   resolveColumnMap,
-  type MappingPreset,
 } from "./column-maps"
 import {
   orphanSurveyWhere,
@@ -316,20 +317,20 @@ export class ImportsService {
               },
               body: JSON.stringify({
                 sessionId: "de1763",
-                        runId: "post-fix",
-                        hypothesisId: "B,E",
-                        location: "imports.service.ts:processJob",
-                        message: "ward13 row floor parse",
-                        data: {
-                          preset,
-                          mapFloorsRawIdx: map.floorsRaw,
-                          floorsRawPreview: floorsRaw.slice(0, 80),
-                          parsedFloorCount: floors.length,
-                          parsedAreas: floors.map((f) => f.areaSqFt ?? null),
-                          taxRateZone: cell(values, map.taxRateZone).slice(0, 40),
-                          roadType: cell(values, map.roadType).slice(0, 40),
-                          plotAreaSqFt: parseNumber(cell(values, map.plotAreaSqFt)),
-                        },
+                runId: "post-fix",
+                hypothesisId: "B,E",
+                location: "imports.service.ts:processJob",
+                message: "ward13 row floor parse",
+                data: {
+                  preset,
+                  mapFloorsRawIdx: map.floorsRaw,
+                  floorsRawPreview: floorsRaw.slice(0, 80),
+                  parsedFloorCount: floors.length,
+                  parsedAreas: floors.map((f) => f.areaSqFt ?? null),
+                  taxRateZone: cell(values, map.taxRateZone).slice(0, 40),
+                  roadType: cell(values, map.roadType).slice(0, 40),
+                  plotAreaSqFt: parseNumber(cell(values, map.plotAreaSqFt)),
+                },
                 timestamp: Date.now(),
               }),
             }
