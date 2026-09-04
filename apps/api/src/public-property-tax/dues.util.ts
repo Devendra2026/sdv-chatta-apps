@@ -226,6 +226,47 @@ export function computePublicDuesPayload(
     return typeof summary.plotRate === "number" ? summary.plotRate : null
   })()
 
+  // #region agent log
+  {
+    const stubFloorCount = survey.floors.filter(
+      (f) => toTaxNumber(f.areaSqFt) <= 0
+    ).length
+    const noticeAreaSum = floors.reduce((s, f) => s + f.areaSqFt, 0)
+    fetch("http://127.0.0.1:7787/ingest/931237b4-c66c-490a-b4d4-33ab324d8e01", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "de1763",
+      },
+      body: JSON.stringify({
+        sessionId: "de1763",
+        runId: "pre-fix",
+        hypothesisId: "A,C,D",
+        location: "dues.util.ts:computePublicDuesPayload",
+        message: "dues floor vs tax summary",
+        data: {
+          wardNumber: survey.ward.number,
+          surveyIdSuffix: survey.surveyId.slice(-20),
+          taxRateZone: survey.taxRateZone,
+          zoneCode,
+          floorCount: survey.floors.length,
+          stubFloorCount,
+          floorAreas: survey.floors.map((f) => toTaxNumber(f.areaSqFt)),
+          floorLabels: survey.floors.map((f) => f.floorLabel),
+          noticeAreaSum,
+          noticeAlvSum: floors.reduce((s, f) => s + f.alv, 0),
+          plot: toTaxNumber(survey.plotAreaSqFt),
+          plinth: toTaxNumber(survey.plinthAreaSqFt),
+          built: toTaxNumber(survey.totalBuiltUpAreaSqFt),
+          propertyTax: summary.propertyTax,
+          totalDemand: summary.totalDemand,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {})
+  }
+  // #endregion
+
   return {
     id: survey.id,
     surveyId: survey.surveyId,

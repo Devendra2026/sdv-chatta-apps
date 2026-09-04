@@ -22,14 +22,13 @@ import {
 import { getUlbCode } from "../surveys/survey-id.util"
 import {
   cell,
-  detectPresetFromHeaders,
   extractWardNumber,
-  getMapping,
   normalizeParcelNo,
   normalizePropertyNo,
   parseBool,
   parseNumber,
   parseSurveyedAt,
+  resolveColumnMap,
   type MappingPreset,
 } from "./column-maps"
 import {
@@ -88,6 +87,47 @@ export class ImportsService {
       headers[col - 1] = cell([headerRow?.getCell(col)?.value], 0)
     }
     const mappingPreset = detectPresetFromHeaders(headers, columnCount)
+
+    // #region agent log
+    {
+      const floorsIdx = headers.findIndex((h) =>
+        /^floors$/i.test((h ?? "").trim())
+      )
+      const aadhaarIdx = headers.findIndex((h) => /aadhaar/i.test(h ?? ""))
+      const map = getMapping(mappingPreset)
+      fetch(
+        "http://127.0.0.1:7787/ingest/931237b4-c66c-490a-b4d4-33ab324d8e01",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Debug-Session-Id": "de1763",
+          },
+          body: JSON.stringify({
+            sessionId: "de1763",
+            runId: "pre-fix",
+            hypothesisId: "B,E",
+            location: "imports.service.ts:createUpload",
+            message: "import preset detection",
+            data: {
+              fileName: file.originalname,
+              columnCount,
+              firstHeader: headers[0] ?? null,
+              mappingPreset,
+              floorsHeaderIdx: floorsIdx,
+              aadhaarHeaderIdx: aadhaarIdx,
+              mapFloorsRawIdx: map.floorsRaw,
+              mapTaxRateZoneIdx: map.taxRateZone,
+              headerAtMapFloors: headers[map.floorsRaw] ?? null,
+              headerAtMapZone: headers[map.taxRateZone] ?? null,
+              floorsMisaligned: floorsIdx >= 0 && floorsIdx !== map.floorsRaw,
+            },
+            timestamp: Date.now(),
+          }),
+        }
+      ).catch(() => {})
+    }
+    // #endregion
 
     const job = await this.prisma.importJob.create({
       data: {
@@ -219,10 +259,15 @@ export class ImportsService {
     for (let col = 1; col <= columnCount; col++) {
       headers[col - 1] = cell([headerRow.getCell(col).value], 0)
     }
-    const preset =
-      (job.mappingPreset as MappingPreset) ||
-      detectPresetFromHeaders(headers, columnCount)
-    const map = getMapping(preset)
+    // Always resolve from the file headers (do not trust a stale job preset —
+    // v1-38 on aadhaar-shifted sheets mapped Floors → Road Type).
+    const { preset, map } = resolveColumnMap(headers, columnCount)
+    if (job.mappingPreset !== preset) {
+      await this.prisma.importJob.update({
+        where: { id: jobId },
+        data: { mappingPreset: preset },
+      })
+    }
     const wards = await this.prisma.ward.findMany()
     const wardByNumber = new Map(wards.map((w) => [w.number, w]))
 
@@ -259,6 +304,38 @@ export class ImportsService {
         const mobile = !mobileRaw || mobileRaw === "0" ? "" : mobileRaw
         const floorsRaw = cell(values, map.floorsRaw)
         const floors = parseFloorsRaw(floorsRaw)
+        // #region agent log
+        if (ward.number === 13 && processed <= 2) {
+          fetch(
+            "http://127.0.0.1:7787/ingest/931237b4-c66c-490a-b4d4-33ab324d8e01",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Debug-Session-Id": "de1763",
+              },
+              body: JSON.stringify({
+                sessionId: "de1763",
+                        runId: "post-fix",
+                        hypothesisId: "B,E",
+                        location: "imports.service.ts:processJob",
+                        message: "ward13 row floor parse",
+                        data: {
+                          preset,
+                          mapFloorsRawIdx: map.floorsRaw,
+                          floorsRawPreview: floorsRaw.slice(0, 80),
+                          parsedFloorCount: floors.length,
+                          parsedAreas: floors.map((f) => f.areaSqFt ?? null),
+                          taxRateZone: cell(values, map.taxRateZone).slice(0, 40),
+                          roadType: cell(values, map.roadType).slice(0, 40),
+                          plotAreaSqFt: parseNumber(cell(values, map.plotAreaSqFt)),
+                        },
+                timestamp: Date.now(),
+              }),
+            }
+          ).catch(() => {})
+        }
+        // #endregion
         const plotAreaSqFt = parseNumber(cell(values, map.plotAreaSqFt))
         const plotAreaSqMeter = parseNumber(cell(values, map.plotAreaSqMeter))
         const plinthAreaSqFt = parseNumber(cell(values, map.plinthAreaSqFt))
