@@ -51,11 +51,15 @@ describe("column-maps", () => {
     expect(cell([0], 0)).toBe("0")
   })
 
-  it("parses GIS survey dates and pads parcel from Survey Id", () => {
+  it("parses GIS survey dates and prefers Excel parcel over Survey Id", () => {
     const surveyed = parseSurveyedAt("16 June 2025 at 05:46:13 pm")
     expect(surveyed?.getFullYear()).toBe(2025)
     expect(surveyed?.getMonth()).toBe(5)
-    expect(normalizeParcelNo("1", "249044-001-000008-001-R")).toBe("000008")
+    // Excel parcel wins (padded) even when Survey Id segment differs
+    expect(normalizeParcelNo("1", "249044-001-000008-001-R")).toBe("000001")
+    expect(normalizeParcelNo("363", "249044-002-000362-001-C")).toBe("000363")
+    // Empty Excel → fall back to Survey Id segment
+    expect(normalizeParcelNo("", "249044-001-000008-001-R")).toBe("000008")
   })
 
   it("maps Ward 1 fixture columns to v1 indexes", async () => {

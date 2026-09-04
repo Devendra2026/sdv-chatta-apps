@@ -150,55 +150,73 @@ export function resolveImportSurveyId(
     wardNumber,
     parcelNo,
     propertyNo,
-    gisUseCode: parsed?.gisUseCode,
+    // Invalid / truncated Excel Survey Ids still need a letter so each row can import.
+    gisUseCode: parsed?.gisUseCode ?? "R",
     ulbCode,
   })
 }
 
+/**
+ * Excel Parcel No is source of truth for import identity.
+ * Survey Id parcel is used only when the Excel cell is empty.
+ * (Preferring the Id caused duplicate Survey Ids with different parcels to collapse.)
+ */
 export function normalizeParcelNoFromExcel(
   excelValue: string,
   surveyId: string
 ): string | null {
-  const fromId = parcelFromSurveyId(surveyId)
-  if (fromId) return fromId
   const trimmed = excelValue.trim()
-  if (!trimmed) return null
-  const digits = trimmed.replace(/\D/g, "")
-  if (!digits) return trimmed
-  return digits.padStart(Math.max(6, digits.length), "0")
+  if (trimmed) {
+    const digits = trimmed.replace(/\D/g, "")
+    if (!digits) return trimmed
+    return digits.padStart(Math.max(6, digits.length), "0")
+  }
+  return parcelFromSurveyId(surveyId)
 }
 
+/**
+ * Excel Property / Unit No is source of truth for import identity.
+ * Survey Id unit is used only when the Excel cell is empty.
+ */
 export function normalizePropertyNoFromExcel(
   excelValue: string,
   surveyId: string
 ): string | null {
-  const fromId = propertyFromSurveyId(surveyId)
-  if (fromId) return fromId
   const trimmed = excelValue.trim()
-  if (!trimmed) return null
-  const digits = trimmed.replace(/\D/g, "")
-  if (!digits) return trimmed
-  return digits.padStart(Math.max(3, digits.length), "0")
+  if (trimmed) {
+    const digits = trimmed.replace(/\D/g, "")
+    if (!digits) return trimmed
+    return digits.padStart(Math.max(3, digits.length), "0")
+  }
+  return propertyFromSurveyId(surveyId)
 }
 
+/** Prefer stored parcel; fall back to Survey Id segment. */
 export function formatParcelNo(
   parcelNo: string | null | undefined,
   surveyId?: string | null
 ): string {
+  const raw = parcelNo?.trim() ?? ""
+  if (raw) {
+    if (/^\d+$/.test(raw)) return raw.padStart(6, "0")
+    return raw
+  }
   const fromId = surveyId ? parcelFromSurveyId(surveyId) : null
   if (fromId) return fromId
-  const raw = parcelNo?.trim() ?? ""
-  if (/^\d+$/.test(raw)) return raw.padStart(6, "0")
-  return raw || "—"
+  return "—"
 }
 
+/** Prefer stored property/unit; fall back to Survey Id segment. */
 export function formatPropertyNo(
   propertyNo: string | null | undefined,
   surveyId?: string | null
 ): string {
+  const raw = propertyNo?.trim() ?? ""
+  if (raw) {
+    if (/^\d+$/.test(raw)) return raw.padStart(3, "0")
+    return raw
+  }
   const fromId = surveyId ? propertyFromSurveyId(surveyId) : null
   if (fromId) return fromId
-  const raw = propertyNo?.trim() ?? ""
-  if (/^\d+$/.test(raw)) return raw.padStart(3, "0")
-  return raw || "—"
+  return "—"
 }

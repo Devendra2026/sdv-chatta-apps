@@ -92,6 +92,24 @@ describe("survey-id", () => {
     ).toBe("249044-001-000131-001-R")
   })
 
+  it("rebuilds survey id from Excel parcel when Survey Id parcel is wrong/duplicated", () => {
+    expect(
+      resolveImportSurveyId(
+        "249044-002-000362-001-C",
+        2,
+        "000363",
+        "001",
+        "249044"
+      )
+    ).toBe("249044-002-000363-001-C")
+  })
+
+  it("defaults GIS letter to R when Survey Id is truncated", () => {
+    expect(
+      resolveImportSurveyId("249154", 2, "000005", "001", "249044")
+    ).toBe("249044-002-000005-001-R")
+  })
+
   it("detects legacy placeholder ward segments that need repair", () => {
     const legacy = {
       surveyId: "249044-000-000179-001-R",

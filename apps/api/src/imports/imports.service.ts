@@ -271,14 +271,10 @@ export class ImportsService {
         const totalBuiltUpAreaSqMeter = parseNumber(
           cell(values, map.totalBuiltUpAreaSqMeter)
         )
-        const parcelNo = normalizeParcelNo(
-          cell(values, map.parcelNo),
-          rawSurveyId
-        )
-        const propertyNo = normalizePropertyNo(
-          cell(values, map.propertyNo),
-          rawSurveyId
-        )
+        const excelParcelRaw = cell(values, map.parcelNo)
+        const excelPropertyRaw = cell(values, map.propertyNo)
+        const parcelNo = normalizeParcelNo(excelParcelRaw, rawSurveyId)
+        const propertyNo = normalizePropertyNo(excelPropertyRaw, rawSurveyId)
         const surveyId = resolveImportSurveyId(
           rawSurveyId,
           ward.number,
@@ -368,15 +364,17 @@ export class ImportsService {
           propertyNo,
         })
 
-        if (existing && !existing.deletedAt) {
-          if (job.duplicateStrategy === "SKIP") {
+        if (existing) {
+          const isSoftDeleted = existing.deletedAt != null
+          if (job.duplicateStrategy === "SKIP" && !isSoftDeleted) {
             skipped++
             success++
             touchedSurveyIds.add(existing.id)
             wardIdsSeen.add(ward.id)
             continue
           }
-          if (job.duplicateStrategy === "UPDATE") {
+          // UPDATE strategy, or soft-deleted row (must revive — surveyId is still unique).
+          if (job.duplicateStrategy === "UPDATE" || isSoftDeleted) {
             const beforeAudit = surveyToAuditSnapshot(
               existing as unknown as Record<string, unknown>
             )
@@ -388,6 +386,8 @@ export class ImportsService {
                 where: { id: existing.id },
                 data: {
                   ...payload,
+                  deletedAt: null,
+                  status: "ACTIVE",
                   floors: {
                     create: floors.map((f) => ({
                       floorLabel: f.floorLabel,
@@ -416,6 +416,7 @@ export class ImportsService {
                 newValue: {
                   changes: auditDiff.changes,
                   source: "import",
+                  revived: isSoftDeleted,
                 } as Prisma.InputJsonValue,
               })
             }
@@ -427,27 +428,72 @@ export class ImportsService {
           }
         }
 
-        const created = await this.prisma.survey.create({
-          data: {
-            ...payload,
-            floors: {
-              create: floors.map((f) => ({
-                floorLabel: f.floorLabel,
-                areaSqFt: f.areaSqFt,
-                areaSqMeter: f.areaSqMeter,
-                usageType: f.usageType,
-                usageFactor: f.usageFactor,
-                buildingType: f.buildingType,
-                sortOrder: f.sortOrder,
-                rawSegment: f.rawSegment,
-              })),
+        try {
+          const created = await this.prisma.survey.create({
+            data: {
+              ...payload,
+              floors: {
+                create: floors.map((f) => ({
+                  floorLabel: f.floorLabel,
+                  areaSqFt: f.areaSqFt,
+                  areaSqMeter: f.areaSqMeter,
+                  usageType: f.usageType,
+                  usageFactor: f.usageFactor,
+                  buildingType: f.buildingType,
+                  sortOrder: f.sortOrder,
+                  rawSegment: f.rawSegment,
+                })),
+              },
             },
-          },
-        })
-        inserted++
-        success++
-        touchedSurveyIds.add(created.id)
-        wardIdsSeen.add(ward.id)
+          })
+          inserted++
+          success++
+          touchedSurveyIds.add(created.id)
+          wardIdsSeen.add(ward.id)
+        } catch (createErr) {
+          // Race / leftover soft-delete: unique surveyId — revive that row instead.
+          if (
+            createErr instanceof Prisma.PrismaClientKnownRequestError &&
+            createErr.code === "P2002"
+          ) {
+            const conflict = await this.prisma.survey.findUnique({
+              where: { surveyId },
+            })
+            if (conflict) {
+              await this.prisma.$transaction(async (tx) => {
+                await tx.surveyFloor.deleteMany({
+                  where: { surveyId: conflict.id },
+                })
+                await tx.survey.update({
+                  where: { id: conflict.id },
+                  data: {
+                    ...payload,
+                    deletedAt: null,
+                    status: "ACTIVE",
+                    floors: {
+                      create: floors.map((f) => ({
+                        floorLabel: f.floorLabel,
+                        areaSqFt: f.areaSqFt,
+                        areaSqMeter: f.areaSqMeter,
+                        usageType: f.usageType,
+                        usageFactor: f.usageFactor,
+                        buildingType: f.buildingType,
+                        sortOrder: f.sortOrder,
+                        rawSegment: f.rawSegment,
+                      })),
+                    },
+                  },
+                })
+              })
+              updated++
+              success++
+              touchedSurveyIds.add(conflict.id)
+              wardIdsSeen.add(ward.id)
+              continue
+            }
+          }
+          throw createErr
+        }
       } catch (err) {
         failed++
         await this.prisma.importError.create({
@@ -455,7 +501,7 @@ export class ImportsService {
             importJobId: job.id,
             rowNumber,
             surveyId: rawSurveyId || null,
-            message: err instanceof Error ? err.message : "Import row failed",
+            message: formatImportErrorMessage(err),
             severity: "error",
           },
         })
@@ -562,13 +608,14 @@ export class ImportsService {
     const byCanonical = await this.prisma.survey.findUnique({
       where: { surveyId: input.surveyId },
     })
-    if (byCanonical && !byCanonical.deletedAt) return byCanonical
+    // Include soft-deleted: surveyId is globally unique and create would P2002.
+    if (byCanonical) return byCanonical
 
     if (input.rawSurveyId !== input.surveyId) {
       const byRaw = await this.prisma.survey.findUnique({
         where: { surveyId: input.rawSurveyId },
       })
-      if (byRaw && !byRaw.deletedAt) return byRaw
+      if (byRaw) return byRaw
     }
 
     if (input.parcelNo && input.propertyNo) {
@@ -638,4 +685,25 @@ export class ImportsService {
     const url = await this.storage.getSignedUrl(objectKey, 600)
     return { job, url }
   }
+}
+
+/** Short, actionable import error text (avoid dumping full Prisma invoke stacks). */
+function formatImportErrorMessage(err: unknown): string {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === "P2002") {
+      const target = Array.isArray(err.meta?.target)
+        ? (err.meta.target as string[]).join(", ")
+        : String(err.meta?.target ?? "unique field")
+      return `Duplicate value for ${target}. Another survey already uses this Survey Id / identity.`
+    }
+    if (err.code === "P2003") {
+      return "Related record missing (foreign key). Check ward / reference data."
+    }
+    return `Database error ${err.code}: ${err.message.split("\n")[0] ?? err.message}`
+  }
+  if (err instanceof Error) {
+    const first = err.message.split("\n")[0]?.trim()
+    return first && first.length > 0 ? first : "Import row failed"
+  }
+  return "Import row failed"
 }
