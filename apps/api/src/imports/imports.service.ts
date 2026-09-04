@@ -10,16 +10,16 @@ import { Queue } from "bullmq"
 import ExcelJS from "exceljs"
 import IORedis from "ioredis"
 
-import type { AuthUser } from "../auth/auth.decorators"
 import { AuditService } from "../audit/audit.service"
+import type { AuthUser } from "../auth/auth.decorators"
 import { PrismaService } from "../prisma/prisma.service"
 import { StorageService } from "../storage/storage.service"
-import { getUlbCode } from "../surveys/survey-id.util"
 import { computeDataQuality, parseFloorsRaw } from "../surveys/floors.util"
 import {
   diffSurveyChanges,
   surveyToAuditSnapshot,
 } from "../surveys/survey-audit.util"
+import { getUlbCode } from "../surveys/survey-id.util"
 import {
   cell,
   detectPresetFromHeaders,
@@ -32,6 +32,11 @@ import {
   parseSurveyedAt,
   type MappingPreset,
 } from "./column-maps"
+import {
+  orphanSurveyWhere,
+  shouldPruneOrphanCount,
+  shouldReconcileWardAfterImport,
+} from "./import-reconcile"
 import {
   buildSurveyExportFilename,
   buildSurveyExportWorkbook,
@@ -189,6 +194,7 @@ export class ImportsService {
         skippedRows: 0,
         insertedRows: 0,
         updatedRows: 0,
+        warningRows: 0,
       },
     })
     await this.prisma.importError.deleteMany({ where: { importJobId: jobId } })
@@ -226,6 +232,9 @@ export class ImportsService {
     let inserted = 0
     let updated = 0
     let processed = 0
+    let pruned = 0
+    const touchedSurveyIds = new Set<string>()
+    const wardIdsSeen = new Set<string>()
 
     for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
       const excelRow = sheet.getRow(rowNumber)
@@ -262,7 +271,10 @@ export class ImportsService {
         const totalBuiltUpAreaSqMeter = parseNumber(
           cell(values, map.totalBuiltUpAreaSqMeter)
         )
-        const parcelNo = normalizeParcelNo(cell(values, map.parcelNo), rawSurveyId)
+        const parcelNo = normalizeParcelNo(
+          cell(values, map.parcelNo),
+          rawSurveyId
+        )
         const propertyNo = normalizePropertyNo(
           cell(values, map.propertyNo),
           rawSurveyId
@@ -360,6 +372,8 @@ export class ImportsService {
           if (job.duplicateStrategy === "SKIP") {
             skipped++
             success++
+            touchedSurveyIds.add(existing.id)
+            wardIdsSeen.add(ward.id)
             continue
           }
           if (job.duplicateStrategy === "UPDATE") {
@@ -407,11 +421,13 @@ export class ImportsService {
             }
             updated++
             success++
+            touchedSurveyIds.add(existing.id)
+            wardIdsSeen.add(ward.id)
             continue
           }
         }
 
-        await this.prisma.survey.create({
+        const created = await this.prisma.survey.create({
           data: {
             ...payload,
             floors: {
@@ -430,6 +446,8 @@ export class ImportsService {
         })
         inserted++
         success++
+        touchedSurveyIds.add(created.id)
+        wardIdsSeen.add(ward.id)
       } catch (err) {
         failed++
         await this.prisma.importError.create({
@@ -441,6 +459,26 @@ export class ImportsService {
             severity: "error",
           },
         })
+      }
+    }
+
+    const reconcileWardId = shouldReconcileWardAfterImport({
+      duplicateStrategy: job.duplicateStrategy,
+      failedRows: failed,
+      wardIdsSeen,
+      touchedSurveyIds,
+    })
+    if (reconcileWardId) {
+      pruned = await this.reconcileWardOrphans({
+        wardId: reconcileWardId,
+        keepSurveyIds: touchedSurveyIds,
+        importJobId: job.id,
+        actorId: job.createdById,
+      })
+      if (pruned > 0) {
+        this.logger.log(
+          `Import ${job.id}: soft-deleted ${pruned} orphan survey(s) in ward ${reconcileWardId} not present in file`
+        )
       }
     }
 
@@ -461,9 +499,56 @@ export class ImportsService {
         skippedRows: skipped,
         insertedRows: inserted,
         updatedRows: updated,
+        warningRows: pruned,
         completedAt: new Date(),
       },
     })
+  }
+
+  /**
+   * Soft-delete surveys in a ward that were not touched by a successful
+   * single-ward UPDATE import (file is source of truth for that ward).
+   */
+  private async reconcileWardOrphans(input: {
+    wardId: string
+    keepSurveyIds: ReadonlySet<string>
+    importJobId: string
+    actorId: string | null
+  }): Promise<number> {
+    const orphans = await this.prisma.survey.findMany({
+      where: orphanSurveyWhere(input.wardId, input.keepSurveyIds),
+      select: { id: true, surveyId: true },
+    })
+    if (orphans.length === 0) return 0
+
+    if (!shouldPruneOrphanCount(orphans.length, input.keepSurveyIds.size)) {
+      this.logger.warn(
+        `Import ${input.importJobId}: skipped reconcile for ward ${input.wardId} — ${orphans.length} orphan(s) exceeds safe prune cap (kept ${input.keepSurveyIds.size}). Re-upload the full ward file or prune manually.`
+      )
+      return 0
+    }
+
+    const now = new Date()
+    await this.prisma.survey.updateMany({
+      where: { id: { in: orphans.map((o) => o.id) } },
+      data: { status: "DELETED", deletedAt: now },
+    })
+
+    for (const orphan of orphans) {
+      await this.audit.log({
+        action: "SURVEY_DELETED",
+        entity: "Survey",
+        entityId: orphan.id,
+        actorId: input.actorId ?? undefined,
+        oldValue: {
+          surveyId: orphan.surveyId,
+          source: "import-reconcile",
+          importJobId: input.importJobId,
+        } as Prisma.InputJsonValue,
+      })
+    }
+
+    return orphans.length
   }
 
   /** Match existing survey by canonical id, legacy Excel id, or ward+parcel+property. */
