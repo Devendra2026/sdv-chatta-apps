@@ -11,7 +11,7 @@ export default function Header() {
         <div className="flex flex-col items-center gap-4 text-center sm:flex-row lg:text-left">
           {/* Official Circular Government Logo Image */}
           <div className="group relative shrink-0 cursor-pointer transition-transform duration-300 hover:scale-105">
-            <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 border-slate-200 bg-white stroke-[#0A2540] p-1 shadow-sm md:h-28 md:w-28">
+            <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 border-slate-200 bg-white stroke-gov-blue-dark p-1 shadow-sm md:h-28 md:w-28">
               <img
                 src="https://cdn.s3waas.gov.in/s30336dcbab05b9d5ad24f4333c7658a0e/uploads/2018/02/2018021632.png"
                 alt="Uttar Pradesh Government Emblem"
