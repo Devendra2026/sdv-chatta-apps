@@ -5,6 +5,24 @@ export function getCitizenWebUrl(): string {
   return "http://localhost:3001"
 }
 
+/**
+ * Hostname shown on official demand notices / payment instructions.
+ * Falls back to www.npchhata.com when unset or localhost.
+ */
+export function getCitizenWebDisplayHost(baseUrl?: string): string {
+  const fallback = "www.npchhata.com"
+  const raw = (baseUrl ?? getCitizenWebUrl()).trim()
+  if (!raw) return fallback
+  try {
+    const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+    const host = new URL(withProtocol).hostname.toLowerCase()
+    if (!host || host === "localhost" || host === "127.0.0.1") return fallback
+    return host
+  } catch {
+    return fallback
+  }
+}
+
 export function citizenPropertyTaxUrl(surveyId?: string): string {
   const base = getCitizenWebUrl()
   if (surveyId) {

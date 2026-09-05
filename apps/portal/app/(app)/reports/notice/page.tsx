@@ -27,7 +27,10 @@ import {
 import { buildSelectItems } from "@workspace/ui/lib/select-items"
 
 import { api } from "@/lib/api"
-import { citizenPropertyTaxUrl } from "@/lib/citizen-web-url"
+import {
+  citizenPropertyTaxUrl,
+  getCitizenWebDisplayHost,
+} from "@/lib/citizen-web-url"
 import { ApiError } from "@workspace/api-client"
 import { generateDemandNoticeHtml } from "./_lib/notice-template"
 
@@ -149,6 +152,7 @@ export default function NoticePage() {
       const logoUrl = `${window.location.origin}/branding/up-government-logo.png`
       const html = generateDemandNoticeHtml(survey, {
         logoUrl,
+        websiteDisplayHost: getCitizenWebDisplayHost(),
         floors: dues.floors,
         tax: {
           ...dues.tax,
