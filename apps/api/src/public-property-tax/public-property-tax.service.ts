@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common"
@@ -9,6 +10,10 @@ import { PaymentsService } from "../payments/payments.service"
 import { PrismaService } from "../prisma/prisma.service"
 import type { CreatePublicPropertyTaxPaymentDto } from "./dto/create-public-payment.dto"
 import type { PublicPropertyTaxSearchQueryDto } from "./dto/public-property-tax.dto"
+import {
+  resolveDueStatus,
+  type PublicPropertyTaxDueStatus,
+} from "./due-status.util"
 import {
   computePublicDuesPayload,
   pickLatestPublishedConfig,
@@ -30,6 +35,7 @@ export type PublicPropertyTaxResultItem = {
   ownerNameMasked: string
   mobileMasked: string
   locality: string | null
+  dueStatus: PublicPropertyTaxDueStatus
 }
 
 @Injectable()
@@ -136,7 +142,15 @@ export class PublicPropertyTaxService {
       })
     }
 
-    return computePublicDuesPayload(survey, config)
+    const paidForAssessmentYear = await this.hasSuccessfulPaymentForYear(
+      survey.id,
+      config.assessmentYear.id
+    )
+
+    return {
+      ...computePublicDuesPayload(survey, config),
+      paidForAssessmentYear,
+    }
   }
 
   async createPayment(dto: CreatePublicPropertyTaxPaymentDto) {
@@ -147,6 +161,13 @@ export class PublicPropertyTaxService {
         code: "DUES_NOT_PAYABLE",
         message:
           "Tax dues are not payable for this property yet. Published rates may be missing or zero.",
+      })
+    }
+
+    if (dues.paidForAssessmentYear) {
+      throw new ConflictException({
+        code: "ALREADY_PAID_FOR_YEAR",
+        message: `Property tax for assessment year ${dues.assessmentYear.name} has already been paid.`,
       })
     }
 
@@ -168,6 +189,7 @@ export class PublicPropertyTaxService {
       payerName: survey.ownerName ?? undefined,
       payerMobile: dto.payerMobile,
       payerEmail: dto.payerEmail?.trim() || undefined,
+      assessmentYearId: dues.assessmentYear.id,
     })
 
     const gatewayReturnUrl =
@@ -370,8 +392,10 @@ export class PublicPropertyTaxService {
           ownerName: true,
           mobile: true,
           locality: true,
+          wardId: true,
           ward: {
             select: {
+              id: true,
               number: true,
               name: true,
             },
@@ -379,6 +403,8 @@ export class PublicPropertyTaxService {
         },
       }),
     ])
+
+    const dueStatusBySurveyId = await this.resolveSearchDueStatuses(rows)
 
     const items: PublicPropertyTaxResultItem[] = rows.map((row) => ({
       id: row.id,
@@ -390,9 +416,94 @@ export class PublicPropertyTaxService {
       ownerNameMasked: maskOwnerName(row.ownerName),
       mobileMasked: maskMobile(row.mobile),
       locality: row.locality,
+      dueStatus: dueStatusBySurveyId.get(row.id) ?? "DUE",
     }))
 
     return { items, page, pageSize, total }
+  }
+
+  private async hasSuccessfulPaymentForYear(
+    surveyId: string,
+    assessmentYearId: string
+  ): Promise<boolean> {
+    const count = await this.prisma.payment.count({
+      where: {
+        surveyId,
+        assessmentYearId,
+        status: PaymentStatus.SUCCESS,
+      },
+    })
+    return count > 0
+  }
+
+  private async resolveSearchDueStatuses(
+    rows: Array<{ id: string; wardId: string }>
+  ): Promise<Map<string, PublicPropertyTaxDueStatus>> {
+    const result = new Map<string, PublicPropertyTaxDueStatus>()
+    if (rows.length === 0) return result
+
+    const wardIds = [...new Set(rows.map((r) => r.wardId))]
+    const published = await this.prisma.taxConfig.findMany({
+      where: {
+        wardId: { in: wardIds },
+        status: "PUBLISHED",
+      },
+      include: {
+        assessmentYear: {
+          select: { id: true, code: true, name: true },
+        },
+        cells: {
+          include: {
+            roadWidthEntry: { select: { code: true } },
+            constructionEntry: { select: { code: true } },
+          },
+        },
+      },
+    })
+
+    const yearByWardId = new Map<string, string>()
+    for (const wardId of wardIds) {
+      const forWard = published.filter((c) => c.wardId === wardId)
+      const latest = pickLatestPublishedConfig(forWard)
+      if (latest) yearByWardId.set(wardId, latest.assessmentYear.id)
+    }
+
+    const surveyIds = rows.map((r) => r.id)
+    const yearIds = [...new Set(yearByWardId.values())]
+    const successPayments =
+      yearIds.length === 0
+        ? []
+        : await this.prisma.payment.findMany({
+            where: {
+              surveyId: { in: surveyIds },
+              status: PaymentStatus.SUCCESS,
+              assessmentYearId: { in: yearIds },
+            },
+            select: {
+              surveyId: true,
+              assessmentYearId: true,
+            },
+          })
+
+    const paidYearsBySurvey = new Map<string, Set<string>>()
+    for (const payment of successPayments) {
+      if (!payment.surveyId || !payment.assessmentYearId) continue
+      const set = paidYearsBySurvey.get(payment.surveyId) ?? new Set<string>()
+      set.add(payment.assessmentYearId)
+      paidYearsBySurvey.set(payment.surveyId, set)
+    }
+
+    for (const row of rows) {
+      result.set(
+        row.id,
+        resolveDueStatus({
+          currentAssessmentYearId: yearByWardId.get(row.wardId),
+          paidAssessmentYearIds: paidYearsBySurvey.get(row.id) ?? new Set(),
+        })
+      )
+    }
+
+    return result
   }
 
   private async buildWhere(

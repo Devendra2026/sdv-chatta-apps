@@ -41,7 +41,7 @@ Crypto matches official AtomAES (PBKDF2-HMAC-SHA512 + AES-256-CBC, fixed IV 0..1
 
 Set `PAYMENT_PROVIDER=atom` with UAT/prod credentials. `sandbox` skips the gateway UI (no card/UPI).
 
-Hash Request/Response keys are unused (signature path not required for this kit flow).
+Hash Request/Response keys are optional. When `ATOM_RESP_HASH_KEY` is set, callbacks must pass the official HMAC-SHA512. When unset, decrypt-only verification is used (production default).
 
 ## UAT env mapping
 

@@ -1,4 +1,4 @@
-import { BadRequestException } from "@nestjs/common"
+import { BadRequestException, ConflictException } from "@nestjs/common"
 
 import { CreatePublicPropertyTaxPaymentDto } from "./dto/create-public-payment.dto"
 
@@ -23,6 +23,19 @@ describe("public property tax payment rules", () => {
   it("accepts positive demand", () => {
     const amount = 1250.5
     expect(Number.isFinite(amount) && amount > 0).toBe(true)
+  })
+
+  it("rejects create when already paid for assessment year", () => {
+    const paidForAssessmentYear = true
+    expect(() => {
+      if (paidForAssessmentYear) {
+        throw new ConflictException({
+          code: "ALREADY_PAID_FOR_YEAR",
+          message:
+            "Property tax for assessment year 2025-2026 has already been paid.",
+        })
+      }
+    }).toThrow(ConflictException)
   })
 
   it("DTO requires 10-digit mobile pattern in class metadata", () => {

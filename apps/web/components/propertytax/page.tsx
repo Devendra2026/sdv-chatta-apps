@@ -21,6 +21,7 @@ import {
 import Link from "next/link"
 import React, { useRef, useState } from "react"
 
+import { PaymentProcessSteps } from "@/components/propertytax/payment-process-steps"
 import {
   fetchPublicWards,
   searchPublicProperties,
@@ -195,15 +196,14 @@ export default function ProfessionalPropertyTaxPage() {
             Citizen Services & Assessment
           </span>
           <h1 className="text-4xl leading-[1.15] font-extrabold tracking-tight text-slate-950 sm:text-5xl lg:text-5xl">
-            Online Property Tax{" "}
+            Online House Tax{" "}
             <span className="bg-linear-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
-              Payment & Dues
+              Payment
             </span>
           </h1>
           <p className="mt-4 text-base leading-relaxed font-normal text-slate-600 sm:text-lg">
-            Search your property records instantly, review comprehensive tax
-            breakdowns, and complete secure digital payments with official
-            receipt generation.
+            Search your property records instantly, review house tax dues, and
+            complete secure digital payments with official receipt generation.
           </p>
         </div>
 
@@ -213,11 +213,13 @@ export default function ProfessionalPropertyTaxPage() {
           </a>
           <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
           <span className="transition-colors hover:text-orange-600">
-            Property Tax
+            House Tax
           </span>
           <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
           <span className="font-bold text-orange-600">Search & Pay</span>
         </div>
+
+        <PaymentProcessSteps current={1} className="mt-6" />
       </section>
 
       <main className="mx-auto max-w-7xl space-y-8 px-4 pb-20 sm:px-6 lg:px-8">
@@ -457,7 +459,7 @@ export default function ProfessionalPropertyTaxPage() {
                       <Search className="h-4 w-4" />
                     )}
                     <span>
-                      {isSearching ? "Searching…" : "Search Property Tax Dues"}
+                      {isSearching ? "Searching…" : "Search House Tax Dues"}
                     </span>
                   </button>
 
@@ -617,12 +619,21 @@ function PropertyResultRow({ item }: { item: PublicPropertyTaxResultItem }) {
           <p className="font-semibold text-slate-900">{item.mobileMasked}</p>
         </div>
       </div>
-      <Link
-        href={`/propertytax/dues/${item.id}`}
-        className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-2xl bg-linear-to-r from-orange-600 to-amber-600 px-5 py-3 text-sm font-bold text-white shadow-[0_8px_20px_rgba(234,88,12,0.28)] transition-all hover:from-orange-700 hover:to-amber-700"
-      >
-        Tax Dues
-      </Link>
+      {item.dueStatus === "NO_DUE" ? (
+        <span
+          className="inline-flex shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-bold text-emerald-800"
+          aria-label="No tax dues for current assessment year"
+        >
+          No Due
+        </span>
+      ) : (
+        <Link
+          href={`/propertytax/dues/${item.id}`}
+          className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-2xl bg-linear-to-r from-orange-600 to-amber-600 px-5 py-3 text-sm font-bold text-white shadow-[0_8px_20px_rgba(234,88,12,0.28)] transition-all hover:from-orange-700 hover:to-amber-700"
+        >
+          Tax Dues
+        </Link>
+      )}
     </li>
   )
 }

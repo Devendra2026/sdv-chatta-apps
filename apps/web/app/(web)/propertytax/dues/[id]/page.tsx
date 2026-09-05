@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 
 import { DemandNoticeView } from "@/components/propertytax/demand-notice"
+import { PaymentProcessSteps } from "@/components/propertytax/payment-process-steps"
 import { fetchPublicPropertyDues } from "@/lib/property-tax-api"
 import { PublicApiError } from "@/lib/public-api"
 
@@ -30,23 +31,25 @@ export default function PropertyTaxDuesPage() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
       <div className="no-print mx-auto max-w-7xl px-4 pt-8 pb-4 sm:px-6 lg:px-8">
+        <PaymentProcessSteps current={2} className="mb-6" />
+
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-bold tracking-wide text-orange-700 uppercase">
-              Property Tax · Demand Notice
+              House Tax · Online Payment
             </p>
-            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950">
-              Tax Dues
+            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+              Online House Tax Payment
             </h1>
             <p className="mt-1 text-sm text-slate-600">
-              Review the municipal demand notice computed from published tax
-              rates.
+              Review your house tax dues computed from published municipal
+              rates, then continue to secure online payment.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/propertytax"
-              className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors duration-200 hover:bg-slate-50"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to search
@@ -55,17 +58,23 @@ export default function PropertyTaxDuesPage() {
               type="button"
               onClick={() => window.print()}
               disabled={!duesQuery.data}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors duration-200 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Printer className="h-4 w-4" />
               Print
             </button>
-            <Link
-              href={id ? `/propertytax/pay/${id}` : "/propertytax"}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-linear-to-r from-orange-600 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-[0_10px_25px_rgba(234,88,12,0.25)] transition-all duration-200 hover:from-orange-700 hover:to-amber-700"
-            >
-              Pay Online
-            </Link>
+            {duesQuery.data?.paidForAssessmentYear ? (
+              <span className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-800">
+                No Due · {duesQuery.data.assessmentYear.name}
+              </span>
+            ) : (
+              <Link
+                href={id ? `/propertytax/pay/${id}` : "/propertytax"}
+                className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-linear-to-r from-orange-600 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-[0_10px_25px_rgba(234,88,12,0.25)] transition-all duration-200 hover:from-orange-700 hover:to-amber-700"
+              >
+                Pay Online
+              </Link>
+            )}
           </div>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2, Printer } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 
+import { PaymentProcessSteps } from "@/components/propertytax/payment-process-steps"
 import { PaymentReceiptView } from "@/components/propertytax/payment-receipt"
 import { fetchPublicPaymentReceipt } from "@/lib/property-tax-api"
 import { PublicApiError } from "@/lib/public-api"
@@ -33,16 +34,19 @@ export default function PropertyTaxReceiptPage() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
       <div className="no-print mx-auto max-w-7xl px-4 pt-8 pb-4 sm:px-6 lg:px-8">
+        <PaymentProcessSteps current={4} className="mb-6" />
+
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-bold tracking-wide text-orange-700 uppercase">
-              Property Tax · Receipt
+              House Tax · Receipt
             </p>
             <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950">
               Payment receipt
             </h1>
             <p className="mt-1 text-sm text-slate-600">
-              Official online payment receipt for Nagar Panchayat Chhata.
+              Official online house tax payment receipt for Nagar Panchayat
+              Chhata.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

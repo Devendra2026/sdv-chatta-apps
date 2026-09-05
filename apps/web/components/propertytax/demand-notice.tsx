@@ -50,8 +50,8 @@ export function DemandNoticeView({ dues }: { dues: PublicPropertyTaxDues }) {
           <div className="header-center">
             <div className="office-en">NAGAR PANCHAYAT CHHATA, MATHURA</div>
             <div className="office-loc">Uttar Pradesh, India</div>
-            <div className="title-en">Property Tax Demand Notice</div>
-            <div className="title-hi">सम्पत्ति कर मांग सूचना</div>
+            <div className="title-en">Online House Tax Payment</div>
+            <div className="title-hi">ऑनलाइन गृह कर भुगतान</div>
           </div>
           <div className="logo" aria-hidden />
         </header>
@@ -212,10 +212,11 @@ export function DemandNoticeView({ dues }: { dues: PublicPropertyTaxDues }) {
         <div className="notice">
           <div className="notice-title">Important</div>
           <div className="notice-body">
-            This is a computer-generated demand notice based on the published
-            municipal tax configuration for the assessment year shown above.
-            Please verify particulars with Nagar Panchayat Chhata before making
-            payment. Online payment will be enabled in a subsequent release.
+            This is a computer-generated house tax statement based on the
+            published municipal tax configuration for the assessment year shown
+            above. Please verify particulars with Nagar Panchayat Chhata before
+            making payment. To pay online, use the Pay Online button on this
+            page and complete payment through the secure gateway.
             {tax.penalty > 0 ? (
               <div className="note">
                 Penalty included: ₹{money(tax.penalty)} ({tax.penaltyPct}%).
@@ -260,26 +261,27 @@ const NOTICE_CSS = `
 }
 .demand-notice-root .header {
   display: grid;
-  grid-template-columns: 88px 1fr 88px;
+  grid-template-columns: 124px 1fr 124px;
   align-items: center;
   gap: 10px;
   padding-bottom: 10px;
   border-bottom: 3px solid #0f172a;
 }
 .demand-notice-root .logo {
-  width: 84px; height: 84px;
+  width: 120px; height: 120px;
   display: flex; align-items: center; justify-content: center;
 }
 .demand-notice-root .logo img {
-  width: 84px; height: 84px; object-fit: contain;
+  width: 120px; height: 120px; object-fit: contain;
 }
 .demand-notice-root .header-center { text-align: center; }
-.demand-notice-root .office-en { font-size: 14px; font-weight: 700; }
-.demand-notice-root .office-loc { font-size: 11px; color: #334155; margin-top: 2px; }
+.demand-notice-root .office-en { font-size: 18px; font-weight: 800; letter-spacing: 0.02em; }
+.demand-notice-root .office-loc { font-size: 12px; color: #334155; margin-top: 2px; }
 .demand-notice-root .title-en {
-  margin-top: 8px; font-size: 18px; font-weight: 800; color: #0369a1;
+  margin-top: 8px; font-size: 26px; font-weight: 800; color: #0369a1;
+  line-height: 1.2;
 }
-.demand-notice-root .title-hi { font-size: 15px; font-weight: 700; margin-top: 2px; }
+.demand-notice-root .title-hi { font-size: 18px; font-weight: 700; margin-top: 4px; }
 .demand-notice-root .meta {
   display: grid; grid-template-columns: 1fr 1fr 1fr;
   border: 1.5px solid #94a3b8; border-radius: 4px; overflow: hidden; margin-top: 12px;

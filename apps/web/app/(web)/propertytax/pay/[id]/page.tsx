@@ -14,6 +14,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState, type FormEvent } from "react"
 
+import { PaymentProcessSteps } from "@/components/propertytax/payment-process-steps"
 import { openAtomAipayCheckout } from "@/lib/atom-checkout"
 import {
   createPublicPropertyTaxPayment,
@@ -72,7 +73,9 @@ export default function PropertyTaxPayPage() {
   })
 
   const dues = duesQuery.data
-  const payable = dues != null && dues.tax.totalDemand > 0
+  const alreadyPaid = dues?.paidForAssessmentYear === true
+  const payable =
+    dues != null && dues.tax.totalDemand > 0 && !alreadyPaid
   const loadError =
     duesQuery.error instanceof PublicApiError
       ? duesQuery.error.message
@@ -104,13 +107,15 @@ export default function PropertyTaxPayPage() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
       <div className="mx-auto max-w-3xl px-4 pt-8 pb-16 sm:px-6 lg:px-8">
+        <PaymentProcessSteps current={3} className="mb-6" />
+
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-bold tracking-wide text-orange-700 uppercase">
-              Property Tax · Online Payment
+              House Tax · Online Payment
             </p>
-            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950">
-              Pay Tax Dues
+            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+              Online House Tax Payment
             </h1>
             <p className="mt-1 text-sm text-slate-600">
               Confirm the amount fixed by published municipal rates, then
@@ -155,7 +160,7 @@ export default function PropertyTaxPayPage() {
                 <p className="text-xs font-bold tracking-wider uppercase opacity-90">
                   Amount payable
                 </p>
-                <p className="mt-2 text-4xl font-extrabold tracking-tight">
+                <p className="mt-2 text-4xl font-extrabold tracking-tight tabular-nums sm:text-5xl">
                   ₹{money(dues.tax.totalDemand)}
                 </p>
                 <p className="mt-2 text-sm text-orange-50">
@@ -177,7 +182,7 @@ export default function PropertyTaxPayPage() {
                 </p>
                 <ul className="space-y-2 text-sm text-slate-700">
                   <BreakdownRow
-                    label="Property tax"
+                    label="House / property tax"
                     value={dues.tax.propertyTax}
                   />
                   <BreakdownRow label="Water tax" value={dues.tax.waterTax} />
@@ -186,6 +191,12 @@ export default function PropertyTaxPayPage() {
                     value={dues.tax.drainageTax}
                   />
                   <BreakdownRow label="Penalty" value={dues.tax.penalty} />
+                  <li className="flex items-center justify-between gap-4 border-t border-slate-100 pt-3 font-bold text-slate-950">
+                    <span>Total demand</span>
+                    <span className="tabular-nums">
+                      ₹{money(dues.tax.totalDemand)}
+                    </span>
+                  </li>
                 </ul>
               </div>
             </section>
@@ -193,31 +204,65 @@ export default function PropertyTaxPayPage() {
             {!payable ? (
               <div
                 role="alert"
-                className="rounded-[28px] border border-amber-200 bg-amber-50 px-6 py-6 text-sm text-amber-950 shadow-sm"
+                className={`rounded-[28px] border px-6 py-6 text-sm shadow-sm ${
+                  alreadyPaid
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-950"
+                    : "border-amber-200 bg-amber-50 text-amber-950"
+                }`}
               >
-                <p className="font-semibold">
-                  Online payment is not available for this property yet.
-                </p>
-                <p className="mt-1 text-amber-900/80">
-                  Published tax rates may be missing or set to zero. Please
-                  contact Nagar Panchayat Chhata or try again after rates are
-                  updated.
-                </p>
+                {alreadyPaid && dues ? (
+                  <>
+                    <p className="font-semibold">
+                      No dues for assessment year {dues.assessmentYear.name}.
+                    </p>
+                    <p className="mt-1 opacity-80">
+                      Property tax for this assessment year has already been
+                      paid. You can download your receipt from the payment
+                      success page if you have the transaction id.
+                    </p>
+                    <Link
+                      href="/propertytax"
+                      className="mt-4 inline-flex cursor-pointer text-sm font-bold text-emerald-800 underline-offset-2 hover:underline"
+                    >
+                      Return to property search
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold">
+                      Online payment is not available for this property yet.
+                    </p>
+                    <p className="mt-1 text-amber-900/80">
+                      Published tax rates may be missing or set to zero. Please
+                      contact Nagar Panchayat Chhata or try again after rates are
+                      updated.
+                    </p>
+                  </>
+                )}
               </div>
             ) : (
               <form
                 onSubmit={handleSubmit}
                 className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
               >
-                <div className="mb-6 flex items-start gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-900">
+                <h2 className="text-lg font-extrabold tracking-tight text-slate-950">
+                  Payer details
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Enter a mobile number for payment confirmation. Email is
+                  optional.
+                </p>
+
+                <div className="mt-5 flex items-start gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-900">
                   <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-orange-600" />
                   <p>
-                    This is an official Nagar Panchayat Chhata payment. The
-                    amount is fixed by published rates and cannot be changed.
+                    This is an official Nagar Panchayat Chhata house tax
+                    payment. The amount is fixed by published rates and cannot
+                    be changed.
                   </p>
                 </div>
 
-                <div className="space-y-5">
+                <div className="mt-6 space-y-5">
                   <div>
                     <label
                       htmlFor="payer-mobile"
@@ -237,6 +282,10 @@ export default function PropertyTaxPayPage() {
                         setMobile(e.target.value.replace(/\D/g, ""))
                       }
                       placeholder="10-digit mobile number"
+                      aria-invalid={Boolean(fieldError)}
+                      aria-describedby={
+                        fieldError || payError ? "pay-form-error" : undefined
+                      }
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-800 placeholder-slate-400 shadow-inner transition-all duration-200 focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15 focus:outline-none"
                     />
                   </div>
@@ -263,8 +312,9 @@ export default function PropertyTaxPayPage() {
 
                 {fieldError || payError ? (
                   <p
+                    id="pay-form-error"
                     role="alert"
-                    className="mt-4 text-sm font-medium text-red-600"
+                    className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700"
                   >
                     {fieldError || payError}
                   </p>
@@ -273,7 +323,7 @@ export default function PropertyTaxPayPage() {
                 <button
                   type="submit"
                   disabled={payMutation.isPending}
-                  className="mt-6 flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-2xl bg-linear-to-r from-orange-600 to-amber-600 px-8 py-4 text-sm font-bold text-white shadow-[0_10px_25px_rgba(234,88,12,0.3)] transition-all duration-200 hover:from-orange-700 hover:to-amber-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                  className="mt-6 flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-2xl bg-linear-to-r from-orange-600 to-amber-600 px-8 py-4 text-sm font-bold text-white shadow-[0_10px_25px_rgba(234,88,12,0.3)] transition-all duration-200 hover:from-orange-700 hover:to-amber-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 motion-reduce:active:scale-100"
                 >
                   {payMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

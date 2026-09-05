@@ -13,6 +13,7 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Suspense } from "react"
 
+import { PaymentProcessSteps } from "@/components/propertytax/payment-process-steps"
 import { fetchPublicPaymentStatus } from "@/lib/property-tax-api"
 import { PublicApiError } from "@/lib/public-api"
 
@@ -57,15 +58,18 @@ function PaymentReturnContent() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
       <div className="mx-auto max-w-2xl px-4 pt-8 pb-16 sm:px-6 lg:px-8">
+        <PaymentProcessSteps current={4} className="mb-6" />
+
         <div className="mb-8">
           <p className="text-xs font-bold tracking-wide text-orange-700 uppercase">
-            Property Tax · Payment Status
+            House Tax · Payment Status
           </p>
           <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950">
             Payment return
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Confirming your transaction with the municipal payment system.
+            Confirming your house tax transaction with the municipal payment
+            system.
           </p>
         </div>
 
@@ -107,7 +111,7 @@ function PaymentReturnContent() {
               </h2>
               <p className="mt-2 max-w-md text-sm text-slate-600">
                 {isSuccess
-                  ? "Your property tax payment has been recorded. You can download or print the official receipt."
+                  ? "Your house tax payment has been recorded. You can download or print the official receipt."
                   : isFailed
                     ? "The gateway reported that this payment did not succeed. You may try again from the dues page."
                     : "We are confirming the payment with the gateway. This page updates automatically."}

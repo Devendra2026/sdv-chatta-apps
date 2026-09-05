@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto"
 
+import { isAtomRefundSuccess } from "../payments.safety"
 import { atomAesDecrypt, atomAesEncrypt } from "./atom-aes"
+import {
+  assertAtomCallbackSignatureIfConfigured,
+  AtomCallbackParseError,
+} from "./atom-hmac"
 import type {
   CreatePaymentInput,
   CreatePaymentResult,
@@ -84,15 +89,7 @@ export function extractAtomTxnFields(decoded: unknown): {
   }
 }
 
-export class AtomCallbackParseError extends Error {
-  readonly code: string
-
-  constructor(code: string, message: string) {
-    super(message)
-    this.name = "AtomCallbackParseError"
-    this.code = code
-  }
-}
+export { AtomCallbackParseError } from "./atom-hmac"
 
 export type ParsedAtomCallback = {
   decoded: unknown
@@ -130,6 +127,8 @@ export function parseAtomEncryptedCallback(
       "Failed to decrypt gateway callback encData"
     )
   }
+
+  assertAtomCallbackSignatureIfConfigured(decoded)
 
   const fields = extractAtomTxnFields(decoded)
   const normalized: Record<string, unknown> = {
@@ -453,15 +452,10 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
     const raw: unknown = tryParseJson(rawText) ?? rawText
     const decoded = this.decodeMaybeEncrypted(raw)
     const fields = extractAtomTxnFields(decoded)
-    const success =
-      response.ok &&
-      (fields.statusCode === "OTS0000" ||
-        fields.statusCode === "SUCCESS" ||
-        fields.statusCode === "UNKNOWN")
+    const success = isAtomRefundSuccess(response.ok, fields.statusCode)
 
     return {
-      statusCode:
-        fields.statusCode === "UNKNOWN" ? "OTS0000" : fields.statusCode,
+      statusCode: fields.statusCode,
       success,
       gatewayRefundId:
         fields.atomTxnId ??

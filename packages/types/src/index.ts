@@ -73,6 +73,8 @@ export type PublicPropertyTaxWard = {
   number: number
 }
 
+export type PublicPropertyTaxDueStatus = "DUE" | "NO_DUE"
+
 export type PublicPropertyTaxResultItem = {
   id: string
   surveyId: string
@@ -83,6 +85,8 @@ export type PublicPropertyTaxResultItem = {
   ownerNameMasked: string
   mobileMasked: string
   locality: string | null
+  /** DUE until a SUCCESS payment exists for the current published assessment year. */
+  dueStatus: PublicPropertyTaxDueStatus
 }
 
 export type PublicPropertyTaxSearchResult = {
@@ -146,6 +150,8 @@ export type PublicPropertyTaxDues = {
     annualBaseRate: number | null
     configFound: boolean
   }
+  /** True when a SUCCESS payment exists for this dues assessment year. */
+  paidForAssessmentYear: boolean
 }
 
 export type PublicPropertyTaxAipayCheckout = {

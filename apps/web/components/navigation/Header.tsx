@@ -1,8 +1,7 @@
 "use client"
 
-import React from "react"
-import { Search } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
+import { Search } from "lucide-react"
 
 export default function Header() {
   return (
@@ -12,7 +11,7 @@ export default function Header() {
         <div className="flex flex-col items-center gap-4 text-center sm:flex-row lg:text-left">
           {/* Official Circular Government Logo Image */}
           <div className="group relative shrink-0 cursor-pointer transition-transform duration-300 hover:scale-105">
-            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-slate-200 bg-white stroke-[#0A2540] p-1 shadow-sm">
+            <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 border-slate-200 bg-white stroke-[#0A2540] p-1 shadow-sm md:h-28 md:w-28">
               <img
                 src="https://cdn.s3waas.gov.in/s30336dcbab05b9d5ad24f4333c7658a0e/uploads/2018/02/2018021632.png"
                 alt="Uttar Pradesh Government Emblem"
@@ -23,17 +22,17 @@ export default function Header() {
 
           <div>
             <div className="flex items-center justify-center gap-2 lg:justify-start">
-              <span className="bg-gov-saffron/10 text-gov-saffron border-gov-saffron/25 rounded-full border px-2 py-0.5 text-xs font-bold tracking-wider uppercase">
+              <span className="bg-gov-saffron/10 text-gov-saffron border-gov-saffron/25 rounded-full border px-2.5 py-0.5 text-[11px] font-bold tracking-wider uppercase md:text-xs">
                 Uttar Pradesh Government
               </span>
             </div>
-            <h1 className="text-gov-blue-dark mt-1 font-serif text-xl leading-tight font-extrabold tracking-tight md:text-2xl">
+            <h1 className="text-gov-blue-dark mt-1.5 font-serif text-2xl leading-tight font-extrabold tracking-tight sm:text-3xl md:text-4xl">
               नगर पंचायत, छाता, मथुरा
             </h1>
-            <p className="text-gov-blue-medium font-sans text-sm font-semibold tracking-wider uppercase">
+            <p className="text-gov-blue-medium mt-1 font-sans text-base font-bold tracking-wide uppercase sm:text-lg md:text-xl">
               Nagar Panchayat, Chhata, Mathura
             </p>
-            <div className="mt-0.5 flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 lg:justify-start">
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-1.5 text-xs font-medium text-slate-500 sm:text-sm lg:justify-start">
               <span>Mathura, Uttar Pradesh, India</span>
               <span className="text-slate-300">•</span>
               <span className="text-gov-saffron font-semibold italic">

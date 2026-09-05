@@ -9,10 +9,19 @@ const JSON_CONTENT_TYPES = new Set([
   "application/json; charset=utf-8",
 ])
 
+export function isAtomGatewayPath(path: string | undefined): boolean {
+  return Boolean(path?.includes("/payments/gateway/"))
+}
+
 @Injectable()
 export class OriginValidationMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
     if (!isMutatingMethod(req.method)) {
+      next()
+      return
+    }
+
+    if (isAtomGatewayPath(req.originalUrl) || isAtomGatewayPath(req.path)) {
       next()
       return
     }

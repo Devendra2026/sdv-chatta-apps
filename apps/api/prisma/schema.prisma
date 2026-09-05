@@ -454,6 +454,7 @@ model ReferenceEntry {
   updatedAt   DateTime             @updatedAt
 
   taxConfigsAssessmentYear TaxConfig[]   @relation("TaxConfigAssessmentYear")
+  paymentsAssessmentYear   Payment[]     @relation("PaymentAssessmentYear")
   taxCellsRoad             TaxRateCell[] @relation("CellRoadWidth")
   taxCellsConstruction     TaxRateCell[] @relation("CellConstruction")
 
@@ -552,6 +553,8 @@ model Payment {
   survey            Survey?       @relation(fields: [surveyId], references: [id])
   wardId            String?
   ward              Ward?         @relation(fields: [wardId], references: [id])
+  assessmentYearId  String?
+  assessmentYear    ReferenceEntry? @relation("PaymentAssessmentYear", fields: [assessmentYearId], references: [id])
   payerName         String?
   payerMobile       String?
   payerEmail        String?
@@ -581,6 +584,7 @@ model Payment {
   @@index([surveyId])
   @@index([wardId])
   @@index([paymentMode])
+  @@index([surveyId, status, assessmentYearId])
   @@map("payment")
 }
 
