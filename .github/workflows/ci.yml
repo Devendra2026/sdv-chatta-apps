@@ -11,6 +11,9 @@ jobs:
     env:
       REDIS_URL: redis://localhost:6379
       SESSION_SECRET: ci-session-secret-change-me-32chars
+      # Prisma 7 prisma.config.ts requires DATABASE_URL even for generate.
+      # This value is generate-only and is never used to connect.
+      DATABASE_URL: postgresql://build:build@localhost:5432/build?schema=public
     services:
       redis:
         image: redis:7-alpine
@@ -32,6 +35,7 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
