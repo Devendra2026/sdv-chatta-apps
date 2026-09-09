@@ -325,35 +325,36 @@ const NOTICE_CSS = `
   text-align: center;
   min-width: 0;
   padding: 0 4px;
+  overflow-wrap: break-word;
 }
 .demand-notice-root .office-en {
-  font-size: 17px;
+  font-size: 22px;
   font-weight: 800;
   color: #0f172a;
-  letter-spacing: 0.02em;
-  line-height: 1.25;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
 }
 .demand-notice-root .office-loc {
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 500;
   color: #334155;
-  margin-top: 3px;
-  line-height: 1.3;
+  margin-top: 4px;
+  line-height: 1.35;
 }
 .demand-notice-root .title-en {
-  margin-top: 10px;
-  font-size: 20px;
+  margin-top: 12px;
+  font-size: 24px;
   font-weight: 800;
   color: #0369a1;
   letter-spacing: 0.15px;
   line-height: 1.2;
 }
 .demand-notice-root .title-hi {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: #0f172a;
-  margin-top: 3px;
-  line-height: 1.3;
+  margin-top: 6px;
+  line-height: 1.45;
 }
 .demand-notice-root .meta {
   display: grid;
@@ -589,10 +590,44 @@ const NOTICE_CSS = `
     max-width: 210mm;
     min-height: 0;
   }
+  .demand-notice-root .header {
+    grid-template-columns: 72px 1fr 72px;
+    gap: 8px;
+  }
+  .demand-notice-root .logo {
+    width: 64px;
+    height: 64px;
+  }
+  .demand-notice-root .logo img {
+    width: 64px;
+    height: 64px;
+  }
+  .demand-notice-root .office-en { font-size: 18px; }
+  .demand-notice-root .office-loc { font-size: 12px; }
+  .demand-notice-root .title-en { font-size: 20px; }
+  .demand-notice-root .title-hi { font-size: 15px; }
   .demand-notice-root .alv-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
+}
+@media screen and (max-width: 480px) {
+  .demand-notice-root .header {
+    grid-template-columns: 52px 1fr 52px;
+    gap: 6px;
+  }
+  .demand-notice-root .logo {
+    width: 48px;
+    height: 48px;
+  }
+  .demand-notice-root .logo img {
+    width: 48px;
+    height: 48px;
+  }
+  .demand-notice-root .office-en { font-size: 16px; }
+  .demand-notice-root .office-loc { font-size: 11.5px; }
+  .demand-notice-root .title-en { font-size: 17px; }
+  .demand-notice-root .title-hi { font-size: 14px; }
 }
 @media print {
   @page { size: A4 portrait; margin: 0; }

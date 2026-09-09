@@ -278,35 +278,36 @@ body {
   text-align: center;
   min-width: 0;
   padding: 0 4px;
+  overflow-wrap: break-word;
 }
 .office-en {
-  font-size: 17px;
+  font-size: 22px;
   font-weight: 800;
   color: #0f172a;
-  letter-spacing: 0.02em;
-  line-height: 1.25;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
 }
 .office-loc {
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 500;
   color: #334155;
-  margin-top: 3px;
-  line-height: 1.3;
+  margin-top: 4px;
+  line-height: 1.35;
 }
 .title-en {
-  margin-top: 10px;
-  font-size: 20px;
+  margin-top: 12px;
+  font-size: 24px;
   font-weight: 800;
   color: #0369a1;
   letter-spacing: 0.15px;
   line-height: 1.2;
 }
 .title-hi {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: #0f172a;
-  margin-top: 3px;
-  line-height: 1.3;
+  margin-top: 6px;
+  line-height: 1.45;
 }
 
 /* —— Meta —— */
