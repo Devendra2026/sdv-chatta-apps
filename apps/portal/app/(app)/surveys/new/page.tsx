@@ -1,20 +1,12 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import * as React from "react"
 import { Controller, useForm } from "react-hook-form"
 import { toast } from "sonner"
 
 import { Button } from "@workspace/ui/components/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import {
@@ -24,16 +16,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@workspace/ui/components/select"
-import {
-  buildSelectItems,
-  buildStringSelectItems,
-} from "@workspace/ui/lib/select-items"
+import { Skeleton } from "@workspace/ui/components/skeleton"
+import { buildSelectItems } from "@workspace/ui/lib/select-items"
 
 import { api } from "@/lib/api"
 import {
-  generateSurveyId,
-  parseGisSurveyId,
-} from "@/lib/survey-format"
+  isCommercialPropertyUse,
+  isMixedPropertyUse,
+  parseFloorsRaw,
+  validateMixedComposition,
+} from "@/lib/floors"
+import { generateSurveyId, parseGisSurveyId } from "@/lib/survey-format"
 import {
   CITIES,
   COMMERCIAL_USES,
@@ -47,10 +40,24 @@ import {
   WATER_SOURCES,
   YEARS_OF_CONSTRUCTION,
   YES_NO,
-  withCurrentOption,
 } from "@/lib/ward1-catalog"
+import { useCan } from "@/hooks/use-permission"
 
 import { FloorsEditor } from "../_components/floors-editor"
+import { SurveyEditHeader } from "../_components/survey-edit-header"
+import {
+  AreaPairField,
+  CatalogField,
+  FieldShell,
+  TextField,
+} from "../_components/survey-form-fields"
+import { SurveyFormSection } from "../_components/survey-form-section"
+import { SurveyStickyActions } from "../_components/survey-sticky-actions"
+import {
+  UnsavedChangesDialog,
+  useUnsavedChangesGuard,
+} from "../_components/unsaved-changes-guard"
+import { UsageCompositionPanel } from "../_components/usage-composition-panel"
 
 type FormValues = {
   surveyId: string
@@ -115,6 +122,10 @@ type SurveyRecord = {
   id: string
   surveyId: string
   wardId: string
+  status?: string | null
+  dataQualityStatus?: string | null
+  updatedAt?: string | null
+  updatedBy?: { id: string; name: string | null; email?: string | null } | null
   surveyedAt?: string | null
   ownerName?: string | null
   ownerFatherName?: string | null
@@ -225,11 +236,27 @@ const emptyForm: FormValues = {
   remark: "",
 }
 
+function focusFirstError(errors: Record<string, unknown>) {
+  const firstKey = Object.keys(errors)[0]
+  if (!firstKey) return
+  const el =
+    document.getElementById(firstKey) ??
+    document.querySelector(`[name="${firstKey}"]`) ??
+    document.getElementById("floors-editor")
+  if (el instanceof HTMLElement) {
+    el.scrollIntoView({ behavior: "smooth", block: "center" })
+    el.focus?.()
+  }
+}
+
 export default function SurveyFormPage() {
   const params = useParams<{ id?: string }>()
   const isEdit = Boolean(params.id) && params.id !== "new"
   const router = useRouter()
   const qc = useQueryClient()
+  const { allowed: canAudit } = useCan("audit:read")
+  const cancelHref = isEdit ? `/surveys/${params.id}` : "/surveys"
+  const storagePrefix = `survey-form-section:${params.id ?? "new"}`
 
   const wards = useQuery({
     queryKey: ["wards"],
@@ -244,11 +271,17 @@ export default function SurveyFormPage() {
   })
 
   const form = useForm<FormValues>({ defaultValues: emptyForm })
+  const {
+    formState: { isDirty, errors },
+  } = form
+
+  const guard = useUnsavedChangesGuard(isDirty)
 
   React.useEffect(() => {
     if (!existing.data) return
+    if (isDirty) return
     form.reset(recordToForm(existing.data))
-  }, [existing.data, form])
+  }, [existing.data, form, isDirty])
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
@@ -257,29 +290,49 @@ export default function SurveyFormPage() {
       }
       const body = toPayload(values, isEdit)
       if (isEdit) {
-        return api.patch<{ id: string }>(`/api/v1/surveys/${params.id}`, body)
+        await api.patch<{ id: string }>(`/api/v1/surveys/${params.id}`, body)
+        return (
+          await api.get<SurveyRecord>(`/api/v1/surveys/${params.id}`)
+        ).data
       }
-      return api.post<{ id: string }>("/api/v1/surveys", body)
+      const created = await api.post<{ id: string }>("/api/v1/surveys", body)
+      return { id: created.data.id } as SurveyRecord & { id: string }
     },
     onSuccess: async (res) => {
-      toast.success(isEdit ? "Survey updated" : "Survey created")
+      toast.success(
+        isEdit ? "Survey updated successfully" : "Survey created successfully"
+      )
       await qc.invalidateQueries({ queryKey: ["surveys"] })
-      const id = isEdit ? params.id! : res.data.id
+      const id = isEdit ? params.id! : res.id
       await qc.invalidateQueries({ queryKey: ["survey", id] })
       await qc.invalidateQueries({ queryKey: ["audit-logs", "Survey", id] })
+      if (isEdit && "surveyId" in res && res.surveyId) {
+        form.reset(recordToForm(res))
+        return
+      }
       router.push(`/surveys/${id}`)
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: () => {
+      toast.error("Unable to save survey. Please try again.")
+    },
   })
 
   const control = form.control
   const plotAreaSqFt = form.watch("plotAreaSqFt")
+  const plotAreaSqMeter = form.watch("plotAreaSqMeter")
   const plinthAreaSqFt = form.watch("plinthAreaSqFt")
+  const plinthAreaSqMeter = form.watch("plinthAreaSqMeter")
+  const totalBuiltUpAreaSqFt = form.watch("totalBuiltUpAreaSqFt")
+  const totalBuiltUpAreaSqMeter = form.watch("totalBuiltUpAreaSqMeter")
   const propertyUse = form.watch("propertyUse")
+  const floorsRaw = form.watch("floorsRaw")
   const wardId = form.watch("wardId")
   const parcelNo = form.watch("parcelNo")
   const propertyNo = form.watch("propertyNo")
   const gisUseCode = form.watch("gisUseCode")
+
+  const showCommercial = isCommercialPropertyUse(propertyUse)
+  const showMixed = isMixedPropertyUse(propertyUse)
 
   const previewSurveyId = React.useMemo(() => {
     const ward = wards.data?.find((w) => w.id === wardId)
@@ -297,505 +350,573 @@ export default function SurveyFormPage() {
     } catch {
       return "—"
     }
-  }, [
-    wardId,
-    parcelNo,
-    propertyNo,
-    gisUseCode,
-    wards.data,
-    isEdit,
-    form,
-  ])
+  }, [wardId, parcelNo, propertyNo, gisUseCode, wards.data, isEdit, form])
 
-  return (
-    <form
-      className="space-y-4 pb-20"
-      onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {isEdit ? "Edit Survey" : "Create Survey"}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {isEdit
-              ? "Update survey details for this property."
-              : "Enter survey details for this property."}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="cursor-pointer"
-            render={
-              <Link href={isEdit ? `/surveys/${params.id}` : "/surveys"} />
-            }
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            className="cursor-pointer"
-            disabled={mutation.isPending}
-          >
-            {mutation.isPending ? "Saving…" : "Save"}
-          </Button>
-        </div>
+  function jumpToFloors() {
+    document
+      .getElementById("section-floors")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+    document.getElementById("floors-editor")?.focus?.()
+  }
+
+  function onSubmit(values: FormValues) {
+    if (isMixedPropertyUse(values.propertyUse)) {
+      const mixedError = validateMixedComposition(
+        parseFloorsRaw(values.floorsRaw)
+      )
+      if (mixedError) {
+        form.setError("floorsRaw", { type: "validate", message: mixedError })
+        document
+          .getElementById("section-classification")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" })
+        return
+      }
+    }
+    form.clearErrors("floorsRaw")
+    mutation.mutate(values)
+  }
+
+  if (isEdit && existing.isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-20 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
+    )
+  }
 
-      <FormSection
-        title="Survey & Owner"
-        description="Owner identity and survey metadata."
-      >
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label htmlFor="surveyIdPreview">Survey Id</Label>
-          <Input
-            id="surveyIdPreview"
-            readOnly
-            disabled
-            value={previewSurveyId}
-            className="font-mono text-sm"
-          />
-          <p className="text-xs text-muted-foreground">
-            Generated automatically from ward, parcel, property, and GIS use
-            code.
-          </p>
-        </div>
-        <TextField
-          id="surveyedAt"
-          label="Date of Survey"
-          type="datetime-local"
-          register={form.register("surveyedAt")}
-        />
-        <TextField
-          id="ownerName"
-          label="Owner Name"
-          register={form.register("ownerName")}
-        />
-        <TextField
-          id="ownerFatherName"
-          label="Owner Father Name"
-          register={form.register("ownerFatherName")}
-        />
-        <TextField
-          id="mobile"
-          label="Mobile No"
-          inputMode="numeric"
-          register={form.register("mobile")}
-        />
-        <div className="space-y-1.5">
-          <Label htmlFor="wardId">Ward Name</Label>
-          <Controller
-            name="wardId"
-            control={control}
-            rules={{ required: true }}
-            render={({ field }) => (
-              <Select
-                value={toSelectValue(field.value)}
-                items={buildSelectItems(
-                  wards.data ?? [],
-                  (ward) => ward.id,
-                  (ward) => `Ward ${ward.number} — ${ward.name}`
-                )}
-                onValueChange={(value) => field.onChange(value ?? "")}
-              >
-                <SelectTrigger id="wardId" className="cursor-pointer">
-                  <SelectValue placeholder="Select ward" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(wards.data ?? []).map((ward) => (
-                    <SelectItem
-                      key={ward.id}
-                      value={ward.id}
-                      label={`Ward ${ward.number} — ${ward.name}`}
-                    >
-                      Ward {ward.number} — {ward.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          />
-        </div>
-        <CatalogField
-          id="isSlum"
-          label="Is Slum"
-          control={control}
-          name="isSlum"
-          options={YES_NO}
-        />
-      </FormSection>
-
-      <FormSection
-        title="Parcel"
-        description="Parcel and property identifiers."
-      >
-        <TextField
-          id="parcelNo"
-          label="Parcel No"
-          required={!isEdit}
-          register={form.register("parcelNo", { required: !isEdit })}
-        />
-        <TextField
-          id="propertyNo"
-          label="Property No"
-          register={form.register("propertyNo", { required: !isEdit })}
-        />
-        <TextField
-          id="gisUseCode"
-          label="GIS Use Code"
-          required
-          register={form.register("gisUseCode", {
-            required: true,
-            maxLength: 1,
-            pattern: /^[A-Za-z]$/,
-          })}
-        />
-      </FormSection>
-
-      <FormSection
-        title="Respondent"
-        description="Person who provided survey answers."
-      >
-        <TextField
-          id="respondentName"
-          label="Respondent Name"
-          register={form.register("respondentName")}
-        />
-        <CatalogField
-          id="respondentRelationship"
-          label="Respondent Relationship"
-          control={control}
-          name="respondentRelationship"
-          options={RESPONDENT_RELATIONSHIPS}
-        />
-      </FormSection>
-
-      <FormSection title="Address" description="Property location details.">
-        <CatalogField
-          id="city"
-          label="City"
-          control={control}
-          name="city"
-          options={CITIES}
-        />
-        <TextField
-          id="pincode"
-          label="Pincode"
-          inputMode="numeric"
-          register={form.register("pincode")}
-        />
-        <TextField
-          id="houseNo"
-          label="House No"
-          register={form.register("houseNo")}
-        />
-        <TextField
-          id="streetName"
-          label="Street Name"
-          register={form.register("streetName")}
-        />
-        <TextField
-          id="locality"
-          label="Locality"
-          register={form.register("locality")}
-        />
-        <TextField
-          id="colony"
-          label="Colony"
-          register={form.register("colony")}
-        />
-      </FormSection>
-
-      <FormSection
-        title="Classification"
-        description="Tax and property classification."
-      >
-        <CatalogField
-          id="taxRateZone"
-          label="Tax Rate Zone"
-          control={control}
-          name="taxRateZone"
-          options={TAX_RATE_ZONES}
-        />
-        <CatalogField
-          id="propertyOwnership"
-          label="Property Ownership"
-          control={control}
-          name="propertyOwnership"
-          options={PROPERTY_OWNERSHIPS}
-        />
-        <CatalogField
-          id="propertyUse"
-          label="Property Use"
-          control={control}
-          name="propertyUse"
-          options={PROPERTY_USES}
-        />
-        <CatalogField
-          id="commercial"
-          label="Commercial"
-          control={control}
-          name="commercial"
-          options={COMMERCIAL_USES}
-        />
-        <CatalogField
-          id="yearOfConstruction"
-          label="Year of Construction"
-          control={control}
-          name="yearOfConstruction"
-          options={YEARS_OF_CONSTRUCTION}
-        />
-        <CatalogField
-          id="situation"
-          label="Situation"
-          control={control}
-          name="situation"
-          options={SITUATIONS}
-        />
-        <CatalogField
-          id="roadType"
-          label="Road Type"
-          control={control}
-          name="roadType"
-          options={ROAD_TYPES}
-        />
-      </FormSection>
-
-      <FormSection
-        title="Floors & Area"
-        description="Floor summary and area measurements."
-      >
-        <TextField
-          id="plotAreaSqFt"
-          label="Plot Area SqFt"
-          inputMode="decimal"
-          register={form.register("plotAreaSqFt")}
-        />
-        <TextField
-          id="plotAreaSqMeter"
-          label="Plot Area SqMeter"
-          inputMode="decimal"
-          register={form.register("plotAreaSqMeter")}
-        />
-        <TextField
-          id="plinthAreaSqFt"
-          label="Plinth Area SqFt"
-          inputMode="decimal"
-          register={form.register("plinthAreaSqFt")}
-        />
-        <TextField
-          id="plinthAreaSqMeter"
-          label="Plinth Area SqMeter"
-          inputMode="decimal"
-          register={form.register("plinthAreaSqMeter")}
-        />
-        <TextField
-          id="totalBuiltUpAreaSqFt"
-          label="Total Built Up Area SqFt"
-          inputMode="decimal"
-          register={form.register("totalBuiltUpAreaSqFt")}
-        />
-        <TextField
-          id="totalBuiltUpAreaSqMeter"
-          label="Total Built Up Area SqMeter"
-          inputMode="decimal"
-          register={form.register("totalBuiltUpAreaSqMeter")}
-        />
-        <Controller
-          name="floorsRaw"
-          control={control}
-          render={({ field }) => (
-            <FloorsEditor
-              value={field.value}
-              onChange={field.onChange}
-              propertyUse={propertyUse}
-              plotAreaSqFt={plotAreaSqFt}
-              plinthAreaSqFt={plinthAreaSqFt}
-              onBuiltUpChange={(sqFt, sqM) => {
-                form.setValue("totalBuiltUpAreaSqFt", sqFt, {
-                  shouldDirty: true,
-                })
-                form.setValue("totalBuiltUpAreaSqMeter", sqM, {
-                  shouldDirty: true,
-                })
-              }}
-            />
-          )}
-        />
-      </FormSection>
-
-      <FormSection
-        title="Municipal Services"
-        description="Utilities and municipal service connections."
-      >
-        <CatalogField
-          id="hasMunicipalWaterSupply"
-          label="Is Muncipal Water Supply"
-          control={control}
-          name="hasMunicipalWaterSupply"
-          options={YES_NO}
-        />
-        <TextField
-          id="totalWaterConnections"
-          label="Total Water Connection"
-          inputMode="numeric"
-          register={form.register("totalWaterConnections")}
-        />
-        <TextField
-          id="waterConnectionIdType"
-          label="Water Connection Id/Type"
-          register={form.register("waterConnectionIdType")}
-        />
-        <CatalogField
-          id="toiletType"
-          label="Toilet Type"
-          control={control}
-          name="toiletType"
-          options={TOILET_TYPES}
-        />
-        <CatalogField
-          id="hasMunicipalWasteService"
-          label="Is Muncipal Waste Service"
-          control={control}
-          name="hasMunicipalWasteService"
-          options={YES_NO}
-        />
-        <CatalogField
-          id="hasAlternateWater"
-          label="Alternate Water"
-          control={control}
-          name="hasAlternateWater"
-          options={YES_NO}
-        />
-        <CatalogField
-          id="waterSourceType"
-          label="Water Source"
-          control={control}
-          name="waterSourceType"
-          options={WATER_SOURCES}
-        />
-      </FormSection>
-
-      <div className="sticky bottom-0 z-10 flex justify-end gap-2 border-t bg-background/90 py-3 backdrop-blur-sm">
+  if (isEdit && existing.isError) {
+    return (
+      <div className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/5 p-6">
+        <h1 className="text-lg font-semibold">Unable to load survey</h1>
+        <p className="text-sm text-muted-foreground">
+          {existing.error instanceof Error
+            ? existing.error.message
+            : "Please try again."}
+        </p>
         <Button
-          type="submit"
+          type="button"
+          variant="outline"
           className="cursor-pointer"
-          disabled={mutation.isPending}
+          onClick={() => void existing.refetch()}
         >
-          {mutation.isPending ? "Saving…" : "Save survey"}
+          Retry
         </Button>
       </div>
-    </form>
-  )
-}
+    )
+  }
 
-function FormSection({
-  title,
-  description,
-  children,
-}: {
-  title: string
-  description?: string
-  children: React.ReactNode
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base font-semibold">{title}</CardTitle>
-        {description ? (
-          <CardDescription className="text-sm text-muted-foreground">
-            {description}
-          </CardDescription>
-        ) : null}
-      </CardHeader>
-      <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {children}
-      </CardContent>
-    </Card>
+  const classificationHasError = Boolean(
+    errors.propertyUse || errors.commercial || errors.floorsRaw
   )
-}
-
-function TextField({
-  id,
-  label,
-  register,
-  type = "text",
-  inputMode,
-  required,
-  disabled,
-}: {
-  id: string
-  label: string
-  register: ReturnType<ReturnType<typeof useForm<FormValues>>["register"]>
-  type?: React.ComponentProps<typeof Input>["type"]
-  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]
-  required?: boolean
-  disabled?: boolean
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        type={type}
-        inputMode={inputMode}
-        required={required}
-        disabled={disabled}
-        {...register}
-      />
-    </div>
+  const floorsHasError = Boolean(errors.floorsRaw || errors.plotAreaSqFt)
+  const ownerHasError = Boolean(errors.wardId)
+  const parcelHasError = Boolean(
+    errors.parcelNo || errors.propertyNo || errors.gisUseCode
   )
-}
 
-function CatalogField({
-  id,
-  label,
-  control,
-  name,
-  options,
-}: {
-  id: string
-  label: string
-  control: ReturnType<typeof useForm<FormValues>>["control"]
-  name: keyof FormValues
-  options: readonly string[]
-}) {
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Controller
-        name={name}
-        control={control}
-        render={({ field }) => {
-          const optionList = withCurrentOption(options, field.value)
-          return (
-            <Select
-              value={toSelectValue(field.value)}
-              items={buildStringSelectItems(optionList)}
-              onValueChange={(value) => field.onChange(value ?? "")}
+    <>
+      <form
+        className="space-y-4 pb-4"
+        onSubmit={form.handleSubmit(onSubmit, (submitErrors) => {
+          focusFirstError(submitErrors as Record<string, unknown>)
+        })}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {isEdit ? "Edit Survey" : "Create Survey"}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {isEdit
+                ? "Review and update survey details for QC."
+                : "Enter survey details for this property."}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="cursor-pointer"
+              onClick={() => guard.requestLeave(cancelHref)}
             >
-              <SelectTrigger id={id} className="cursor-pointer">
-                <SelectValue placeholder="—" />
-              </SelectTrigger>
-              <SelectContent>
-                {optionList.map((option) => (
-                  <SelectItem key={option} value={option} label={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )
-        }}
-      />
-    </div>
-  )
-}
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="cursor-pointer"
+              disabled={mutation.isPending || (isEdit && !isDirty)}
+            >
+              {mutation.isPending
+                ? "Saving…"
+                : isEdit
+                  ? "Save Changes"
+                  : "Save"}
+            </Button>
+          </div>
+        </div>
 
-function toSelectValue(value: string): string | null {
-  return value === "" ? null : value
+        {isEdit && existing.data ? (
+          <SurveyEditHeader
+            surveyId={existing.data.surveyId}
+            status={existing.data.status}
+            dataQualityStatus={existing.data.dataQualityStatus}
+            updatedAt={existing.data.updatedAt}
+            updatedByName={
+              existing.data.updatedBy?.name ??
+              existing.data.updatedBy?.email ??
+              null
+            }
+            detailHref={`/surveys/${params.id}`}
+            canAudit={canAudit}
+          />
+        ) : null}
+
+        <SurveyFormSection
+          id="section-owner"
+          title="Survey & Owner"
+          description="Owner identity and survey metadata."
+          hasError={ownerHasError}
+          storageKey={`${storagePrefix}:owner`}
+        >
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="surveyIdPreview">Survey Id</Label>
+            <Input
+              id="surveyIdPreview"
+              readOnly
+              disabled
+              value={previewSurveyId}
+              className="font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Generated automatically from ward, parcel, property, and GIS use
+              code.
+            </p>
+          </div>
+          <TextField
+            id="surveyedAt"
+            label="Date of Survey"
+            type="datetime-local"
+            register={form.register("surveyedAt")}
+          />
+          <TextField
+            id="ownerName"
+            label="Owner Name"
+            register={form.register("ownerName")}
+          />
+          <TextField
+            id="ownerFatherName"
+            label="Owner Father Name"
+            register={form.register("ownerFatherName")}
+          />
+          <TextField
+            id="mobile"
+            label="Mobile No"
+            inputMode="numeric"
+            register={form.register("mobile")}
+          />
+          <FieldShell
+            id="wardId"
+            label="Ward Name"
+            required
+            error={errors.wardId ? "Ward is required" : undefined}
+          >
+            <Controller
+              name="wardId"
+              control={control}
+              rules={{ required: "Ward is required" }}
+              render={({ field }) => (
+                <Select
+                  value={field.value === "" ? null : field.value}
+                  items={buildSelectItems(
+                    wards.data ?? [],
+                    (ward) => ward.id,
+                    (ward) => `Ward ${ward.number} — ${ward.name}`
+                  )}
+                  onValueChange={(value) => field.onChange(value ?? "")}
+                >
+                  <SelectTrigger
+                    id="wardId"
+                    className="w-full cursor-pointer"
+                    aria-invalid={errors.wardId ? true : undefined}
+                  >
+                    <SelectValue placeholder="Select ward" />
+                  </SelectTrigger>
+                  <SelectContent align="start" alignItemWithTrigger={false}>
+                    {(wards.data ?? []).map((ward) => (
+                      <SelectItem
+                        key={ward.id}
+                        value={ward.id}
+                        label={`Ward ${ward.number} — ${ward.name}`}
+                      >
+                        Ward {ward.number} — {ward.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </FieldShell>
+          <CatalogField
+            id="isSlum"
+            label="Is Slum"
+            control={control}
+            name="isSlum"
+            options={YES_NO}
+          />
+        </SurveyFormSection>
+
+        <SurveyFormSection
+          id="section-parcel"
+          title="Parcel"
+          description="Parcel and property identifiers."
+          hasError={parcelHasError}
+          storageKey={`${storagePrefix}:parcel`}
+        >
+          <TextField
+            id="parcelNo"
+            label="Parcel No"
+            required={!isEdit}
+            error={errors.parcelNo ? "Parcel No is required" : undefined}
+            register={form.register("parcelNo", {
+              required: !isEdit ? "Parcel No is required" : false,
+            })}
+          />
+          <TextField
+            id="propertyNo"
+            label="Property No"
+            required={!isEdit}
+            error={errors.propertyNo ? "Property No is required" : undefined}
+            register={form.register("propertyNo", {
+              required: !isEdit ? "Property No is required" : false,
+            })}
+          />
+          <TextField
+            id="gisUseCode"
+            label="GIS Use Code"
+            required
+            error={
+              errors.gisUseCode
+                ? "Enter a single letter GIS use code"
+                : undefined
+            }
+            register={form.register("gisUseCode", {
+              required: true,
+              maxLength: 1,
+              pattern: /^[A-Za-z]$/,
+            })}
+          />
+        </SurveyFormSection>
+
+        <SurveyFormSection
+          id="section-respondent"
+          title="Respondent"
+          description="Person who provided survey answers."
+          storageKey={`${storagePrefix}:respondent`}
+        >
+          <TextField
+            id="respondentName"
+            label="Respondent Name"
+            register={form.register("respondentName")}
+          />
+          <CatalogField
+            id="respondentRelationship"
+            label="Respondent Relationship"
+            control={control}
+            name="respondentRelationship"
+            options={RESPONDENT_RELATIONSHIPS}
+          />
+        </SurveyFormSection>
+
+        <SurveyFormSection
+          id="section-address"
+          title="Address"
+          description="Property location details."
+          storageKey={`${storagePrefix}:address`}
+        >
+          <CatalogField
+            id="city"
+            label="City"
+            control={control}
+            name="city"
+            options={CITIES}
+          />
+          <TextField
+            id="pincode"
+            label="Pincode"
+            inputMode="numeric"
+            className="sm:max-w-[10rem]"
+            register={form.register("pincode")}
+          />
+          <TextField
+            id="houseNo"
+            label="House No"
+            className="sm:max-w-[10rem]"
+            register={form.register("houseNo")}
+          />
+          <TextField
+            id="streetName"
+            label="Street Name"
+            className="sm:col-span-1 lg:col-span-1"
+            register={form.register("streetName")}
+          />
+          <TextField
+            id="locality"
+            label="Locality"
+            register={form.register("locality")}
+          />
+          <TextField
+            id="colony"
+            label="Colony"
+            register={form.register("colony")}
+          />
+        </SurveyFormSection>
+
+        <SurveyFormSection
+          id="section-classification"
+          title="Classification"
+          description="Tax and property classification."
+          hasError={classificationHasError}
+          storageKey={`${storagePrefix}:classification`}
+        >
+          <CatalogField
+            id="taxRateZone"
+            label="Tax Rate Zone"
+            control={control}
+            name="taxRateZone"
+            options={TAX_RATE_ZONES}
+          />
+          <CatalogField
+            id="propertyOwnership"
+            label="Property Ownership"
+            control={control}
+            name="propertyOwnership"
+            options={PROPERTY_OWNERSHIPS}
+          />
+          <CatalogField
+            id="propertyUse"
+            label="Property Use"
+            control={control}
+            name="propertyUse"
+            options={PROPERTY_USES}
+            onValueChange={(value) => {
+              if (!isCommercialPropertyUse(value)) {
+                form.setValue("commercial", "", { shouldDirty: true })
+              }
+              if (!isMixedPropertyUse(value)) {
+                form.clearErrors("floorsRaw")
+              }
+            }}
+          />
+          {showCommercial ? (
+            <CatalogField
+              id="commercial"
+              label="Commercial"
+              control={control}
+              name="commercial"
+              options={COMMERCIAL_USES}
+              hint="Commercial subtype for this property."
+            />
+          ) : null}
+          {showMixed ? (
+            <UsageCompositionPanel
+              floorsRaw={floorsRaw}
+              onJumpToFloors={jumpToFloors}
+              error={errors.floorsRaw?.message}
+            />
+          ) : null}
+          <CatalogField
+            id="yearOfConstruction"
+            label="Year of Construction"
+            control={control}
+            name="yearOfConstruction"
+            options={YEARS_OF_CONSTRUCTION}
+          />
+          <CatalogField
+            id="situation"
+            label="Situation"
+            control={control}
+            name="situation"
+            options={SITUATIONS}
+          />
+          <CatalogField
+            id="roadType"
+            label="Road Type"
+            control={control}
+            name="roadType"
+            options={ROAD_TYPES}
+          />
+        </SurveyFormSection>
+
+        <SurveyFormSection
+          id="section-floors"
+          title="Floors & Area"
+          description="Floor summary and area measurements."
+          hasError={floorsHasError}
+          storageKey={`${storagePrefix}:floors`}
+          contentClassName="gap-3"
+        >
+          <AreaPairField
+            sqFtId="plotAreaSqFt"
+            sqMId="plotAreaSqMeter"
+            label="Plot Area"
+            sqFtRegister={form.register("plotAreaSqFt")}
+            sqMValue={plotAreaSqMeter}
+            onSqFtChange={(sqFt, sqM) => {
+              form.setValue("plotAreaSqFt", sqFt, { shouldDirty: true })
+              form.setValue("plotAreaSqMeter", sqM, { shouldDirty: true })
+            }}
+          />
+          <AreaPairField
+            sqFtId="plinthAreaSqFt"
+            sqMId="plinthAreaSqMeter"
+            label="Plinth Area"
+            sqFtRegister={form.register("plinthAreaSqFt")}
+            sqMValue={plinthAreaSqMeter}
+            onSqFtChange={(sqFt, sqM) => {
+              form.setValue("plinthAreaSqFt", sqFt, { shouldDirty: true })
+              form.setValue("plinthAreaSqMeter", sqM, { shouldDirty: true })
+            }}
+          />
+          <FieldShell
+            id="totalBuiltUpAreaSqFt"
+            label="Total Built Up Area SqFt"
+            hint="Calculated from floors"
+            className="sm:col-span-1"
+          >
+            <Input
+              id="totalBuiltUpAreaSqFt"
+              readOnly
+              disabled
+              value={totalBuiltUpAreaSqFt}
+              className="tabular-nums text-muted-foreground"
+            />
+          </FieldShell>
+          <FieldShell
+            id="totalBuiltUpAreaSqMeter"
+            label="Total Built Up Area SqMeter"
+            hint="Calculated"
+          >
+            <Input
+              id="totalBuiltUpAreaSqMeter"
+              readOnly
+              disabled
+              value={totalBuiltUpAreaSqMeter}
+              className="tabular-nums text-muted-foreground"
+            />
+          </FieldShell>
+          <Controller
+            name="floorsRaw"
+            control={control}
+            render={({ field }) => (
+              <FloorsEditor
+                value={field.value}
+                onChange={(next) => {
+                  field.onChange(next)
+                  if (isMixedPropertyUse(form.getValues("propertyUse"))) {
+                    const mixedError = validateMixedComposition(
+                      parseFloorsRaw(next)
+                    )
+                    if (mixedError) {
+                      form.setError("floorsRaw", {
+                        type: "validate",
+                        message: mixedError,
+                      })
+                    } else {
+                      form.clearErrors("floorsRaw")
+                    }
+                  }
+                }}
+                propertyUse={propertyUse}
+                plotAreaSqFt={plotAreaSqFt}
+                plinthAreaSqFt={plinthAreaSqFt}
+                error={showMixed ? undefined : errors.floorsRaw?.message}
+                onBuiltUpChange={(sqFt, sqM) => {
+                  form.setValue("totalBuiltUpAreaSqFt", sqFt, {
+                    shouldDirty: true,
+                  })
+                  form.setValue("totalBuiltUpAreaSqMeter", sqM, {
+                    shouldDirty: true,
+                  })
+                }}
+              />
+            )}
+          />
+        </SurveyFormSection>
+
+        <SurveyFormSection
+          id="section-municipal"
+          title="Municipal Services"
+          description="Utilities and municipal service connections."
+          defaultOpen={false}
+          storageKey={`${storagePrefix}:municipal`}
+        >
+          <CatalogField
+            id="hasMunicipalWaterSupply"
+            label="Is Muncipal Water Supply"
+            control={control}
+            name="hasMunicipalWaterSupply"
+            options={YES_NO}
+          />
+          <TextField
+            id="totalWaterConnections"
+            label="Total Water Connection"
+            inputMode="numeric"
+            register={form.register("totalWaterConnections")}
+          />
+          <TextField
+            id="waterConnectionIdType"
+            label="Water Connection Id/Type"
+            register={form.register("waterConnectionIdType")}
+          />
+          <CatalogField
+            id="toiletType"
+            label="Toilet Type"
+            control={control}
+            name="toiletType"
+            options={TOILET_TYPES}
+          />
+          <CatalogField
+            id="hasMunicipalWasteService"
+            label="Is Muncipal Waste Service"
+            control={control}
+            name="hasMunicipalWasteService"
+            options={YES_NO}
+          />
+          <CatalogField
+            id="hasAlternateWater"
+            label="Alternate Water"
+            control={control}
+            name="hasAlternateWater"
+            options={YES_NO}
+          />
+          <CatalogField
+            id="waterSourceType"
+            label="Water Source"
+            control={control}
+            name="waterSourceType"
+            options={WATER_SOURCES}
+          />
+        </SurveyFormSection>
+
+        <SurveyStickyActions
+          isDirty={isDirty}
+          isPending={mutation.isPending}
+          isEdit={isEdit}
+          onCancel={() => guard.requestLeave(cancelHref)}
+        />
+      </form>
+
+      <UnsavedChangesDialog
+        open={guard.dialogOpen}
+        onStay={guard.stay}
+        onLeave={guard.leave}
+      />
+    </>
+  )
 }
 
 function recordToForm(row: SurveyRecord): FormValues {

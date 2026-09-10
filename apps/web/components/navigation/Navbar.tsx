@@ -44,7 +44,7 @@ export default function Navbar() {
     else if (pathname === "/departments") setActiveTab("Departments")
     else if (pathname === "/services") setActiveTab("Services")
     // else if (pathname === '/newsandnotice') setActiveTab('News And Notice');
-    else if (pathname === "/propertytax") setActiveTab("Property Tax")
+    else if (pathname === "/propertytax") setActiveTab("House Tax")
     else if (pathname === "/staff") setActiveTab("Staff")
     else setActiveTab("Home")
   }, [pathname])
@@ -70,7 +70,7 @@ export default function Navbar() {
     { name: "Gallery", href: "/gallery", hasDropdown: false },
     { name: "Staff", href: "/staff", hasDropdown: false },
     { name: "Contact", href: "/contact", hasDropdown: false },
-    { name: "Property Tax", href: "/propertytax", hasDropdown: false },
+    { name: "House Tax", href: "/propertytax", hasDropdown: false },
   ]
 
   const departments = [
@@ -102,7 +102,7 @@ export default function Navbar() {
 
   const services = [
     {
-      name: "Property Tax Payment",
+      name: "Online House Tax Payment",
       desc: "Submit yearly property & house dues",
       href: "/propertytax",
     },
@@ -176,7 +176,7 @@ export default function Navbar() {
 
   return (
     <nav
-      className={`sticky top-0 z-50 w-full transition-all duration-300 ${
+      className={`sticky top-0 z-50 w-full transition-all duration-300 print:hidden ${
         scrolled
           ? "bg-gov-blue-dark/95 border-gov-blue-medium border-b py-2.5 shadow-lg backdrop-blur-sm"
           : "bg-gov-blue-medium py-3.5"

@@ -21,7 +21,7 @@ export default function TopUtilityBar() {
   }
 
   return (
-    <div className="bg-gov-blue-dark border-gov-blue-medium relative z-50 flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 text-xs text-slate-200 md:px-8">
+    <div className="bg-gov-blue-dark border-gov-blue-medium relative z-50 flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 text-xs text-slate-200 print:hidden md:px-8">
       {/* Left Contact Side */}
       <div className="flex items-center space-x-4">
         <a

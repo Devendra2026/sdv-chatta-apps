@@ -28,6 +28,15 @@ export function isOpenLandPropertyUse(propertyUse?: string | null): boolean {
   return (propertyUse ?? "").trim().toLowerCase().includes("open land")
 }
 
+export function isMixedPropertyUse(propertyUse?: string | null): boolean {
+  const value = (propertyUse ?? "").trim().toLowerCase()
+  return value === "mixed" || value === "mix"
+}
+
+export function isCommercialPropertyUse(propertyUse?: string | null): boolean {
+  return (propertyUse ?? "").trim().toLowerCase() === "commercial"
+}
+
 /** Floor dropdown options; includes "Open" when Property Use is Open Land. */
 export function floorLabelsForPropertyUse(
   propertyUse?: string | null
@@ -60,10 +69,75 @@ export const FLOOR_CONSTRUCTION_TYPES = [
   "Under Construction",
 ] as const
 
+/** 1 sq ft → sq m (≈ 1 / 10.7639). */
 const SQ_FT_TO_SQ_M = 0.092903
+/** 1 sq m → sq ft (project conversion factor). */
+const SQ_M_TO_SQ_FT = 10.7639
 
 export function sqFtToSqM(sqFt: number): number {
   return Math.round(sqFt * SQ_FT_TO_SQ_M * 100) / 100
+}
+
+export function sqMToSqFt(sqM: number): number {
+  return Math.round(sqM * SQ_M_TO_SQ_FT * 100) / 100
+}
+
+export type UsageCompositionRow = {
+  usageType: string
+  areaSqFt: number
+  percent: number
+}
+
+/** Aggregate floor usage types into composition rows with area %. */
+export function composeUsageFromFloors(
+  floors: Array<{ usageType?: string | null; areaSqFt?: number | null }>
+): {
+  rows: UsageCompositionRow[]
+  totalSqFt: number
+  distinctUsageCount: number
+} {
+  const totals = new Map<string, number>()
+  for (const floor of floors) {
+    const usage = floor.usageType?.trim() || "Unspecified"
+    const area =
+      typeof floor.areaSqFt === "number" && Number.isFinite(floor.areaSqFt)
+        ? floor.areaSqFt
+        : 0
+    totals.set(usage, (totals.get(usage) ?? 0) + area)
+  }
+
+  const totalSqFt = [...totals.values()].reduce((sum, area) => sum + area, 0)
+  const rows = [...totals.entries()]
+    .map(([usageType, areaSqFt]) => ({
+      usageType,
+      areaSqFt,
+      percent:
+        totalSqFt > 0 ? Math.round((areaSqFt / totalSqFt) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.areaSqFt - a.areaSqFt)
+
+  return {
+    rows,
+    totalSqFt,
+    distinctUsageCount: totals.size,
+  }
+}
+
+/** Returns an error message when Mixed property use composition is invalid. */
+export function validateMixedComposition(
+  floors: Array<{ usageType?: string | null; areaSqFt?: number | null }>
+): string | null {
+  if (!floors.length) {
+    return "Add floor records to define Mixed usage composition."
+  }
+  const { distinctUsageCount, totalSqFt } = composeUsageFromFloors(floors)
+  if (distinctUsageCount < 2) {
+    return "Mixed property use requires at least two different floor usage types."
+  }
+  if (totalSqFt <= 0) {
+    return "Usage composition total area must be greater than zero."
+  }
+  return null
 }
 
 export function parseFloorsRaw(floorsRaw?: string | null): FloorRow[] {

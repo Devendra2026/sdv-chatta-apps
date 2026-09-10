@@ -192,18 +192,15 @@ export default function ProfessionalPropertyTaxPage() {
     <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 selection:bg-orange-500 selection:text-white">
       <section className="mx-auto max-w-7xl px-4 pt-12 pb-8 sm:px-6 lg:px-8">
         <div className="max-w-3xl">
-          <span className="mb-4 inline-block rounded-full bg-orange-100 px-3.5 py-1.5 text-xs font-bold tracking-wide text-orange-700 uppercase shadow-sm">
+          <span className="bg-gov-orange-light text-gov-saffron-dark border-gov-saffron/25 mb-4 inline-block rounded-full border px-3.5 py-1.5 text-xs font-bold tracking-wide uppercase shadow-sm">
             Citizen Services & Assessment
           </span>
-          <h1 className="text-4xl leading-[1.15] font-extrabold tracking-tight text-slate-950 sm:text-5xl lg:text-5xl">
-            Online House Tax{" "}
-            <span className="bg-linear-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
-              Payment
-            </span>
+          <h1 className="text-gov-blue-dark text-4xl leading-[1.15] font-extrabold tracking-tight sm:text-5xl lg:text-5xl">
+            Online House Tax Payment
           </h1>
           <p className="mt-4 text-base leading-relaxed font-normal text-slate-600 sm:text-lg">
-            Search your property records instantly, review house tax dues, and
-            complete secure digital payments with official receipt generation.
+            Search your property records, review house tax dues, and complete
+            online payment with an official receipt.
           </p>
         </div>
 

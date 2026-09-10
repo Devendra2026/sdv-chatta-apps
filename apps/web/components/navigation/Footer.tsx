@@ -10,7 +10,7 @@ export default function Footer() {
   return (
     <footer
       id="contact-us"
-      className="bg-gov-blue-dark border-gov-saffron relative z-30 border-t-4 text-slate-300"
+      className="bg-gov-blue-dark border-gov-saffron relative z-30 border-t-4 text-slate-300 print:hidden"
     >
       {/* Top Main Link Matrix */}
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-4 py-16 sm:grid-cols-2 md:px-8 lg:grid-cols-4">

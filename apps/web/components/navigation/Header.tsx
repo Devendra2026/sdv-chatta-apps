@@ -5,7 +5,7 @@ import { Search } from "lucide-react"
 
 export default function Header() {
   return (
-    <header className="border-b border-slate-200 bg-white px-4 py-4 md:px-8">
+    <header className="print:hidden border-b border-slate-200 bg-white px-4 py-4 md:px-8">
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 lg:flex-row">
         {/* Left Side: Logo, Brand names, Taglines */}
         <div className="flex flex-col items-center gap-4 text-center sm:flex-row lg:text-left">

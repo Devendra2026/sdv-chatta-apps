@@ -24,6 +24,10 @@ import {
   maskOwnerName,
   normalizeMobileDigits,
 } from "./masking.util"
+import {
+  CITIZEN_PAYMENT_IN_PROGRESS_WINDOW_MS,
+  hasRecentOpenCitizenPayment,
+} from "./payment-in-progress.util"
 
 export type PublicPropertyTaxResultItem = {
   id: string
@@ -179,6 +183,27 @@ export class PublicPropertyTaxService {
       throw new NotFoundException({
         code: "SURVEY_NOT_FOUND",
         message: "Property record was not found",
+      })
+    }
+
+    const openPayments = await this.prisma.payment.findMany({
+      where: {
+        surveyId: survey.id,
+        assessmentYearId: dues.assessmentYear.id,
+        paymentMode: "ONLINE",
+        status: { in: [PaymentStatus.INITIATED, PaymentStatus.PENDING] },
+        createdAt: {
+          gte: new Date(Date.now() - CITIZEN_PAYMENT_IN_PROGRESS_WINDOW_MS),
+        },
+      },
+      select: { id: true, status: true, createdAt: true },
+      take: 5,
+    })
+    if (hasRecentOpenCitizenPayment(openPayments)) {
+      throw new ConflictException({
+        code: "PAYMENT_IN_PROGRESS",
+        message:
+          "A payment for this property is already in progress. Please wait a few minutes and try again, or check your payment status if you already paid.",
       })
     }
 

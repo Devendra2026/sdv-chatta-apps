@@ -12,22 +12,22 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useState, type FormEvent } from "react"
+import { useRef, useState, type FormEvent } from "react"
 
 import { PaymentProcessSteps } from "@/components/propertytax/payment-process-steps"
+import { PropertySummaryCard } from "@/components/propertytax/property-summary-card"
+import {
+  TaxBreakdownList,
+  TaxSummaryCard,
+} from "@/components/propertytax/tax-summary-card"
 import { openAtomAipayCheckout } from "@/lib/atom-checkout"
+import { isHouseTaxPayable } from "@/lib/property-tax-format"
+import { citizenPayErrorMessage } from "@/lib/property-tax-pay-errors"
 import {
   createPublicPropertyTaxPayment,
   fetchPublicPropertyDues,
 } from "@/lib/property-tax-api"
 import { PublicApiError } from "@/lib/public-api"
-
-function money(n: number): string {
-  return n.toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-}
 
 export default function PropertyTaxPayPage() {
   const params = useParams<{ id: string }>()
@@ -36,6 +36,8 @@ export default function PropertyTaxPayPage() {
   const [mobile, setMobile] = useState("")
   const [email, setEmail] = useState("")
   const [fieldError, setFieldError] = useState<string | null>(null)
+  const [checkoutStarted, setCheckoutStarted] = useState(false)
+  const submittedRef = useRef(false)
 
   const duesQuery = useQuery({
     queryKey: ["public-property-tax-dues", id],
@@ -53,6 +55,7 @@ export default function PropertyTaxPayPage() {
       }),
     onSuccess: async (data) => {
       try {
+        setCheckoutStarted(true)
         if (data.checkout?.mode === "aipay") {
           await openAtomAipayCheckout(data.checkout)
           return
@@ -61,33 +64,33 @@ export default function PropertyTaxPayPage() {
           window.location.assign(data.redirectUrl)
           return
         }
-        throw new Error("Payment gateway did not return checkout details.")
+        submittedRef.current = false
+        setCheckoutStarted(false)
+        setFieldError("Unable to initiate payment. Please try again.")
       } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Unable to open payment gateway. Please try again."
-        setFieldError(message)
+        submittedRef.current = false
+        setCheckoutStarted(false)
+        setFieldError(citizenPayErrorMessage(err))
       }
+    },
+    onError: () => {
+      submittedRef.current = false
+      setCheckoutStarted(false)
     },
   })
 
   const dues = duesQuery.data
   const alreadyPaid = dues?.paidForAssessmentYear === true
-  const payable =
-    dues != null && dues.tax.totalDemand > 0 && !alreadyPaid
+  const payable = dues != null && isHouseTaxPayable(dues)
   const loadError =
     duesQuery.error instanceof PublicApiError
       ? duesQuery.error.message
       : duesQuery.isError
         ? "Unable to load tax dues for this property."
         : null
-  const payError =
-    payMutation.error instanceof PublicApiError
-      ? payMutation.error.message
-      : payMutation.isError
-        ? "Unable to start payment. Please try again."
-        : null
+  const payError = payMutation.isError
+    ? citizenPayErrorMessage(payMutation.error)
+    : null
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -100,7 +103,8 @@ export default function PropertyTaxPayPage() {
       setFieldError("Enter a valid email address or leave it blank.")
       return
     }
-    if (!payable || payMutation.isPending) return
+    if (!payable || payMutation.isPending || submittedRef.current) return
+    submittedRef.current = true
     payMutation.mutate()
   }
 
@@ -111,29 +115,29 @@ export default function PropertyTaxPayPage() {
 
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-bold tracking-wide text-orange-700 uppercase">
-              House Tax · Online Payment
+            <p className="text-gov-saffron-dark text-xs font-bold tracking-wide uppercase">
+              Online House Tax
             </p>
-            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+            <h1 className="text-gov-blue-dark mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">
               Online House Tax Payment
             </h1>
             <p className="mt-1 text-sm text-slate-600">
               Confirm the amount fixed by published municipal rates, then
-              continue to the secure payment gateway.
+              continue to the payment gateway.
             </p>
           </div>
           <Link
             href={id ? `/propertytax/dues/${id}` : "/propertytax"}
-            className="inline-flex cursor-pointer items-center gap-2 self-start rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors duration-200 hover:bg-slate-50"
+            className="inline-flex min-h-11 cursor-pointer items-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors duration-200 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:outline-none"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4" aria-hidden />
             Back to dues
           </Link>
         </div>
 
         {duesQuery.isLoading ? (
-          <div className="flex items-center justify-center gap-3 rounded-[28px] border border-slate-200 bg-white py-20 text-slate-600 shadow-sm">
-            <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
+          <div className="flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-20 text-slate-600 shadow-sm">
+            <Loader2 className="text-gov-saffron h-5 w-5 animate-spin" />
             <span className="text-sm font-medium">Loading payable amount…</span>
           </div>
         ) : null}
@@ -141,12 +145,12 @@ export default function PropertyTaxPayPage() {
         {loadError ? (
           <div
             role="alert"
-            className="rounded-[28px] border border-red-200 bg-red-50 px-6 py-10 text-center shadow-sm"
+            className="rounded-xl border border-red-200 bg-red-50 px-6 py-10 text-center shadow-sm"
           >
             <p className="text-sm font-semibold text-red-900">{loadError}</p>
             <Link
               href="/propertytax"
-              className="mt-4 inline-flex cursor-pointer text-sm font-bold text-orange-700 hover:underline"
+              className="text-gov-saffron-dark mt-4 inline-flex cursor-pointer text-sm font-bold hover:underline"
             >
               Return to property search
             </Link>
@@ -155,70 +159,36 @@ export default function PropertyTaxPayPage() {
 
         {dues ? (
           <div className="space-y-6">
-            <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_20px_50px_rgba(0,0,0,0.06)]">
-              <div className="border-b border-slate-100 bg-linear-to-r from-orange-600 to-amber-600 px-6 py-8 text-white sm:px-8">
-                <p className="text-xs font-bold tracking-wider uppercase opacity-90">
-                  Amount payable
-                </p>
-                <p className="mt-2 text-4xl font-extrabold tracking-tight tabular-nums sm:text-5xl">
-                  ₹{money(dues.tax.totalDemand)}
-                </p>
-                <p className="mt-2 text-sm text-orange-50">
-                  Assessment year {dues.assessmentYear.name} · Ward{" "}
-                  {String(dues.wardNumber).padStart(2, "0")}
-                </p>
-              </div>
+            <TaxSummaryCard dues={dues} showPayAction={false} />
+            <PropertySummaryCard dues={dues} />
 
-              <div className="grid gap-4 px-6 py-6 sm:grid-cols-2 sm:px-8">
-                <Info label="Survey / Property ID" value={dues.surveyId} />
-                <Info label="Property No." value={dues.propertyNo || "—"} />
-                <Info label="Owner" value={dues.ownerName || "—"} />
-                <Info label="Ward" value={dues.wardName} />
-              </div>
-
-              <div className="border-t border-slate-100 px-6 py-5 sm:px-8">
-                <p className="mb-3 text-xs font-bold tracking-wider text-slate-500 uppercase">
-                  Tax breakdown
-                </p>
-                <ul className="space-y-2 text-sm text-slate-700">
-                  <BreakdownRow
-                    label="House / property tax"
-                    value={dues.tax.propertyTax}
-                  />
-                  <BreakdownRow label="Water tax" value={dues.tax.waterTax} />
-                  <BreakdownRow
-                    label="Drainage tax"
-                    value={dues.tax.drainageTax}
-                  />
-                  <BreakdownRow label="Penalty" value={dues.tax.penalty} />
-                  <li className="flex items-center justify-between gap-4 border-t border-slate-100 pt-3 font-bold text-slate-950">
-                    <span>Total demand</span>
-                    <span className="tabular-nums">
-                      ₹{money(dues.tax.totalDemand)}
-                    </span>
-                  </li>
-                </ul>
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <h2 className="text-gov-blue-dark text-base font-bold tracking-tight">
+                Tax Summary
+              </h2>
+              <div className="mt-4">
+                <TaxBreakdownList dues={dues} />
               </div>
             </section>
 
             {!payable ? (
               <div
                 role="alert"
-                className={`rounded-[28px] border px-6 py-6 text-sm shadow-sm ${
+                className={`rounded-xl border px-6 py-6 text-sm shadow-sm ${
                   alreadyPaid
                     ? "border-emerald-200 bg-emerald-50 text-emerald-950"
                     : "border-amber-200 bg-amber-50 text-amber-950"
                 }`}
               >
-                {alreadyPaid && dues ? (
+                {alreadyPaid ? (
                   <>
                     <p className="font-semibold">
-                      No dues for assessment year {dues.assessmentYear.name}.
+                      No payment is currently due.
                     </p>
                     <p className="mt-1 opacity-80">
-                      Property tax for this assessment year has already been
-                      paid. You can download your receipt from the payment
-                      success page if you have the transaction id.
+                      House tax for assessment year {dues.assessmentYear.name}{" "}
+                      has already been paid. You can print your receipt from the
+                      payment success page if you have the transaction id.
                     </p>
                     <Link
                       href="/propertytax"
@@ -243,9 +213,9 @@ export default function PropertyTaxPayPage() {
             ) : (
               <form
                 onSubmit={handleSubmit}
-                className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+                className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
               >
-                <h2 className="text-lg font-extrabold tracking-tight text-slate-950">
+                <h2 className="text-gov-blue-dark text-lg font-extrabold tracking-tight">
                   Payer details
                 </h2>
                 <p className="mt-1 text-sm text-slate-600">
@@ -253,8 +223,8 @@ export default function PropertyTaxPayPage() {
                   optional.
                 </p>
 
-                <div className="mt-5 flex items-start gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-900">
-                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-orange-600" />
+                <div className="border-gov-saffron/20 bg-gov-orange-light mt-5 flex items-start gap-3 rounded-xl border px-4 py-3 text-sm text-slate-800">
+                  <ShieldCheck className="text-gov-saffron-dark mt-0.5 h-5 w-5 shrink-0" />
                   <p>
                     This is an official Nagar Panchayat Chhata house tax
                     payment. The amount is fixed by published rates and cannot
@@ -268,7 +238,7 @@ export default function PropertyTaxPayPage() {
                       htmlFor="payer-mobile"
                       className="mb-2 flex items-center gap-2 text-xs font-bold tracking-wider text-slate-700 uppercase"
                     >
-                      <Phone className="h-3.5 w-3.5 text-orange-500" />
+                      <Phone className="text-gov-saffron h-3.5 w-3.5" />
                       Mobile number (required)
                     </label>
                     <input
@@ -286,7 +256,7 @@ export default function PropertyTaxPayPage() {
                       aria-describedby={
                         fieldError || payError ? "pay-form-error" : undefined
                       }
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-800 placeholder-slate-400 shadow-inner transition-all duration-200 focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15 focus:outline-none"
+                      className="focus:border-gov-saffron focus:ring-gov-saffron/15 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-800 placeholder-slate-400 shadow-inner transition-all duration-200 focus:bg-white focus:ring-4 focus:outline-none"
                     />
                   </div>
 
@@ -295,7 +265,7 @@ export default function PropertyTaxPayPage() {
                       htmlFor="payer-email"
                       className="mb-2 flex items-center gap-2 text-xs font-bold tracking-wider text-slate-700 uppercase"
                     >
-                      <Mail className="h-3.5 w-3.5 text-orange-500" />
+                      <Mail className="text-gov-saffron h-3.5 w-3.5" />
                       Email (optional)
                     </label>
                     <input
@@ -305,7 +275,7 @@ export default function PropertyTaxPayPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="name@example.com"
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-800 placeholder-slate-400 shadow-inner transition-all duration-200 focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15 focus:outline-none"
+                      className="focus:border-gov-saffron focus:ring-gov-saffron/15 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-800 placeholder-slate-400 shadow-inner transition-all duration-200 focus:bg-white focus:ring-4 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -322,24 +292,24 @@ export default function PropertyTaxPayPage() {
 
                 <button
                   type="submit"
-                  disabled={payMutation.isPending}
-                  className="mt-6 flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-2xl bg-linear-to-r from-orange-600 to-amber-600 px-8 py-4 text-sm font-bold text-white shadow-[0_10px_25px_rgba(234,88,12,0.3)] transition-all duration-200 hover:from-orange-700 hover:to-amber-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 motion-reduce:active:scale-100"
+                  disabled={payMutation.isPending || checkoutStarted}
+                  className="bg-gov-saffron hover:bg-gov-saffron-dark focus-visible:ring-gov-saffron mt-6 flex min-h-11 w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl px-8 py-4 text-sm font-bold text-white transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {payMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                  {payMutation.isPending || checkoutStarted ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                   ) : (
-                    <Lock className="h-4 w-4" />
+                    <Lock className="h-4 w-4" aria-hidden />
                   )}
                   <span>
-                    {payMutation.isPending
-                      ? "Redirecting to payment…"
-                      : "Proceed to secure payment"}
+                    {payMutation.isPending || checkoutStarted
+                      ? "Proceeding to payment..."
+                      : "Pay Online"}
                   </span>
                 </button>
 
                 <p className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                  You will be redirected to the payment gateway
+                  <CheckCircle2 className="text-gov-green h-3.5 w-3.5" />
+                  You will be redirected to the municipal payment gateway
                 </p>
               </form>
             )}
@@ -347,25 +317,5 @@ export default function PropertyTaxPayPage() {
         ) : null}
       </div>
     </div>
-  )
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
-        {label}
-      </p>
-      <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
-    </div>
-  )
-}
-
-function BreakdownRow({ label, value }: { label: string; value: number }) {
-  return (
-    <li className="flex items-center justify-between gap-4 border-b border-slate-50 pb-2 last:border-0 last:pb-0">
-      <span>{label}</span>
-      <span className="font-semibold tabular-nums">₹{money(value)}</span>
-    </li>
   )
 }

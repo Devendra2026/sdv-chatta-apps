@@ -24,6 +24,25 @@ function money(n: number): string {
   })
 }
 
+type StatusKind =
+  | "success"
+  | "failed"
+  | "cancelled"
+  | "confirming"
+  | "loading"
+
+function resolveStatusKind(
+  status: string | undefined,
+  isLoading: boolean
+): StatusKind {
+  if (isLoading && !status) return "loading"
+  if (status === "SUCCESS") return "success"
+  if (status === "CANCELLED") return "cancelled"
+  if (status === "FAILED" || status === "REFUNDED") return "failed"
+  // PENDING, INITIATED, PARTIALLY_REFUNDED, unknown — do not say failed
+  return "confirming"
+}
+
 function PaymentReturnContent() {
   const searchParams = useSearchParams()
   const merchTxnId = searchParams.get("merchTxnId")?.trim() ?? ""
@@ -49,11 +68,25 @@ function PaymentReturnContent() {
         : null
 
   const payment = statusQuery.data
-  const status = payment?.status
-  const isSuccess = status === "SUCCESS"
-  const isFailed = status === "FAILED" || status === "REFUNDED"
-  const isPending =
-    status === "PENDING" || status === "INITIATED" || statusQuery.isLoading
+  const kind = resolveStatusKind(payment?.status, statusQuery.isLoading)
+
+  const title =
+    kind === "success"
+      ? "Payment successful"
+      : kind === "failed"
+        ? "Payment not completed"
+        : kind === "cancelled"
+          ? "Payment was cancelled"
+          : "Payment status is being confirmed."
+
+  const description =
+    kind === "success"
+      ? "Your house tax payment has been recorded. You can download or print the official receipt."
+      : kind === "failed"
+        ? "The payment gateway reported that this payment did not succeed. You may try again from the dues page."
+        : kind === "cancelled"
+          ? "This payment was cancelled. No amount was collected. You may start again from the dues page."
+          : "We are confirming the payment with the gateway. This page updates automatically. Please do not close this window."
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
@@ -61,10 +94,10 @@ function PaymentReturnContent() {
         <PaymentProcessSteps current={4} className="mb-6" />
 
         <div className="mb-8">
-          <p className="text-xs font-bold tracking-wide text-orange-700 uppercase">
-            House Tax · Payment Status
+          <p className="text-gov-saffron-dark text-xs font-bold tracking-wide uppercase">
+            Online House Tax · Payment Status
           </p>
-          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950">
+          <h1 className="text-gov-blue-dark mt-1 text-2xl font-extrabold tracking-tight">
             Payment return
           </h1>
           <p className="mt-1 text-sm text-slate-600">
@@ -76,45 +109,44 @@ function PaymentReturnContent() {
         {errorMessage ? (
           <div
             role="alert"
-            className="rounded-[28px] border border-red-200 bg-red-50 px-6 py-10 text-center shadow-sm"
+            className="rounded-xl border border-red-200 bg-red-50 px-6 py-10 text-center shadow-sm"
           >
-            <XCircle className="mx-auto h-10 w-10 text-red-500" />
+            <XCircle className="mx-auto h-10 w-10 text-red-500" aria-hidden />
             <p className="mt-4 text-sm font-semibold text-red-900">
               {errorMessage}
             </p>
             <Link
               href="/propertytax"
-              className="mt-4 inline-flex cursor-pointer items-center gap-2 text-sm font-bold text-orange-700 hover:underline"
+              className="text-gov-saffron-dark mt-4 inline-flex cursor-pointer items-center gap-2 text-sm font-bold hover:underline"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-4 w-4" aria-hidden />
               Back to property search
             </Link>
           </div>
         ) : null}
 
         {!errorMessage && payment ? (
-          <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(0,0,0,0.06)] sm:p-8">
+          <section
+            className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             <div className="flex flex-col items-center text-center">
-              {isSuccess ? (
-                <CheckCircle2 className="h-12 w-12 text-emerald-600" />
-              ) : isFailed ? (
-                <XCircle className="h-12 w-12 text-red-500" />
+              {kind === "success" ? (
+                <CheckCircle2
+                  className="text-gov-green h-12 w-12"
+                  aria-hidden
+                />
+              ) : kind === "failed" || kind === "cancelled" ? (
+                <XCircle className="h-12 w-12 text-red-500" aria-hidden />
               ) : (
-                <Clock3 className="h-12 w-12 text-amber-500" />
+                <Clock3 className="h-12 w-12 text-amber-500" aria-hidden />
               )}
-              <h2 className="mt-4 text-xl font-extrabold text-slate-950">
-                {isSuccess
-                  ? "Payment successful"
-                  : isFailed
-                    ? "Payment not completed"
-                    : "Payment pending"}
+              <h2 className="text-gov-blue-dark mt-4 text-xl font-extrabold">
+                {title}
               </h2>
               <p className="mt-2 max-w-md text-sm text-slate-600">
-                {isSuccess
-                  ? "Your house tax payment has been recorded. You can download or print the official receipt."
-                  : isFailed
-                    ? "The gateway reported that this payment did not succeed. You may try again from the dues page."
-                    : "We are confirming the payment with the gateway. This page updates automatically."}
+                {description}
               </p>
             </div>
 
@@ -143,35 +175,35 @@ function PaymentReturnContent() {
             </dl>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              {isSuccess && merchTxnId ? (
+              {kind === "success" && merchTxnId ? (
                 <Link
                   href={`/propertytax/receipt/${encodeURIComponent(merchTxnId)}`}
-                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-orange-600 to-amber-600 px-6 py-3.5 text-sm font-bold text-white shadow-[0_10px_25px_rgba(234,88,12,0.3)] transition-all duration-200 hover:from-orange-700 hover:to-amber-700"
+                  className="bg-gov-saffron hover:bg-gov-saffron-dark focus-visible:ring-gov-saffron inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-bold text-white transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
-                  <Receipt className="h-4 w-4" />
+                  <Receipt className="h-4 w-4" aria-hidden />
                   View receipt
                 </Link>
               ) : null}
-              {!isSuccess && payment.id ? (
+              {kind !== "success" && payment.id ? (
                 <Link
                   href={`/propertytax/dues/${payment.id}`}
-                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-bold text-slate-700 transition-colors duration-200 hover:bg-slate-50"
+                  className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-bold text-slate-700 transition-colors duration-200 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
                   Return to dues
                 </Link>
               ) : null}
               <Link
                 href="/propertytax"
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-bold text-slate-700 transition-colors duration-200 hover:bg-slate-50"
+                className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-bold text-slate-700 transition-colors duration-200 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:outline-none"
               >
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4" aria-hidden />
                 Property search
               </Link>
             </div>
 
-            {isPending && !statusQuery.isLoading ? (
+            {kind === "confirming" || kind === "loading" ? (
               <p className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-500">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-600" />
+                <Loader2 className="text-gov-saffron h-3.5 w-3.5 animate-spin" />
                 Checking gateway status…
               </p>
             ) : null}
@@ -179,8 +211,8 @@ function PaymentReturnContent() {
         ) : null}
 
         {!errorMessage && !payment && statusQuery.isLoading ? (
-          <div className="flex items-center justify-center gap-3 rounded-[28px] border border-slate-200 bg-white py-20 text-slate-600 shadow-sm">
-            <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
+          <div className="flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-20 text-slate-600 shadow-sm">
+            <Loader2 className="text-gov-saffron h-5 w-5 animate-spin" />
             <span className="text-sm font-medium">Confirming payment…</span>
           </div>
         ) : null}
@@ -205,7 +237,7 @@ export default function PropertyTaxPaymentReturnPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center gap-3 bg-[#f8fafc] text-slate-600">
-          <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
+          <Loader2 className="text-gov-saffron h-5 w-5 animate-spin" />
           <span className="text-sm font-medium">Loading payment status…</span>
         </div>
       }

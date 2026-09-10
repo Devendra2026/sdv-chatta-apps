@@ -4,6 +4,14 @@ import { Pencil, Plus, Trash2, TriangleAlert } from "lucide-react"
 import * as React from "react"
 
 import { Button } from "@workspace/ui/components/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import {
@@ -61,6 +69,7 @@ type FloorsEditorProps = {
   plotAreaSqFt?: string
   plinthAreaSqFt?: string
   onBuiltUpChange?: (sqFt: string, sqM: string) => void
+  error?: string
 }
 
 export function FloorsEditor({
@@ -70,6 +79,7 @@ export function FloorsEditor({
   plotAreaSqFt,
   plinthAreaSqFt,
   onBuiltUpChange,
+  error,
 }: FloorsEditorProps) {
   const floors = React.useMemo(() => parseFloorsRaw(value), [value])
   const floorLabels = React.useMemo(
@@ -79,9 +89,15 @@ export function FloorsEditor({
   const [draft, setDraft] = React.useState<FloorDraft>(emptyDraft)
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [formError, setFormError] = React.useState<string | null>(null)
+  const [deleteId, setDeleteId] = React.useState<string | null>(null)
+  const editorRef = React.useRef<HTMLDivElement>(null)
 
   const totalSqFt = sumFloorAreaSqFt(floors)
   const totalSqM = sqFtToSqM(totalSqFt)
+  const draftSqM =
+    draft.areaSqFt.trim() && Number.isFinite(Number(draft.areaSqFt))
+      ? sqFtToSqM(Number(draft.areaSqFt))
+      : null
 
   const checks = floorUsageChecks({
     plotAreaSqFt,
@@ -124,11 +140,14 @@ export function FloorsEditor({
           : "",
     })
     setFormError(null)
+    editorRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
   }
 
-  function removeFloor(id: string) {
-    commit(floors.filter((floor) => floor.id !== id))
-    if (editingId === id) resetDraft()
+  function confirmDelete() {
+    if (!deleteId) return
+    commit(floors.filter((floor) => floor.id !== deleteId))
+    if (editingId === deleteId) resetDraft()
+    setDeleteId(null)
   }
 
   function saveFloor() {
@@ -162,8 +181,13 @@ export function FloorsEditor({
     resetDraft()
   }
 
+  const deleteTarget = floors.find((floor) => floor.id === deleteId)
+
   return (
-    <div className="space-y-4 sm:col-span-2 lg:col-span-3">
+    <div
+      id="floors-editor"
+      className="space-y-4 sm:col-span-2 lg:col-span-3"
+    >
       {checks.length ? (
         <div
           role="alert"
@@ -181,6 +205,12 @@ export function FloorsEditor({
         </div>
       ) : null}
 
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+
       <div className="overflow-x-auto rounded-xl border">
         <Table>
           <TableHeader>
@@ -190,7 +220,7 @@ export function FloorsEditor({
               <TableHead>Usage Factor</TableHead>
               <TableHead>Construction</TableHead>
               <TableHead className="text-right">Area</TableHead>
-              <TableHead className="w-24 text-right">Actions</TableHead>
+              <TableHead className="w-28 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -198,6 +228,7 @@ export function FloorsEditor({
               floors.map((floor) => (
                 <TableRow
                   key={floor.id}
+                  className="h-12"
                   data-state={editingId === floor.id ? "selected" : undefined}
                 >
                   <TableCell className="font-medium">
@@ -215,23 +246,27 @@ export function FloorsEditor({
                     <div className="inline-flex gap-1">
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="cursor-pointer"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 cursor-pointer gap-1 px-2"
                         aria-label={`Edit ${floor.floorLabel}`}
+                        title={`Edit ${floor.floorLabel}`}
                         onClick={() => startEdit(floor)}
                       >
-                        <Pencil className="size-4" />
+                        <Pencil className="size-3.5" aria-hidden />
+                        Edit
                       </Button>
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="cursor-pointer text-destructive hover:text-destructive"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 cursor-pointer gap-1 px-2 text-destructive hover:text-destructive"
                         aria-label={`Delete ${floor.floorLabel}`}
-                        onClick={() => removeFloor(floor.id)}
+                        title={`Delete ${floor.floorLabel}`}
+                        onClick={() => setDeleteId(floor.id)}
                       >
-                        <Trash2 className="size-4" />
+                        <Trash2 className="size-3.5" aria-hidden />
+                        Delete
                       </Button>
                     </div>
                   </TableCell>
@@ -264,20 +299,34 @@ export function FloorsEditor({
         </Table>
       </div>
 
-      <div className="rounded-xl border bg-muted/20 p-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
+      <div
+        ref={editorRef}
+        className="rounded-xl border bg-muted/20 p-4"
+      >
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold">
             {editingId ? "Edit floor" : "Add floor"}
           </h3>
           {!editingId ? (
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="cursor-pointer gap-1"
+              onClick={() => {
+                resetDraft()
+                editorRef.current
+                  ?.querySelector<HTMLElement>("#floor-label")
+                  ?.focus()
+              }}
+            >
               <Plus className="size-3.5" aria-hidden />
-              New row
-            </span>
+              Add Floor
+            </Button>
           ) : null}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(7rem,0.9fr)_minmax(7rem,0.9fr)_minmax(7rem,0.9fr)_minmax(12rem,1.6fr)_minmax(5.5rem,0.7fr)]">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(7rem,0.9fr)_minmax(7rem,0.9fr)_minmax(7rem,0.9fr)_minmax(12rem,1.6fr)_minmax(5.5rem,0.7fr)_minmax(5.5rem,0.7fr)]">
           <FloorSelect
             id="floor-label"
             label="Floor"
@@ -331,6 +380,18 @@ export function FloorsEditor({
               }
             />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="floor-area-sqm">Area (sq m)</Label>
+            <Input
+              id="floor-area-sqm"
+              readOnly
+              disabled
+              className="w-full tabular-nums text-muted-foreground"
+              value={draftSqM != null ? String(draftSqM) : ""}
+              aria-readonly="true"
+            />
+            <p className="text-xs text-muted-foreground">Calculated</p>
+          </div>
         </div>
 
         {formError ? (
@@ -353,6 +414,42 @@ export function FloorsEditor({
           </Button>
         </div>
       </div>
+
+      <Dialog
+        open={deleteId != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteId(null)
+        }}
+      >
+        <DialogContent showCloseButton={false} className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete floor?</DialogTitle>
+            <DialogDescription>
+              {deleteTarget
+                ? `Remove “${deleteTarget.floorLabel}” from this survey? This does not save until you click Save Changes.`
+                : "Remove this floor from the survey?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="cursor-pointer"
+              onClick={() => setDeleteId(null)}
+            >
+              Keep floor
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="cursor-pointer"
+              onClick={confirmDelete}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -391,7 +488,7 @@ function FloorSelect({
         >
           <SelectValue placeholder="—" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent align="start" alignItemWithTrigger={false}>
           {optionList.map((option) => (
             <SelectItem key={option} value={option} label={option}>
               {option}

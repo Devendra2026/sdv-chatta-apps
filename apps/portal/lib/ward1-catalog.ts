@@ -31,6 +31,8 @@ export const PROPERTY_USES = [
   "Residential Self",
   "Residential Rented",
   "Open Land",
+  "Mixed",
+  "Commercial",
 ] as const
 
 export const COMMERCIAL_USES = [

@@ -593,7 +593,7 @@ export default function SurveyDetailPage() {
       </SectionCard>
 
       {canAudit ? (
-        <SectionCard title="Audit History">
+        <SectionCard title="Audit History" id="audit-history">
           <div className="overflow-hidden rounded-xl border">
             <Table>
               <TableHeader>
@@ -674,12 +674,17 @@ export default function SurveyDetailPage() {
 function SectionCard({
   title,
   children,
+  id,
 }: {
   title: string
   children: React.ReactNode
+  id?: string
 }) {
   return (
-    <Card className="overflow-hidden shadow-sm transition-shadow duration-200 hover:shadow-md">
+    <Card
+      id={id}
+      className="scroll-mt-24 overflow-hidden shadow-sm transition-shadow duration-200 hover:shadow-md"
+    >
       <CardHeader className="border-b bg-muted/30 pb-3">
         <CardTitle className="text-base font-semibold tracking-tight text-primary">
           {title}

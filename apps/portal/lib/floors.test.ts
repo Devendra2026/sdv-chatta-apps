@@ -4,7 +4,13 @@ import test from "node:test"
 import {
   FLOOR_LABELS,
   OPEN_FLOOR_LABEL,
+  composeUsageFromFloors,
   floorLabelsForPropertyUse,
+  isCommercialPropertyUse,
+  isMixedPropertyUse,
+  sqFtToSqM,
+  sqMToSqFt,
+  validateMixedComposition,
 } from "./floors"
 import { pickBestSurveySearchMatch } from "./survey-format"
 
@@ -42,4 +48,51 @@ test("pickBestSurveySearchMatch prefers exact padded parcel over first hit", () 
   ]
   const match = pickBestSurveySearchMatch(rows, "131")
   assert.equal(match?.id, "b")
+})
+
+test("isMixedPropertyUse and isCommercialPropertyUse match catalog labels", () => {
+  assert.equal(isMixedPropertyUse("Mixed"), true)
+  assert.equal(isMixedPropertyUse("mix"), true)
+  assert.equal(isMixedPropertyUse("Residential Self"), false)
+  assert.equal(isCommercialPropertyUse("Commercial"), true)
+  assert.equal(isCommercialPropertyUse("commercial"), true)
+  assert.equal(isCommercialPropertyUse("Mixed"), false)
+})
+
+test("sqFtToSqM and sqMToSqFt use project precision", () => {
+  assert.equal(sqFtToSqM(300), 27.87)
+  assert.equal(sqMToSqFt(1), 10.76)
+  // Two-decimal rounding prevents a perfect round-trip for all values.
+  assert.ok(Math.abs(sqMToSqFt(sqFtToSqM(300)) - 300) <= 0.02)
+})
+
+test("composeUsageFromFloors aggregates area and percentages", () => {
+  const composition = composeUsageFromFloors([
+    { usageType: "Residential", areaSqFt: 180 },
+    { usageType: "Commercial", areaSqFt: 120 },
+  ])
+  assert.equal(composition.totalSqFt, 300)
+  assert.equal(composition.distinctUsageCount, 2)
+  assert.equal(composition.rows[0]?.usageType, "Residential")
+  assert.equal(composition.rows[0]?.percent, 60)
+  assert.equal(composition.rows[1]?.usageType, "Commercial")
+  assert.equal(composition.rows[1]?.percent, 40)
+})
+
+test("validateMixedComposition requires two usage types and area", () => {
+  assert.match(validateMixedComposition([]) ?? "", /Add floor records/)
+  assert.match(
+    validateMixedComposition([
+      { usageType: "Residential", areaSqFt: 100 },
+      { usageType: "Residential", areaSqFt: 50 },
+    ]) ?? "",
+    /two different/
+  )
+  assert.equal(
+    validateMixedComposition([
+      { usageType: "Residential", areaSqFt: 100 },
+      { usageType: "Commercial", areaSqFt: 50 },
+    ]),
+    null
+  )
 })
