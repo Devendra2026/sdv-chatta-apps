@@ -129,7 +129,7 @@ function SelectItem({
       )}
       {...props}
     >
-      <SelectPrimitive.ItemText className="flex flex-1 gap-2 whitespace-normal break-words">
+      <SelectPrimitive.ItemText className="flex flex-1 gap-2 whitespace-normal wrap-break-word">
         {children}
       </SelectPrimitive.ItemText>
       <SelectPrimitive.ItemIndicator
@@ -202,5 +202,6 @@ export {
   SelectScrollUpButton,
   SelectSeparator,
   SelectTrigger,
-  SelectValue,
+  SelectValue
 }
+
