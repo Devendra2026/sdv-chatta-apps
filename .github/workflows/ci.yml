@@ -39,4 +39,6 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - run: pnpm docker:prod:config
       - run: pnpm build
+

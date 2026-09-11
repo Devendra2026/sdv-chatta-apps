@@ -107,7 +107,7 @@ services:
     networks:
       default:
         aliases:
-          - mainpuri-api
+          - chhata-api
 
   portal:
     build:
