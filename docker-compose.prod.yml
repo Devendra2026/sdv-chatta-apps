@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=.vscode/schemas/compose-spec.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
 # Production Compose for Dokploy.
 #
 # Dokploy writes Environment-tab values to `.env` next to this file.
@@ -107,14 +107,14 @@ services:
     networks:
       default:
         aliases:
-          - chhata-api
+          - mainpuri-api
 
   portal:
     build:
       context: .
       dockerfile: docker/portal.Dockerfile
       args:
-        API_INTERNAL_URL: http://chhata-api:4000
+        API_INTERNAL_URL: http://mainpuri-api:4000
         NEXT_PUBLIC_APP_URL: ${PUBLIC_PORTAL_URL}
         NEXT_PUBLIC_CITIZEN_WEB_URL: ${PUBLIC_WEB_URL}
     restart: unless-stopped
@@ -123,10 +123,10 @@ services:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: 0.0.0.0
-      API_INTERNAL_URL: http://chhata-api:4000
+      API_INTERNAL_URL: http://mainpuri-api:4000
       NEXT_PUBLIC_APP_URL: ${PUBLIC_PORTAL_URL}
       NEXT_PUBLIC_CITIZEN_WEB_URL: ${PUBLIC_WEB_URL}
-      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-chhata_session}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-mainpuri_session}
     depends_on:
       api:
         condition: service_healthy
@@ -144,14 +144,14 @@ services:
       context: .
       dockerfile: docker/web.Dockerfile
       args:
-        API_INTERNAL_URL: http://chhata-api:4000
+        API_INTERNAL_URL: http://mainpuri-api:4000
     restart: unless-stopped
     env_file: .env
     environment:
       NODE_ENV: production
       PORT: "3001"
       HOSTNAME: 0.0.0.0
-      API_INTERNAL_URL: http://chhata-api:4000
+      API_INTERNAL_URL: http://mainpuri-api:4000
     depends_on:
       api:
         condition: service_healthy
@@ -165,6 +165,6 @@ services:
       - "3001"
 
 volumes:
-  chhata_pg_data:
-  chhata_redis_data:
-  chhata_uploads:
+  mainpuri_pg_data:
+  mainpuri_redis_data:
+  mainpuri_uploads:

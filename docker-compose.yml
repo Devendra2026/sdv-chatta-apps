@@ -1,32 +1,32 @@
-# yaml-language-server: $schema=.vscode/schemas/compose-spec.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: chhata-postgres
+    container_name: mainpuri-postgres
     restart: unless-stopped
     ports:
       # Host 5432 is often taken by other local stacks (e.g. api-survey-local).
       - "5433:5432"
     environment:
-      POSTGRES_USER: chhata
-      POSTGRES_PASSWORD: chhata
-      POSTGRES_DB: chhata
+      POSTGRES_USER: mainpuri
+      POSTGRES_PASSWORD: mainpuri
+      POSTGRES_DB: mainpuri
     volumes:
-      - chhata_pg_data:/var/lib/postgresql/data
+      - mainpuri_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U chhata -d chhata" ]
+      test: [ "CMD-SHELL", "pg_isready -U mainpuri -d mainpuri" ]
       interval: 5s
       timeout: 5s
       retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: chhata-redis
+    container_name: mainpuri-redis
     restart: unless-stopped
     ports:
       - "6380:6379"
     volumes:
-      - chhata_redis_data:/data
+      - mainpuri_redis_data:/data
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
@@ -35,7 +35,7 @@ services:
 
   mailpit:
     image: axllent/mailpit:latest
-    container_name: chhata-mailpit
+    container_name: mainpuri-mailpit
     restart: unless-stopped
     ports:
       - "8025:8025"
@@ -57,13 +57,13 @@ services:
     environment:
       NODE_ENV: production
       PORT: "4000"
-      DATABASE_URL: postgresql://chhata:chhata@postgres:5432/chhata?schema=public
+      DATABASE_URL: postgresql://mainpuri:mainpuri@postgres:5432/mainpuri?schema=public
       REDIS_URL: redis://redis:6379
       STORAGE_DIR: /app/uploads
       CORS_ORIGIN: http://localhost:3000,http://localhost:3001
       PUBLIC_APP_URL: http://localhost:3000
       SESSION_SECRET: ${SESSION_SECRET:-change-me-to-a-long-random-secret-at-least-32-chars}
-      SESSION_COOKIE_NAME: chhata_session
+      SESSION_COOKIE_NAME: mainpuri_session
       API_BUILD_ID: local
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-sikarwar2010@gmail.com}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-change-me-seed-admin-password}
@@ -83,7 +83,7 @@ services:
     networks:
       default:
         aliases:
-          - chhata-api
+          - mainpuri-api
 
   portal:
     profiles: [ "app" ]
@@ -91,7 +91,7 @@ services:
       context: .
       dockerfile: docker/portal.Dockerfile
       args:
-        API_INTERNAL_URL: http://chhata-api:4000
+        API_INTERNAL_URL: http://mainpuri-api:4000
         NEXT_PUBLIC_APP_URL: http://localhost:3000
         NEXT_PUBLIC_CITIZEN_WEB_URL: http://localhost:3001
     restart: unless-stopped
@@ -101,13 +101,13 @@ services:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: 0.0.0.0
-      API_INTERNAL_URL: http://chhata-api:4000
+      API_INTERNAL_URL: http://mainpuri-api:4000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
-      SESSION_COOKIE_NAME: chhata_session
+      SESSION_COOKIE_NAME: mainpuri_session
     depends_on:
       api:
         condition: service_healthy
 
 volumes:
-  chhata_pg_data:
-  chhata_redis_data:
+  mainpuri_pg_data:
+  mainpuri_redis_data:
