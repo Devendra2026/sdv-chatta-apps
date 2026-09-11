@@ -1,12 +1,10 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { ArrowLeft, Eye, Loader2, Printer } from "lucide-react"
+import { ArrowLeft, Loader2, Printer } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useRef } from "react"
 
-import { DemandNoticeView } from "@/components/propertytax/demand-notice"
 import { PaymentProcessSteps } from "@/components/propertytax/payment-process-steps"
 import { PropertySummaryCard } from "@/components/propertytax/property-summary-card"
 import { TaxFloorTable } from "@/components/propertytax/tax-floor-table"
@@ -15,10 +13,20 @@ import { isHouseTaxPayable } from "@/lib/property-tax-format"
 import { fetchPublicPropertyDues } from "@/lib/property-tax-api"
 import { PublicApiError } from "@/lib/public-api"
 
+const DUES_PRINT_CSS = `
+@media print {
+  @page { size: A4 portrait; margin: 10mm; }
+  .no-print { display: none !important; }
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+`
+
 export default function PropertyTaxDuesPage() {
   const params = useParams<{ id: string }>()
   const id = typeof params.id === "string" ? params.id : ""
-  const statementRef = useRef<HTMLDivElement>(null)
 
   const duesQuery = useQuery({
     queryKey: ["public-property-tax-dues", id],
@@ -42,12 +50,10 @@ export default function PropertyTaxDuesPage() {
     window.print()
   }
 
-  function handleViewStatement() {
-    statementRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-  }
-
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
+      <style>{DUES_PRINT_CSS}</style>
+
       <div className="no-print mx-auto max-w-7xl px-4 pt-8 pb-4 sm:px-6 lg:px-8">
         <PaymentProcessSteps current={2} className="mb-6" />
 
@@ -118,14 +124,14 @@ export default function PropertyTaxDuesPage() {
 
         {dues ? (
           <>
-            <div className="no-print grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
-              <div className="order-2 space-y-6 lg:order-1">
+            <div className="grid gap-6 print:block lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
+              <div className="order-2 space-y-6 print:order-none lg:order-1">
                 <PropertySummaryCard dues={dues} />
                 <TaxFloorTable dues={dues} />
 
                 <div
                   role="note"
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+                  className="no-print rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
                 >
                   <p className="font-semibold text-slate-900">
                     Please review your tax details and total amount before
@@ -138,17 +144,9 @@ export default function PropertyTaxDuesPage() {
                 </div>
               </div>
 
-              <aside className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-24 lg:self-start">
+              <aside className="order-1 space-y-4 print:mt-6 print:block lg:order-2 lg:sticky lg:top-24 lg:self-start print:static">
                 <TaxSummaryCard dues={dues} payHref={payHref} />
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={handleViewStatement}
-                    className="inline-flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors duration-200 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:outline-none"
-                  >
-                    <Eye className="h-4 w-4" aria-hidden />
-                    View Statement
-                  </button>
+                <div className="no-print flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={handlePrintStatement}
@@ -159,22 +157,6 @@ export default function PropertyTaxDuesPage() {
                   </button>
                 </div>
               </aside>
-            </div>
-
-            <div
-              ref={statementRef}
-              className="mt-8 scroll-mt-8"
-              id="house-tax-statement"
-            >
-              <div className="no-print mb-3 flex items-center justify-between gap-3">
-                <h2 className="text-gov-blue-dark text-base font-bold tracking-tight">
-                  House Tax Statement
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Official municipal statement for print
-                </p>
-              </div>
-              <DemandNoticeView dues={dues} />
             </div>
 
             {payable ? (

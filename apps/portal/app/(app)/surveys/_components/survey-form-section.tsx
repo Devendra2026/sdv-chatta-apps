@@ -70,7 +70,7 @@ export function SurveyFormSection({
   }
 
   return (
-    <Card id={id} className={cn("scroll-mt-24", className)}>
+    <Card id={id} className={cn("scroll-mt-24 overflow-visible", className)}>
       <Collapsible open={open} onOpenChange={handleOpenChange}>
         <CardHeader className="gap-1 py-3">
           <div className="flex items-start justify-between gap-2">

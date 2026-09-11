@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, usePathname, useRouter } from "next/navigation"
 import * as React from "react"
 import { Controller, useForm } from "react-hook-form"
 import { toast } from "sonner"
@@ -19,6 +19,7 @@ import {
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { buildSelectItems } from "@workspace/ui/lib/select-items"
 
+import { useCan } from "@/hooks/use-permission"
 import { api } from "@/lib/api"
 import {
   isCommercialPropertyUse,
@@ -41,7 +42,6 @@ import {
   YEARS_OF_CONSTRUCTION,
   YES_NO,
 } from "@/lib/ward1-catalog"
-import { useCan } from "@/hooks/use-permission"
 
 import { FloorsEditor } from "../_components/floors-editor"
 import { SurveyEditHeader } from "../_components/survey-edit-header"
@@ -251,12 +251,19 @@ function focusFirstError(errors: Record<string, unknown>) {
 
 export default function SurveyFormPage() {
   const params = useParams<{ id?: string }>()
-  const isEdit = Boolean(params.id) && params.id !== "new"
+  const pathname = usePathname() ?? ""
+  const editPathMatch = pathname.match(/^\/surveys\/([^/]+)\/edit\/?$/)
+  const paramId = Array.isArray(params.id) ? params.id[0] : params.id
+  // Prefer /edit URL segment so save never mistakes edit for create.
+  const surveyRouteId = editPathMatch?.[1] ?? paramId
+  const isEdit =
+    Boolean(editPathMatch?.[1]) ||
+    (Boolean(surveyRouteId) && surveyRouteId !== "new")
   const router = useRouter()
   const qc = useQueryClient()
   const { allowed: canAudit } = useCan("audit:read")
-  const cancelHref = isEdit ? `/surveys/${params.id}` : "/surveys"
-  const storagePrefix = `survey-form-section:${params.id ?? "new"}`
+  const cancelHref = isEdit ? `/surveys/${surveyRouteId}` : "/surveys"
+  const storagePrefix = `survey-form-section:${surveyRouteId ?? "new"}`
 
   const wards = useQuery({
     queryKey: ["wards"],
@@ -264,10 +271,10 @@ export default function SurveyFormPage() {
   })
 
   const existing = useQuery({
-    queryKey: ["survey", params.id],
+    queryKey: ["survey", surveyRouteId],
     enabled: isEdit,
     queryFn: async () =>
-      (await api.get<SurveyRecord>(`/api/v1/surveys/${params.id}`)).data,
+      (await api.get<SurveyRecord>(`/api/v1/surveys/${surveyRouteId}`)).data,
   })
 
   const form = useForm<FormValues>({ defaultValues: emptyForm })
@@ -289,28 +296,17 @@ export default function SurveyFormPage() {
         throw new Error("Select Ward Name")
       }
       const body = toPayload(values, isEdit)
-      if (isEdit) {
-        await api.patch<{ id: string }>(`/api/v1/surveys/${params.id}`, body)
+      if (isEdit && surveyRouteId) {
+        await api.patch<{ id: string }>(
+          `/api/v1/surveys/${surveyRouteId}`,
+          body
+        )
         return (
-          await api.get<SurveyRecord>(`/api/v1/surveys/${params.id}`)
+          await api.get<SurveyRecord>(`/api/v1/surveys/${surveyRouteId}`)
         ).data
       }
       const created = await api.post<{ id: string }>("/api/v1/surveys", body)
       return { id: created.data.id } as SurveyRecord & { id: string }
-    },
-    onSuccess: async (res) => {
-      toast.success(
-        isEdit ? "Survey updated successfully" : "Survey created successfully"
-      )
-      await qc.invalidateQueries({ queryKey: ["surveys"] })
-      const id = isEdit ? params.id! : res.id
-      await qc.invalidateQueries({ queryKey: ["survey", id] })
-      await qc.invalidateQueries({ queryKey: ["audit-logs", "Survey", id] })
-      if (isEdit && "surveyId" in res && res.surveyId) {
-        form.reset(recordToForm(res))
-        return
-      }
-      router.push(`/surveys/${id}`)
     },
     onError: () => {
       toast.error("Unable to save survey. Please try again.")
@@ -373,7 +369,35 @@ export default function SurveyFormPage() {
       }
     }
     form.clearErrors("floorsRaw")
-    mutation.mutate(values)
+    const editingSurveyId = isEdit ? surveyRouteId : undefined
+    mutation.mutate(values, {
+      onSuccess: async (res) => {
+        toast.success(
+          editingSurveyId
+            ? "Survey updated successfully"
+            : "Survey created successfully"
+        )
+        await qc.invalidateQueries({ queryKey: ["surveys"] })
+
+        if (editingSurveyId) {
+          await qc.invalidateQueries({ queryKey: ["survey", editingSurveyId] })
+          await qc.invalidateQueries({
+            queryKey: ["audit-logs", "Survey", editingSurveyId],
+          })
+          try {
+            if (res && typeof res === "object" && "wardId" in res) {
+              form.reset(recordToForm(res as SurveyRecord))
+            }
+          } catch {
+            // Keep the edit page open even if form reset fails.
+          }
+          // Do not router.push/replace — stay on /surveys/[id]/edit.
+          return
+        }
+
+        router.push(`/surveys/${res.id}`)
+      },
+    })
   }
 
   if (isEdit && existing.isLoading) {
@@ -470,7 +494,7 @@ export default function SurveyFormPage() {
               existing.data.updatedBy?.email ??
               null
             }
-            detailHref={`/surveys/${params.id}`}
+            detailHref={`/surveys/${surveyRouteId}`}
             canAudit={canAudit}
           />
         ) : null}
@@ -714,7 +738,7 @@ export default function SurveyFormPage() {
           {showCommercial ? (
             <CatalogField
               id="commercial"
-              label="Commercial"
+              label="Commercial subtype"
               control={control}
               name="commercial"
               options={COMMERCIAL_USES}
@@ -792,7 +816,7 @@ export default function SurveyFormPage() {
               readOnly
               disabled
               value={totalBuiltUpAreaSqFt}
-              className="tabular-nums text-muted-foreground"
+              className="bg-muted text-muted-foreground tabular-nums"
             />
           </FieldShell>
           <FieldShell
@@ -805,7 +829,7 @@ export default function SurveyFormPage() {
               readOnly
               disabled
               value={totalBuiltUpAreaSqMeter}
-              className="tabular-nums text-muted-foreground"
+              className="bg-muted text-muted-foreground tabular-nums"
             />
           </FieldShell>
           <Controller

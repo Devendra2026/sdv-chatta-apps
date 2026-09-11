@@ -1,5 +1,5 @@
-import Link from "next/link"
 import { Loader2, Lock } from "lucide-react"
+import Link from "next/link"
 
 import type { PublicPropertyTaxDues } from "@workspace/types"
 
@@ -32,11 +32,10 @@ function BreakdownRow({
 }) {
   return (
     <li
-      className={`flex items-center justify-between gap-4 ${
-        strong
+      className={`flex items-center justify-between gap-4 ${strong
           ? "border-t border-slate-200 pt-3 font-bold text-slate-950"
           : "text-slate-700"
-      }`}
+        }`}
     >
       <span className={strong ? "text-sm" : "text-sm"}>{label}</span>
       <span className="tabular-nums text-sm">{value}</span>
@@ -101,9 +100,8 @@ export function TaxSummaryCard({
           Total Amount Payable
         </p>
         <p
-          className={`mt-2 font-extrabold tracking-tight tabular-nums ${
-            compact ? "text-3xl" : "text-4xl sm:text-5xl"
-          }`}
+          className={`mt-2 font-extrabold tracking-tight tabular-nums ${compact ? "text-3xl" : "text-4xl sm:text-5xl"
+            }`}
         >
           ₹{formatHouseTaxMoney(dues.tax.totalDemand)}
         </p>
@@ -120,7 +118,7 @@ export function TaxSummaryCard({
       </div>
 
       {showPayAction ? (
-        <div className="px-5 py-4 sm:px-6">
+        <div className="no-print px-5 py-4 sm:px-6">
           {payable && payHref && !onPayClick ? (
             <Link
               href={payHref}

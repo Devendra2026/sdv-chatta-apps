@@ -21,6 +21,7 @@ import {
 import { buildStringSelectItems } from "@workspace/ui/lib/select-items"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { formatCatalogLabel } from "@/lib/catalog-labels"
 import { sqFtToSqM } from "@/lib/floors"
 import { withCurrentOption } from "@/lib/ward1-catalog"
 
@@ -165,7 +166,7 @@ export function CatalogField<T extends FieldValues>({
           return (
             <Select
               value={toSelectValue((field.value as string) ?? "")}
-              items={buildStringSelectItems(optionList)}
+              items={buildStringSelectItems(optionList, formatCatalogLabel)}
               onValueChange={(value) => {
                 const next = value ?? ""
                 field.onChange(next)
@@ -182,10 +183,21 @@ export function CatalogField<T extends FieldValues>({
               >
                 <SelectValue placeholder="—" />
               </SelectTrigger>
-              <SelectContent align="start" alignItemWithTrigger={false}>
+              <SelectContent
+                align="start"
+                alignItemWithTrigger={false}
+                className="min-w-(--anchor-width) w-auto max-w-[min(28rem,var(--available-width))]"
+              >
                 {optionList.map((option) => (
-                  <SelectItem key={option} value={option} label={option}>
-                    {option}
+                  <SelectItem
+                    key={option}
+                    value={option}
+                    label={formatCatalogLabel(option)}
+                    className="items-start whitespace-normal"
+                  >
+                    <span className="whitespace-normal break-words">
+                      {formatCatalogLabel(option)}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -248,7 +260,7 @@ export function AreaPairField({
           readOnly
           disabled
           value={sqMValue}
-          className="tabular-nums text-muted-foreground"
+          className="bg-muted tabular-nums text-muted-foreground"
           aria-readonly="true"
         />
       </FieldShell>

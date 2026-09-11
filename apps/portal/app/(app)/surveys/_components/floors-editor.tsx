@@ -43,6 +43,7 @@ import {
   sqFtToSqM,
   sumFloorAreaSqFt,
 } from "@/lib/floors"
+import { formatCatalogLabel } from "@/lib/catalog-labels"
 import { floorUsageChecks, formatArea } from "@/lib/survey-format"
 import { withCurrentOption } from "@/lib/ward1-catalog"
 
@@ -232,12 +233,22 @@ export function FloorsEditor({
                   data-state={editingId === floor.id ? "selected" : undefined}
                 >
                   <TableCell className="font-medium">
-                    {floor.floorLabel}
+                    {formatCatalogLabel(floor.floorLabel) || floor.floorLabel}
                   </TableCell>
-                  <TableCell>{floor.usageType || "—"}</TableCell>
-                  <TableCell>{floor.usageFactor || "—"}</TableCell>
-                  <TableCell className="max-w-[14rem] truncate">
-                    {floor.buildingType || "—"}
+                  <TableCell>
+                    {floor.usageType
+                      ? formatCatalogLabel(floor.usageType)
+                      : "—"}
+                  </TableCell>
+                  <TableCell>
+                    {floor.usageFactor
+                      ? formatCatalogLabel(floor.usageFactor)
+                      : "—"}
+                  </TableCell>
+                  <TableCell className="max-w-[16rem] whitespace-normal break-words">
+                    {floor.buildingType
+                      ? formatCatalogLabel(floor.buildingType)
+                      : "—"}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatArea(floor.areaSqFt, floor.areaSqMeter)}
@@ -386,7 +397,7 @@ export function FloorsEditor({
               id="floor-area-sqm"
               readOnly
               disabled
-              className="w-full tabular-nums text-muted-foreground"
+              className="w-full bg-muted tabular-nums text-muted-foreground"
               value={draftSqM != null ? String(draftSqM) : ""}
               aria-readonly="true"
             />
@@ -475,7 +486,7 @@ function FloorSelect({
       <Label htmlFor={id}>{label}</Label>
       <Select
         value={value === "" ? null : value}
-        items={buildStringSelectItems(optionList)}
+        items={buildStringSelectItems(optionList, formatCatalogLabel)}
         onValueChange={(next) => onChange(next ?? "")}
       >
         <SelectTrigger
@@ -488,10 +499,21 @@ function FloorSelect({
         >
           <SelectValue placeholder="—" />
         </SelectTrigger>
-        <SelectContent align="start" alignItemWithTrigger={false}>
+        <SelectContent
+          align="start"
+          alignItemWithTrigger={false}
+          className="min-w-(--anchor-width) w-auto max-w-[min(28rem,var(--available-width))]"
+        >
           {optionList.map((option) => (
-            <SelectItem key={option} value={option} label={option}>
-              {option}
+            <SelectItem
+              key={option}
+              value={option}
+              label={formatCatalogLabel(option)}
+              className="items-start whitespace-normal"
+            >
+              <span className="whitespace-normal break-words">
+                {formatCatalogLabel(option)}
+              </span>
             </SelectItem>
           ))}
         </SelectContent>

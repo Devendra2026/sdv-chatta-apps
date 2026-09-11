@@ -19,6 +19,7 @@ import {
   parseFloorsRaw,
   validateMixedComposition,
 } from "@/lib/floors"
+import { formatCatalogLabel } from "@/lib/catalog-labels"
 
 type UsageCompositionPanelProps = {
   floorsRaw: string
@@ -75,7 +76,9 @@ export function UsageCompositionPanel({
             {composition.rows.length ? (
               composition.rows.map((row) => (
                 <TableRow key={row.usageType}>
-                  <TableCell className="font-medium">{row.usageType}</TableCell>
+                  <TableCell className="font-medium">
+                    {formatCatalogLabel(row.usageType) || row.usageType}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatArea(row.areaSqFt)}
                   </TableCell>

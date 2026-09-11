@@ -33,6 +33,7 @@ export const PROPERTY_USES = [
   "Open Land",
   "Mixed",
   "Commercial",
+  "Religious",
 ] as const
 
 export const COMMERCIAL_USES = [

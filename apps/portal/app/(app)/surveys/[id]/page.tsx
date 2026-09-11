@@ -48,6 +48,10 @@ import { cn } from "@workspace/ui/lib/utils"
 import { useCan } from "@/hooks/use-permission"
 import { api } from "@/lib/api"
 import {
+  formatCatalogDisplay,
+  formatCatalogLabel,
+} from "@/lib/catalog-labels"
+import {
   ULB_NAME,
   floorUsageChecks,
   formatArea,
@@ -423,9 +427,18 @@ export default function SurveyDetailPage() {
             label="Date of Survey"
             value={s.surveyedAt ? new Date(s.surveyedAt).toLocaleString() : "—"}
           />
-          <Field label="Owner Name" value={s.ownerName} />
-          <Field label="Owner Father Name" value={s.ownerFatherName} />
-          <Field label="Mobile No" value={s.mobile} />
+          <Field
+            label="Owner Name"
+            value={displayWithFallback(s.ownerName, "N/A")}
+          />
+          <Field
+            label="Owner Father Name"
+            value={displayWithFallback(s.ownerFatherName, "N/A")}
+          />
+          <Field
+            label="Mobile No"
+            value={displayWithFallback(s.mobile, "—")}
+          />
           <Field
             label="Ward Name"
             value={`Ward ${s.ward.number} — ${s.ward.name}`}
@@ -465,13 +478,34 @@ export default function SurveyDetailPage() {
 
       <SectionCard title="Classification">
         <FieldGrid>
-          <Field label="Tax Rate Zone" value={s.taxRateZone} />
-          <Field label="Property Ownership" value={s.propertyOwnership} />
-          <Field label="Property Use" value={s.propertyUse} />
-          <Field label="Commercial" value={s.commercial} />
-          <Field label="Year of Construction" value={s.yearOfConstruction} />
-          <Field label="Situation" value={s.situation} />
-          <Field label="Road Type" value={s.roadType} />
+          <Field
+            label="Tax Rate Zone"
+            value={formatCatalogDisplay(s.taxRateZone)}
+          />
+          <Field
+            label="Property Ownership"
+            value={formatCatalogDisplay(s.propertyOwnership)}
+          />
+          <Field
+            label="Property Use"
+            value={formatCatalogDisplay(s.propertyUse)}
+          />
+          <Field
+            label="Commercial subtype"
+            value={formatCatalogDisplay(s.commercial)}
+          />
+          <Field
+            label="Year of Construction"
+            value={formatCatalogDisplay(s.yearOfConstruction)}
+          />
+          <Field
+            label="Situation"
+            value={formatCatalogDisplay(s.situation)}
+          />
+          <Field
+            label="Road Type"
+            value={formatCatalogDisplay(s.roadType)}
+          />
         </FieldGrid>
       </SectionCard>
 
@@ -512,8 +546,8 @@ export default function SurveyDetailPage() {
           Derived floor totals:{" "}
           {floorTotals.length
             ? floorTotals
-                .map((row) => `${row.label.toUpperCase()} ${row.area} sq ft`)
-                .join(" — ")
+              .map((row) => `${row.label.toUpperCase()} ${row.area} sq ft`)
+              .join(" — ")
             : "—"}
         </p>
 
@@ -534,10 +568,24 @@ export default function SurveyDetailPage() {
                 s.floors.map((floor, index) => (
                   <TableRow key={floor.id}>
                     <TableCell>{index + 1}</TableCell>
-                    <TableCell>{floor.floorLabel}</TableCell>
-                    <TableCell>{dash(floor.usageType)}</TableCell>
-                    <TableCell>{dash(floor.usageFactor)}</TableCell>
-                    <TableCell>{dash(floor.buildingType)}</TableCell>
+                    <TableCell>
+                      {formatCatalogLabel(floor.floorLabel) || floor.floorLabel}
+                    </TableCell>
+                    <TableCell>
+                      {floor.usageType
+                        ? formatCatalogLabel(floor.usageType)
+                        : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {floor.usageFactor
+                        ? formatCatalogLabel(floor.usageFactor)
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="max-w-[16rem] whitespace-normal break-words">
+                      {floor.buildingType
+                        ? formatCatalogLabel(floor.buildingType)
+                        : "—"}
+                    </TableCell>
                     <TableCell className="text-right">
                       {dash(floor.areaSqFt)}
                     </TableCell>
@@ -773,6 +821,15 @@ function DetailSkeleton() {
 function dash(value?: string | number | null) {
   if (value == null || value === "") return "—"
   return String(value)
+}
+
+/** Display-only fallback for Survey & Owner; never mutates API/form data. */
+function displayWithFallback(
+  value: string | null | undefined,
+  emptyFallback: string
+): string {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : emptyFallback
 }
 
 function yn(value?: boolean | null) {

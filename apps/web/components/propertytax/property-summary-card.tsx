@@ -24,6 +24,10 @@ export function PropertySummaryCard({
 }: PropertySummaryCardProps) {
   const wardLabel = `${String(dues.wardNumber).padStart(2, "0")} · ${dues.wardName}`
   const roadZone = dues.taxRateZone || dues.roadType || "—"
+  const mobile =
+    typeof dues.mobileMasked === "string" && dues.mobileMasked.trim().length > 0
+      ? dues.mobileMasked.trim()
+      : "—"
 
   return (
     <section
@@ -40,8 +44,10 @@ export function PropertySummaryCard({
         <Row label="Assessment Year" value={dues.assessmentYear.name} />
         <Row label="Survey / Property ID" value={dues.surveyId} />
         <Row label="Ward" value={wardLabel} />
-        <Row label="Property No." value={dues.propertyNo || "—"} />
+        <Row label="Parcel Number" value={dues.parcelNo || "—"} />
         <Row label="Owner" value={dues.ownerName || "—"} />
+        <Row label="Father Name" value="—" />
+        <Row label="Mobile Number" value={mobile} />
         <Row label="Address" value={buildHouseTaxAddress(dues)} />
         <Row label="Property Use" value={dues.propertyUse || "—"} />
         <Row label="Road Width Zone" value={roadZone} />
