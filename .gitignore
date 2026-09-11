@@ -47,6 +47,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Prisma CLI config must stay as prisma.config.ts (compiled CJS breaks `prisma generate`)
+apps/api/prisma.config.js
+apps/api/prisma.config.js.map
+apps/api/prisma.config.d.ts
+
 # Playwright
 playwright-report/
 test-results/
