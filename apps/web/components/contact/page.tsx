@@ -118,7 +118,7 @@ export default function ContactUs() {
                         href="tel:+918189077892"
                         className="mt-0.5 block text-xs font-black text-slate-700 hover:underline"
                       >
-                        +91 xxxx-xxx-7892
+                        +91 8189077953
                       </Link>
                     </div>
                   </div>
@@ -138,7 +138,7 @@ export default function ContactUs() {
                         href="mailto:npchhata@gmail.com"
                         className="mt-0.5 block text-xs font-black text-slate-700 hover:underline"
                       >
-                        chhata@gmail.com
+                        npchhata@gmail.com
                       </Link>
                     </div>
                   </div>

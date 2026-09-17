@@ -34,6 +34,17 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
+  useEffect(() => {
+    if (!isOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [isOpen])
+
   // Update active tab based on path
   useEffect(() => {
     if (pathname === "/public-grievance") setActiveTab("Public Grievance")
@@ -331,15 +342,24 @@ export default function Navbar() {
 
       {isOpen && (
         <div
-          className="fixed inset-0 top-13 z-40 bg-slate-900/60 backdrop-blur-xs lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden"
           onClick={() => setIsOpen(false)}
         >
           <div
-            className="bg-gov-blue-dark animate-slide-in relative flex h-full w-4/5 max-w-sm transform flex-col justify-between overflow-y-auto p-6 shadow-2xl transition-transform duration-300"
+            className="bg-gov-blue-dark animate-slide-in relative ml-auto flex h-full w-4/5 max-w-sm transform flex-col justify-between overflow-y-auto p-6 shadow-2xl transition-transform duration-300"
             onClick={(e) => e.stopPropagation()}
           >
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              aria-label="Close menu"
+              className="absolute top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-white/5 text-slate-200 transition hover:bg-white/10 hover:text-white"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
             {/* Logo in drawer */}
-            <div className="space-y-6">
+            <div className="space-y-6 pt-10">
               <div className="flex items-center gap-2 border-b border-slate-700 pb-4">
                 <svg
                   className="h-8 w-8"

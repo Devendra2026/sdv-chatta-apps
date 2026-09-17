@@ -25,11 +25,11 @@ export default function TopUtilityBar() {
       {/* Left Contact Side */}
       <div className="flex items-center space-x-4">
         <a
-          href="tel:+911212222040"
+          href="tel:+91 8189077953"
           className="hover:text-gov-saffron flex items-center gap-1 transition-colors"
         >
           <Phone className="text-gov-saffron h-3.5 w-3.5" />
-          <span>+91 121 222 2040</span>
+          <span>+91 818907793</span>
         </a>
         <a
           href="mailto:npchhata@gmail.com"

@@ -113,7 +113,7 @@ export default function Footer() {
                 href="tel:+918189077892"
                 className="hover:text-gov-saffron hover:underline"
               >
-                +91 xxxxxxxxxxx
+                +91 8189077953
               </a>
             </li>
             <li className="flex items-center gap-2.5">
