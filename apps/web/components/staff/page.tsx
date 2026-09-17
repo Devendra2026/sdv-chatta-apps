@@ -321,7 +321,7 @@ export default function Staff() {
       ],
     },
     {
-      id: "head-clerk",
+      id: "Head-clerk",
       roleTitle: "कार्यालय अधीक्षक",
       designation: "मुख्य लिपिक (Head Clerk)",
       name: " Shree Promod Kumar",
