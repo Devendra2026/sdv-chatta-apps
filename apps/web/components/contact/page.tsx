@@ -97,7 +97,7 @@ export default function ContactUs() {
                       </p>
 
                       <p className="mt-0.5 text-xs leading-relaxed font-bold text-slate-700">
-                        Main Bazar, Nagar Panchayat, Chhata , Mathura, Uttar
+                        Old GT Road near PWD guest house Chhata , Mathura, Uttar
                         Pradesh, 250606
                       </p>
                     </div>

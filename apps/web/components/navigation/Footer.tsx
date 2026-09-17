@@ -103,7 +103,7 @@ export default function Footer() {
               <MapPin className="text-gov-saffron mt-0.5 h-4 w-4 shrink-0" />
               <span>
                 {" "}
-                Main Bazar, Nagar Panchayat , Chhata, Mathura, Uttar Pradesh,
+                Old GT Road near PWD guest house Chhata, Mathura, Uttar Pradesh,
                 India - 250606
               </span>
             </li>

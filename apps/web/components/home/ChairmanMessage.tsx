@@ -99,7 +99,7 @@ export default function ChairmanMessage() {
               {/* Name Details */}
               <div className="mb-2 space-y-1.5">
                 <h3 className="text-xl leading-tight font-black tracking-tight text-white">
-                  Smt. Lakshmi
+                  Smt. Lakshmi Devi
                 </h3>
                 <p className="text-xs font-bold tracking-widest text-orange-400 uppercase">
                   Hon'ble Chairman
