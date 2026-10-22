@@ -17,7 +17,8 @@ ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_CITIZEN_WEB_URL=$NEXT_PUBLIC_CITIZEN_WEB_URL
 COPY --from=pruner /app/out/json/ .
 COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir /pnpm/store
 COPY --from=pruner /app/out/full/ .
 # Workspace packages export dist/ only; .dockerignore excludes **/dist.
 RUN pnpm --filter @workspace/types build

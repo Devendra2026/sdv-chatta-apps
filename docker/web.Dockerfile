@@ -13,7 +13,8 @@ ARG API_INTERNAL_URL=http://chhata-api:4000
 ENV API_INTERNAL_URL=$API_INTERNAL_URL
 COPY --from=pruner /app/out/json/ .
 COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir /pnpm/store
 COPY --from=pruner /app/out/full/ .
 # Workspace packages export dist/ only; .dockerignore excludes **/dist.
 RUN pnpm --filter @workspace/types build

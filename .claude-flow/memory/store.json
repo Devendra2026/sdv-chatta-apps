@@ -17,6 +17,123 @@
       "lastAccessed": "2026-10-22T11:15:03.637Z",
       "accessCount": 0,
       "expiresAt": "2026-11-21T11:15:03.637Z"
+    },
+    "cmd-1792670672752": {
+      "key": "cmd-1792670672752",
+      "value": "{\"command\":\"pnpm install --filter api...\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T12:04:32.752Z",
+      "lastAccessed": "2026-10-22T12:04:32.752Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T12:04:32.752Z"
+    },
+    "cmd-1792670701168": {
+      "key": "cmd-1792670701168",
+      "value": "{\"command\":\"pnpm install --no-frozen-lockfile 2>&1; git diff --stat pnpm-lock.yaml apps/api/package.json\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T12:05:01.168Z",
+      "lastAccessed": "2026-10-22T12:05:01.168Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T12:05:01.168Z"
+    },
+    "cmd-1792670766527": {
+      "key": "cmd-1792670766527",
+      "value": "{\"command\":\"docker version --format \\\"{{.Server.Version}}\\\" 2>&1; docker compose version 2>&1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T12:06:06.527Z",
+      "lastAccessed": "2026-10-22T12:06:06.527Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T12:06:06.527Z"
+    },
+    "cmd-1792670795632": {
+      "key": "cmd-1792670795632",
+      "value": "{\"command\":\"pnpm --filter api test 2>&1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T12:06:35.632Z",
+      "lastAccessed": "2026-10-22T12:06:35.632Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T12:06:35.632Z"
+    },
+    "cmd-1792670836102": {
+      "key": "cmd-1792670836102",
+      "value": "{\"command\":\"# Start Docker Desktop if present\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T12:07:16.102Z",
+      "lastAccessed": "2026-10-22T12:07:16.102Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T12:07:16.102Z"
+    },
+    "cmd-1792670866627": {
+      "key": "cmd-1792670866627",
+      "value": "{\"command\":\"# Wait for Docker daemon to become ready (up to ~90s)\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T12:07:46.627Z",
+      "lastAccessed": "2026-10-22T12:07:46.627Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T12:07:46.627Z"
+    },
+    "cmd-1792670885018": {
+      "key": "cmd-1792670885018",
+      "value": "{\"command\":\"$env:DATABASE_URL=\\\"postgresql://build:[redacted]@localhost:5432/build?schema=public\\\"; pnpm --filter @workspace/types build; pnpm --filter api prisma:generate; pnpm --filter api test -- --testPathPatterns=\\\"validate-env|seed-admin-config|health-v1\\\" 2>&1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T12:08:05.018Z",
+      "lastAccessed": "2026-10-22T12:08:05.018Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T12:08:05.018Z"
+    },
+    "cmd-1792670890086": {
+      "key": "cmd-1792670890086",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml --env-file .env.docker-healthcheck config --quiet 2>&1; if ($LASTEXITCODE -eq 0) { Write-Host \\\"compose config OK\\\" } else { Write-Host \\\"compose config FAILED\\\" }\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T12:08:10.086Z",
+      "lastAccessed": "2026-10-22T12:08:10.086Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T12:08:10.086Z"
+    },
+    "cmd-1792670896850": {
+      "key": "cmd-1792670896850",
+      "value": "{\"command\":\"Copy-Item -Force .env.docker-healthcheck .env\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T12:08:16.850Z",
+      "lastAccessed": "2026-10-22T12:08:16.850Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T12:08:16.850Z"
+    },
+    "cmd-1792671373080": {
+      "key": "cmd-1792671373080",
+      "value": "{\"command\":\"# Wait for API to get through migrate/seed/listen, then inspect health\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T12:16:13.080Z",
+      "lastAccessed": "2026-10-22T12:16:13.080Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T12:16:13.080Z"
+    },
+    "cmd-1792671389723": {
+      "key": "cmd-1792671389723",
+      "value": "{\"command\":\"Write-Host \\\"==== Startup head ====\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T12:16:29.723Z",
+      "lastAccessed": "2026-10-22T12:16:29.723Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T12:16:29.723Z"
+    },
+    "cmd-1792671587772": {
+      "key": "cmd-1792671587772",
+      "value": "{\"command\":\"docker compose -p chhata-healthcheck -f docker-compose.prod.yml --env-file .env.docker-healthcheck up -d portal web 2>&1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T12:19:47.772Z",
+      "lastAccessed": "2026-10-22T12:19:47.772Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T12:19:47.772Z"
+    },
+    "cmd-1792671602465": {
+      "key": "cmd-1792671602465",
+      "value": "{\"command\":\"docker compose -p chhata-healthcheck -f docker-compose.prod.yml --env-file .env.docker-healthcheck down 2>&1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T12:20:02.465Z",
+      "lastAccessed": "2026-10-22T12:20:02.465Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T12:20:02.465Z"
     }
   },
   "version": "3.0.0"

@@ -11,7 +11,8 @@ RUN turbo prune api --docker
 FROM base AS installer
 COPY --from=pruner /app/out/json/ .
 COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir /pnpm/store
 COPY --from=pruner /app/out/full/ .
 # Prisma 7 prisma.config.ts requires DATABASE_URL even for `generate`.
 # This value is installer-only (runner starts FROM base) and is never used
@@ -27,7 +28,16 @@ RUN pnpm --filter api build
 # Skip Prisma's install-time generate: deploy copies the schema after
 # postinstall, which otherwise emits a client with no enums/models.
 RUN PRISMA_SKIP_POSTINSTALL_GENERATE=1 pnpm --filter api deploy --legacy /out
-RUN cd /out && npx prisma generate --schema=prisma/schema.prisma
+# pnpm deploy follows npm-packlist/.gitignore and can omit dist/. Copy
+# build artifacts and Prisma files explicitly so migrate works at runtime.
+RUN rm -rf /out/dist /out/prisma \
+  && cp -a apps/api/dist /out/dist \
+  && cp -a apps/api/prisma /out/prisma \
+  && cp -a apps/api/prisma.config.ts /out/prisma.config.ts \
+  && test -f /out/dist/main.js \
+  && test -d /out/prisma/migrations \
+  && test -e /out/node_modules/.bin/prisma
+RUN cd /out && ./node_modules/.bin/prisma generate --schema=prisma/schema.prisma
 
 FROM base AS runner
 WORKDIR /app
@@ -36,8 +46,13 @@ ARG API_BUILD_ID=unknown
 ENV API_BUILD_ID=$API_BUILD_ID
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nestjs
 COPY --from=installer --chown=nestjs:nodejs /out .
-RUN mkdir -p /app/uploads && chown nestjs:nodejs /app/uploads
+COPY docker/api-entrypoint.sh /app/api-entrypoint.sh
+RUN sed -i 's/\r$//' /app/api-entrypoint.sh \
+  && chmod 755 /app/api-entrypoint.sh \
+  && chown nestjs:nodejs /app/api-entrypoint.sh \
+  && mkdir -p /app/uploads \
+  && chown nestjs:nodejs /app/uploads
 USER nestjs
 EXPOSE 4000
 # Same DATABASE_URL for migrate, seed, and the API process.
-CMD ["sh", "-c", "echo 'Validating environment...' && node dist/startup-env-cli.js && echo 'Running database migrations...' && npx prisma migrate deploy --schema=prisma/schema.prisma && node dist/seed-cli.js && node dist/main.js"]
+CMD ["/app/api-entrypoint.sh"]
