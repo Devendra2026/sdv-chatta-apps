@@ -41,7 +41,7 @@ Crypto matches official AtomAES (PBKDF2-HMAC-SHA512 + AES-256-CBC, fixed IV 0..1
 
 Set `PAYMENT_PROVIDER=atom` with UAT/prod credentials. `sandbox` skips the gateway UI (no card/UPI).
 
-Hash Request/Response keys are optional. When `ATOM_RESP_HASH_KEY` is set, callbacks must pass the official HMAC-SHA512. When unset, decrypt-only verification is used (production default).
+`ATOM_RESP_HASH_KEY` is optional. When set, callbacks must pass the official HMAC-SHA512. When unset, decrypt-only verification is used (production default). `ATOM_REQ_HASH_KEY` is documented for kit parity but is **not read** by this app.
 
 ## UAT env mapping
 
@@ -61,4 +61,20 @@ Hash Request/Response keys are optional. When `ATOM_RESP_HASH_KEY` is set, callb
 | Server callback         | `ATOM_CALLBACK_URL`                                         |
 | Browser return (API)    | `ATOM_GATEWAY_RETURN_URL` (optional; derived from callback) |
 
-Production uses the same variables with production host, CDN, `ATOM_CHECKOUT_ENV=prod`, and live credentials.
+Production uses the same variables with production host, CDN, `ATOM_CHECKOUT_ENV=prod`, and live credentials. See **Production go-live** below.
+
+## Production go-live (Dokploy)
+
+Citizen checkout runs on the **website** (`PUBLIC_WEB_URL`); the portal is staff-only (offline/list/refunds) against the same API Atom env. Do not point return/callback at the portal.
+
+Copy [`.env.production.example`](../../.env.production.example) into Dokploy → Compose → Environment, then:
+
+1. Set real `PUBLIC_WEB_URL` and `PUBLIC_PORTAL_URL` (HTTPS, no trailing slash).
+2. Set `PAYMENT_PROVIDER=atom` and fill live NTT credentials: `ATOM_MERCH_ID`, `ATOM_PASSWORD`, `ATOM_API_SECRET_KEY`, AES request/response key+IV. Production API startup **fails** if these are blank or if `PAYMENT_PROVIDER` is unset/sandbox.
+3. Leave `ATOM_RETURN_URL` / `ATOM_CALLBACK_URL` unset in Dokploy — `docker-compose.prod.yml` derives them from `PUBLIC_WEB_URL`:
+   - Return page: `{PUBLIC_WEB_URL}/propertytax/payment/return`
+   - Server callback: `{PUBLIC_WEB_URL}/api/v1/payments/gateway/callback` (Next.js `/api/*` rewrite → Nest)
+   - Browser gateway return (derived): `{PUBLIC_WEB_URL}/api/v1/payments/gateway/return`
+4. In the Atom merchant dashboard, allowlist those three website URLs (not portal).
+5. Prod hosts (already in the example): `payment1.atomtech.in` (auth/status), `psa.atomtech.in` (checkout CDN), `ATOM_CHECKOUT_ENV=prod`.
+6. Refunds call `{ATOM_BASE_URL}/ots/payment/refund`. If live refunds fail, confirm the prod refund host with NTT (some Atom guides list `payment.atomtech.in` instead of `payment1`).

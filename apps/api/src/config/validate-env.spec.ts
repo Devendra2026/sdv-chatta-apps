@@ -11,6 +11,17 @@ describe("assertRequiredEnv", () => {
     STORAGE_DIR: "/app/uploads",
     SEED_ADMIN_EMAIL: "admin@example.com",
     SEED_ADMIN_PASSWORD: "strong-pass-1",
+    PAYMENT_PROVIDER: "atom",
+    ATOM_MERCH_ID: "merch-1",
+    ATOM_PASSWORD: "txn-pass",
+    ATOM_API_SECRET_KEY: "api-secret",
+    ATOM_AES_REQUEST_KEY: "req-key",
+    ATOM_AES_REQUEST_IV: "req-iv",
+    ATOM_AES_RESPONSE_KEY: "res-key",
+    ATOM_AES_RESPONSE_IV: "res-iv",
+    ATOM_RETURN_URL: "https://www.example.com/propertytax/payment/return",
+    ATOM_CALLBACK_URL:
+      "https://www.example.com/api/v1/payments/gateway/callback",
   }
 
   it("passes when production env is complete", () => {
@@ -41,6 +52,57 @@ describe("assertRequiredEnv", () => {
         includeSeedAdmin: true,
       })
     ).toThrow(/PAYMENT_PROVIDER/)
+  })
+
+  it("requires PAYMENT_PROVIDER=atom in production", () => {
+    expect(() =>
+      assertRequiredEnv({
+        env: {
+          ...baseProdEnv,
+          PAYMENT_PROVIDER: undefined,
+        },
+        includeSeedAdmin: true,
+      })
+    ).toThrow(/PAYMENT_PROVIDER is required/)
+  })
+
+  it("rejects unknown payment provider in production", () => {
+    expect(() =>
+      assertRequiredEnv({
+        env: {
+          ...baseProdEnv,
+          PAYMENT_PROVIDER: "other",
+        },
+        includeSeedAdmin: true,
+      })
+    ).toThrow(/PAYMENT_PROVIDER must be atom/)
+  })
+
+  it("requires Atom merchant and AES secrets in production", () => {
+    expect(() =>
+      assertRequiredEnv({
+        env: {
+          ...baseProdEnv,
+          ATOM_MERCH_ID: "",
+          ATOM_PASSWORD: "   ",
+          ATOM_API_SECRET_KEY: undefined,
+        },
+        includeSeedAdmin: true,
+      })
+    ).toThrow(/ATOM_MERCH_ID/)
+  })
+
+  it("requires ATOM_RETURN_URL and ATOM_CALLBACK_URL in production", () => {
+    expect(() =>
+      assertRequiredEnv({
+        env: {
+          ...baseProdEnv,
+          ATOM_RETURN_URL: undefined,
+          ATOM_CALLBACK_URL: "",
+        },
+        includeSeedAdmin: true,
+      })
+    ).toThrow(/ATOM_RETURN_URL/)
   })
 
   it("requires DATABASE_URL in all environments", () => {

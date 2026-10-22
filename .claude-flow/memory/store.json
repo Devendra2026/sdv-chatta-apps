@@ -1,0 +1,23 @@
+{
+  "entries": {
+    "cmd-1792667619778": {
+      "key": "cmd-1792667619778",
+      "value": "{\"command\":\"pnpm --filter api exec vitest run src/config/validate-env.spec.ts\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T11:13:39.778Z",
+      "lastAccessed": "2026-10-22T11:13:39.778Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T11:13:39.778Z"
+    },
+    "cmd-1792667703637": {
+      "key": "cmd-1792667703637",
+      "value": "{\"command\":\"pnpm --filter api test -- src/config/validate-env.spec.ts\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-22T11:15:03.637Z",
+      "lastAccessed": "2026-10-22T11:15:03.637Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-21T11:15:03.637Z"
+    }
+  },
+  "version": "3.0.0"
+}

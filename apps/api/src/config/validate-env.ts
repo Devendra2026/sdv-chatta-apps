@@ -39,10 +39,48 @@ function collectProductionErrors(env: NodeJS.ProcessEnv): string[] {
   }
 
   const paymentProvider = env.PAYMENT_PROVIDER?.trim().toLowerCase()
-  if (paymentProvider === "sandbox") {
+  if (!paymentProvider) {
+    errors.push(
+      "PAYMENT_PROVIDER is required in production (set PAYMENT_PROVIDER=atom)"
+    )
+  } else if (paymentProvider === "sandbox") {
     errors.push(
       "PAYMENT_PROVIDER must not be sandbox in production (set PAYMENT_PROVIDER=atom)"
     )
+  } else if (paymentProvider !== "atom") {
+    errors.push(
+      `PAYMENT_PROVIDER must be atom in production (got "${paymentProvider}")`
+    )
+  }
+
+  if (paymentProvider === "atom" || !paymentProvider) {
+    const requiredAtomSecrets = [
+      "ATOM_MERCH_ID",
+      "ATOM_PASSWORD",
+      "ATOM_API_SECRET_KEY",
+      "ATOM_AES_REQUEST_KEY",
+      "ATOM_AES_REQUEST_IV",
+      "ATOM_AES_RESPONSE_KEY",
+      "ATOM_AES_RESPONSE_IV",
+    ] as const
+    for (const key of requiredAtomSecrets) {
+      if (!env[key]?.trim()) {
+        errors.push(
+          `${key} is required in production when using Atom AIPay (fill live credentials in Dokploy)`
+        )
+      }
+    }
+
+    if (!env.ATOM_RETURN_URL?.trim()) {
+      errors.push(
+        "ATOM_RETURN_URL is required in production (compose sets ${PUBLIC_WEB_URL}/propertytax/payment/return)"
+      )
+    }
+    if (!env.ATOM_CALLBACK_URL?.trim()) {
+      errors.push(
+        "ATOM_CALLBACK_URL is required in production (compose sets ${PUBLIC_WEB_URL}/api/v1/payments/gateway/callback)"
+      )
+    }
   }
 
   return errors
