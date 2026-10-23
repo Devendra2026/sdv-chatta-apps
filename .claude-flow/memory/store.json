@@ -134,6 +134,231 @@
       "lastAccessed": "2026-10-22T12:20:02.465Z",
       "accessCount": 0,
       "expiresAt": "2026-11-21T12:20:02.465Z"
+    },
+    "cmd-1792751812466": {
+      "key": "cmd-1792751812466",
+      "value": "{\"command\":\"node -e \\\"const {createHmac}=require('crypto'); const s='317157'+'63d12a8782587dda'+'1'+'INR'; console.log(createHmac('sha512','KEY123657234').update(s).digest('hex'));\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T10:36:52.466Z",
+      "lastAccessed": "2026-10-23T10:36:52.466Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T10:36:52.466Z"
+    },
+    "cmd-1792751966070": {
+      "key": "cmd-1792751966070",
+      "value": "{\"command\":\"pnpm exec jest --testPathPatterns \\\"validate-env|atom-aes|atom-hmac|atom-auth-payload|payments.safety|gateway-callback\\\" --no-coverage\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T10:39:26.070Z",
+      "lastAccessed": "2026-10-23T10:39:26.070Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T10:39:26.070Z"
+    },
+    "cmd-1792751984581": {
+      "key": "cmd-1792751984581",
+      "value": "{\"command\":\"pnpm exec tsc --noEmit -p tsconfig.build.json\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T10:39:44.581Z",
+      "lastAccessed": "2026-10-23T10:39:44.581Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T10:39:44.581Z"
+    },
+    "cmd-1792752003963": {
+      "key": "cmd-1792752003963",
+      "value": "{\"command\":\"pnpm exec eslint --max-warnings 0 src/config/validate-env.ts src/config/validate-env.spec.ts src/payments/providers/atom-hmac.ts src/payments/providers/atom-hmac.spec.ts src/payments/providers/atom-ndps.provider.ts src/payments/providers/atom-auth-payload.spec.ts src/payments/providers/payment-provider.ts src/payments/payments.service.ts\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T10:40:03.963Z",
+      "lastAccessed": "2026-10-23T10:40:03.963Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T10:40:03.963Z"
+    },
+    "cmd-1792752282561": {
+      "key": "cmd-1792752282561",
+      "value": "{\"command\":\"$env:DATABASE_URL = \\\"postgresql://build:[redacted]@localhost:5432/build?schema=public\\\"; pnpm exec turbo build --filter=web --filter=api\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T10:44:42.561Z",
+      "lastAccessed": "2026-10-23T10:44:42.561Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T10:44:42.561Z"
+    },
+    "cmd-1792752309733": {
+      "key": "cmd-1792752309733",
+      "value": "{\"command\":\"pnpm exec jest --testPathPatterns atom-auth-payload --no-coverage\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T10:45:09.733Z",
+      "lastAccessed": "2026-10-23T10:45:09.733Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T10:45:09.733Z"
+    },
+    "cmd-1792754365619": {
+      "key": "cmd-1792754365619",
+      "value": "{\"command\":\"Write-Output \\\"api.env exists: $(Test-Path -LiteralPath 'apps\\\\api\\\\.env')\\\"; Write-Output \\\"root.env exists: $(Test-Path -LiteralPath '.env')\\\"; if (Test-Path -LiteralPath 'apps\\\\api\\\\.env') { $has = Select-String -LiteralPath 'apps\\\\api\\\\.env' -Pattern '^\\\\s*DATABASE_URL\\\\s*=' -Quiet; Write-Output \\\"api.env has DATABASE_URL assignment: $has\\\" }; Write-Output \\\"prisma bin: $(Test-Path -LiteralPath 'apps\\\\api\\\\node_modules\\\\prisma')\\\"; Write-Output \\\"root prisma: $(Test-Path -LiteralPath 'node_modules\\\\prisma')\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:19:25.619Z",
+      "lastAccessed": "2026-10-23T11:19:25.619Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:19:25.619Z"
+    },
+    "cmd-1792754443196": {
+      "key": "cmd-1792754443196",
+      "value": "{\"command\":\"Copy-Item -LiteralPath \\\"apps\\\\api\\\\.env.example\\\" -Destination \\\"apps\\\\api\\\\.env\\\"; Write-Output \\\"copied: $(Test-Path -LiteralPath 'apps\\\\api\\\\.env')\\\"; $has = Select-String -LiteralPath \\\"apps\\\\api\\\\.env\\\" -Pattern '^\\\\s*DATABASE_URL\\\\s*=' -Quiet; Write-Output \\\"DATABASE_URL set: $has\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:20:43.196Z",
+      "lastAccessed": "2026-10-23T11:20:43.196Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:20:43.196Z"
+    },
+    "cmd-1792754453556": {
+      "key": "cmd-1792754453556",
+      "value": "{\"command\":\"pnpm db:generate\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:20:53.556Z",
+      "lastAccessed": "2026-10-23T11:20:53.556Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:20:53.556Z"
+    },
+    "cmd-1792754645467": {
+      "key": "cmd-1792754645467",
+      "value": "{\"command\":\"docker ps --filter name=mainpuri-postgres --format \\\"{{.Names}} {{.Status}} {{.Ports}}\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:24:05.467Z",
+      "lastAccessed": "2026-10-23T11:24:05.467Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:24:05.467Z"
+    },
+    "cmd-1792754651480": {
+      "key": "cmd-1792754651480",
+      "value": "{\"command\":\"docker exec mainpuri-postgres psql -U mainpuri -d mainpuri -c \\\"SELECT current_user, current_database();\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:24:11.480Z",
+      "lastAccessed": "2026-10-23T11:24:11.480Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:24:11.480Z"
+    },
+    "cmd-1792754676418": {
+      "key": "cmd-1792754676418",
+      "value": "{\"command\":\"pnpm db:migrate\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:24:36.418Z",
+      "lastAccessed": "2026-10-23T11:24:36.418Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:24:36.418Z"
+    },
+    "cmd-1792754685203": {
+      "key": "cmd-1792754685203",
+      "value": "{\"command\":\"pnpm db:seed\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:24:45.203Z",
+      "lastAccessed": "2026-10-23T11:24:45.203Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:24:45.203Z"
+    },
+    "cmd-1792755096541": {
+      "key": "cmd-1792755096541",
+      "value": "{\"command\":\"Write-Output \\\"=== listeners 5432/5433 ===\\\"; Get-NetTCPConnection -LocalPort 5432,5433 -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,State,OwningProcess | Format-Table -AutoSize; Write-Output \\\"=== docker ps ===\\\"; docker ps -a --format \\\"table {{.Names}}\\\\t{{.Image}}\\\\t{{.Status}}\\\\t{{.Ports}}\\\" 2>&1; Write-Output \\\"=== compose volumes ===\\\"; docker volume ls --format \\\"{{.Name}}\\\" 2>&1 | Select-String -Pattern \\\"pg|postgres|chhata|mainpuri\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:31:36.541Z",
+      "lastAccessed": "2026-10-23T11:31:36.541Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:31:36.541Z"
+    },
+    "cmd-1792755110659": {
+      "key": "cmd-1792755110659",
+      "value": "{\"command\":\"Write-Output \\\"=== process owners ===\\\"; Get-Process -Id 3844,15776 -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,Path | Format-List; Write-Output \\\"=== command lines ===\\\"; Get-CimInstance Win32_Process -Filter \\\"ProcessId=3844 OR ProcessId=15776\\\" | Select-Object ProcessId,Name,CommandLine | Format-List\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:31:50.659Z",
+      "lastAccessed": "2026-10-23T11:31:50.659Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:31:50.659Z"
+    },
+    "cmd-1792755123441": {
+      "key": "cmd-1792755123441",
+      "value": "{\"command\":\"Write-Output \\\"=== roles ===\\\"; docker exec mainpuri-postgres psql -U mainpuri -d mainpuri -c \\\"SELECT rolname FROM pg_roles WHERE rolname NOT LIKE 'pg_%' ORDER BY 1;\\\"; Write-Output \\\"=== databases ===\\\"; docker exec mainpuri-postgres psql -U mainpuri -d postgres -c \\\"SELECT datname, pg_catalog.pg_get_userbyid(datdba) AS owner FROM pg_database WHERE datistemplate = false ORDER BY 1;\\\"; Write-Output \\\"=== public tables in mainpuri ===\\\"; docker exec mainpuri-postgres psql -U mainpuri -d mainpuri -c \\\"SELECT COUNT(*) AS public_tables FROM information_schema.tables WHERE table_schema = 'public';\\\"; Write-Output \\\"=== migration table ===\\\"; docker exec mainpuri-postgres psql -U mainpuri -d mainpuri -c \\\"SELECT to_regclass('public._prisma_migrations') AS prisma_migrations;\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:32:03.441Z",
+      "lastAccessed": "2026-10-23T11:32:03.441Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:32:03.441Z"
+    },
+    "cmd-1792755150694": {
+      "key": "cmd-1792755150694",
+      "value": "{\"command\":\"Write-Output \\\"=== auth tests (no secrets printed) ===\\\"; node -e \\\"const {Client}=require('pg'); async function tryConn(label, cfg){ const c=new Client({...cfg, connectionTimeoutMillis:4000}); try { await c.connect(); const r=await c.query('select current_user as u, current_database() as d'); console.log(label+': OK user='+r.rows[0].u+' db='+r.rows[0].d); await c.end(); } catch(e){ console.log(label+': FAIL '+e.code+' '+(e.message||'').split('\\\\n')[0].replace(/password[=:][^\\\\s]*/gi,'')); try{await c.end()}catch{} } } (async()=>{ await tryConn('env-chhata', {host:'localhost', port:5433, user:'chhata', password:'chhata', database:'chhata'}); await tryConn('compose-mainpuri', {host:'localhost', port:5433, user:'mainpuri', password:'mainpuri', database:'mainpuri'}); await tryConn('127.0.0.1-mainpuri', {host:'127.0.0.1', port:5433, user:'mainpuri', password:'mainpuri', database:'mainpuri'}); })();\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:32:30.694Z",
+      "lastAccessed": "2026-10-23T11:32:30.694Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:32:30.694Z"
+    },
+    "cmd-1792755150802": {
+      "key": "cmd-1792755150802",
+      "value": "{\"command\":\"docker exec mainpuri-postgres psql -U mainpuri -d mainpuri -c \\\"SELECT migration_name, finished_at IS NOT NULL AS finished FROM _prisma_migrations ORDER BY finished_at NULLS LAST;\\\"; Write-Output \\\"=== row counts ===\\\"; docker exec mainpuri-postgres psql -U mainpuri -d mainpuri -c \\\"SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC LIMIT 15;\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:32:30.802Z",
+      "lastAccessed": "2026-10-23T11:32:30.802Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:32:30.802Z"
+    },
+    "cmd-1792755393755": {
+      "key": "cmd-1792755393755",
+      "value": "{\"command\":\"@'\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:36:33.755Z",
+      "lastAccessed": "2026-10-23T11:36:33.755Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:36:33.755Z"
+    },
+    "cmd-1792755409605": {
+      "key": "cmd-1792755409605",
+      "value": "{\"command\":\"docker compose up -d postgres\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:36:49.605Z",
+      "lastAccessed": "2026-10-23T11:36:49.605Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:36:49.605Z"
+    },
+    "cmd-1792755418630": {
+      "key": "cmd-1792755418630",
+      "value": "{\"command\":\"$deadline = (Get-Date).AddSeconds(40); do { Start-Sleep -Seconds 2; $status = docker inspect --format \\\"{{.State.Health.Status}}\\\" mainpuri-postgres 2>$null; Write-Output (\\\"health=\\\" + $status) } while ($status -ne \\\"healthy\\\" -and (Get-Date) -lt $deadline); if ($status -ne \\\"healthy\\\") { docker inspect --format \\\"{{json .State.Health}}\\\" mainpuri-postgres; exit 1 }\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:36:58.630Z",
+      "lastAccessed": "2026-10-23T11:36:58.630Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:36:58.630Z"
+    },
+    "cmd-1792755472532": {
+      "key": "cmd-1792755472532",
+      "value": "{\"command\":\"docker exec mainpuri-postgres psql -U chhata -d chhata -c \\\"SELECT current_user AS user_name, current_database() AS db_name, (SELECT COUNT(*) FROM _prisma_migrations) AS migrations, (SELECT COUNT(*) FROM ward) AS wards, (SELECT COUNT(*) FROM \\\"\\\"user\\\"\\\") AS users, (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public') AS public_tables;\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:37:52.532Z",
+      "lastAccessed": "2026-10-23T11:37:52.532Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:37:52.532Z"
+    },
+    "cmd-1792755490329": {
+      "key": "cmd-1792755490329",
+      "value": "{\"command\":\"if ($env:DATABASE_URL) { \\\"shell_DATABASE_URL=set\\\" } else { \\\"shell_DATABASE_URL=unset\\\" }; pnpm db:migrate\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:38:10.329Z",
+      "lastAccessed": "2026-10-23T11:38:10.329Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:38:10.329Z"
+    },
+    "cmd-1792755497641": {
+      "key": "cmd-1792755497641",
+      "value": "{\"command\":\"docker exec mainpuri-postgres psql -U chhata -d chhata -c \\\"SELECT COUNT(*) AS migrations FROM _prisma_migrations; SELECT COUNT(*) AS wards FROM ward; SELECT COUNT(*) AS users FROM \\\"\\\"user\\\"\\\";\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:38:17.641Z",
+      "lastAccessed": "2026-10-23T11:38:17.641Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:38:17.641Z"
+    },
+    "cmd-1792755505355": {
+      "key": "cmd-1792755505355",
+      "value": "{\"command\":\"pnpm --filter api exec prisma validate; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; pnpm --filter api exec prisma migrate status\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-23T11:38:25.355Z",
+      "lastAccessed": "2026-10-23T11:38:25.355Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-22T11:38:25.355Z"
     }
   },
   "version": "3.0.0"

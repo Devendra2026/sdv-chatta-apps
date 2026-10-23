@@ -19,6 +19,10 @@ export type CreatePaymentResult = {
 
 export type RequeryInput = {
   merchTxnId: string
+  /** Original payment amount. Atom's status signature uses the whole-rupee integer. */
+  amount: number
+  /** Payment creation time. Status API merchTxnDate is yyyy-MM-dd in Asia/Kolkata. */
+  merchTxnAt: Date
 }
 
 export type RequeryResult = {

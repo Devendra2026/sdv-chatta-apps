@@ -940,6 +940,8 @@ export class PaymentsService {
 
     const result = await this.provider.requery({
       merchTxnId: payment.merchTxnId,
+      amount: Number(payment.amount),
+      merchTxnAt: payment.createdAt,
     })
     await this.prisma.paymentTransaction.create({
       data: {
@@ -997,6 +999,8 @@ export class PaymentsService {
 
     const result = await this.provider.requery({
       merchTxnId: payment.merchTxnId,
+      amount: Number(payment.amount),
+      merchTxnAt: payment.createdAt,
     })
     await this.prisma.paymentTransaction.create({
       data: {

@@ -8,13 +8,15 @@ services:
       # Host 5432 is often taken by other local stacks (e.g. api-survey-local).
       - "5433:5432"
     environment:
-      POSTGRES_USER: mainpuri
-      POSTGRES_PASSWORD: mainpuri
-      POSTGRES_DB: mainpuri
+      POSTGRES_USER: chhata
+      POSTGRES_PASSWORD: chhata
+      POSTGRES_DB: chhata
     volumes:
+      # Keep this volume key. It already holds the local data directory.
+      # Renaming it would attach an empty volume and hide the existing records.
       - mainpuri_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U mainpuri -d mainpuri" ]
+      test: [ "CMD-SHELL", "pg_isready -U chhata -d chhata" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -57,7 +59,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "4000"
-      DATABASE_URL: postgresql://mainpuri:mainpuri@postgres:5432/mainpuri?schema=public
+      DATABASE_URL: postgresql://chhata:chhata@postgres:5432/chhata?schema=public
       REDIS_URL: redis://redis:6379
       STORAGE_DIR: /app/uploads
       CORS_ORIGIN: http://localhost:3000,http://localhost:3001
@@ -67,8 +69,9 @@ services:
       API_BUILD_ID: local
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-sikarwar2010@gmail.com}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-change-me-seed-admin-password}
-      # Omit PAYMENT_PROVIDER=sandbox: NODE_ENV=production rejects sandbox at startup.
-      # Auth/session validation does not need a live payment provider.
+      # NODE_ENV=production fail-fast also requires live Atom credentials
+      # (PAYMENT_PROVIDER=atom and the ATOM_* secrets). This profile stays
+      # unhealthy until those are present. Do not add dummy secrets here.
     depends_on:
       postgres:
         condition: service_healthy

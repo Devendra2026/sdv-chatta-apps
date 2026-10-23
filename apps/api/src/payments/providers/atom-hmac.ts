@@ -100,12 +100,69 @@ export function verifyAtomCallbackSignature(
     bankTxnId,
   ].join("")
 
-  const calculated = createHmac("sha512", key)
-    .update(signatureString)
-    .digest("hex")
-    .toLowerCase()
+  const calculated = hmacSha512Hex(key, signatureString).toLowerCase()
 
   return timingSafeHexEqual(calculated, received.toLowerCase())
+}
+
+function hmacSha512Hex(key: string, signatureString: string): string {
+  return createHmac("sha512", key).update(signatureString).digest("hex")
+}
+
+/**
+ * Transaction status signature: merchId + merchTxnId + integer amount + currency.
+ * Amount is the whole-rupee integer from the Atom signature guide.
+ */
+export function atomStatusSignature(input: {
+  merchId: string
+  merchTxnId: string
+  amount: number
+  txnCurrency?: string
+  reqHashKey: string
+}): string {
+  const key = input.reqHashKey.trim()
+  if (!key) {
+    throw new AtomCallbackParseError(
+      "MISSING_REQ_HASH_KEY",
+      "ATOM_REQ_HASH_KEY is required to sign Atom status requests"
+    )
+  }
+  const signatureString = [
+    input.merchId,
+    input.merchTxnId,
+    String(Math.floor(input.amount)),
+    input.txnCurrency ?? "INR",
+  ].join("")
+  return hmacSha512Hex(key, signatureString)
+}
+
+/**
+ * Refund signature: merchId + password + merchTxnId + integer amount + currency + REFUNDINIT.
+ */
+export function atomRefundSignature(input: {
+  merchId: string
+  password: string
+  merchTxnId: string
+  totalRefundAmount: number
+  txnCurrency?: string
+  reqHashKey: string
+}): string {
+  const key = input.reqHashKey.trim()
+  if (!key) {
+    throw new AtomCallbackParseError(
+      "MISSING_REQ_HASH_KEY",
+      "ATOM_REQ_HASH_KEY is required to sign Atom refund requests"
+    )
+  }
+  const signatureString = [
+    input.merchId,
+    input.password,
+    input.merchTxnId,
+    String(Math.floor(input.totalRefundAmount)),
+    input.txnCurrency ?? "INR",
+    "REFUNDINIT",
+  ].join("")
+  return hmacSha512Hex(key, signatureString)
 }
 
 export function assertAtomCallbackSignatureIfConfigured(

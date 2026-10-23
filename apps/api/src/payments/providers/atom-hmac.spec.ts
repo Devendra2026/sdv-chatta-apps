@@ -8,6 +8,8 @@ import {
 } from "./atom-ndps.provider"
 import {
   assertAtomCallbackSignatureIfConfigured,
+  atomRefundSignature,
+  atomStatusSignature,
   verifyAtomCallbackSignature,
 } from "./atom-hmac"
 
@@ -50,6 +52,37 @@ function officialSignatureHex() {
     .update(signatureString)
     .digest("hex")
 }
+
+describe("atom request signatures", () => {
+  const reqHashKey = "KEY123657234"
+
+  it("signs status as merchId + merchTxnId + integer amount + currency", () => {
+    expect(
+      atomStatusSignature({
+        merchId: "317157",
+        merchTxnId: "63d12a8782587dda",
+        amount: 1.9,
+        reqHashKey,
+      })
+    ).toBe(
+      "6b704f0931032fa58b9a693d226819d0227506deb24365c795e0c29653e287ca4b71ba461caac0dcb2eabafa19f2fc85f6c09e2fc12da4bfdc1f4c456ea02f6b"
+    )
+  })
+
+  it("matches the published refund signature vector", () => {
+    expect(
+      atomRefundSignature({
+        merchId: "317157",
+        password: "Test@123",
+        merchTxnId: "6545e02c9d835",
+        totalRefundAmount: 5,
+        reqHashKey,
+      })
+    ).toBe(
+      "a4df464724d1154cf2d33baf9b08cb6740637040e46d29034de472445b0df68af31de3c7089c0355bf0b5c887d568cd87b43a7b875ded9de8c9c946d4e57d40d"
+    )
+  })
+})
 
 describe("verifyAtomCallbackSignature", () => {
   it("accepts the official NTT DATA callback concatenation", () => {

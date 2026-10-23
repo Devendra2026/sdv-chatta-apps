@@ -4,6 +4,8 @@ import { isAtomRefundSuccess } from "../payments.safety"
 import { atomAesDecrypt, atomAesEncrypt } from "./atom-aes"
 import {
   assertAtomCallbackSignatureIfConfigured,
+  atomRefundSignature,
+  atomStatusSignature,
   AtomCallbackParseError,
 } from "./atom-hmac"
 import type {
@@ -155,6 +157,164 @@ function tryParseJson(text: string): unknown {
   }
 }
 
+function kolkataPart(now: Date, type: Intl.DateTimeFormatPartTypes): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now)
+  const value = parts.find((part) => part.type === type)?.value ?? "00"
+  return value === "24" ? "00" : value
+}
+
+/** Atom merchTxnDate: YYYY-MM-DD HH:mm:ss in Asia/Kolkata. */
+export function formatAtomMerchTxnDate(now = new Date()): string {
+  return `${kolkataPart(now, "year")}-${kolkataPart(now, "month")}-${kolkataPart(now, "day")} ${kolkataPart(now, "hour")}:${kolkataPart(now, "minute")}:${kolkataPart(now, "second")}`
+}
+
+/** Atom status merchTxnDate: yyyy-MM-dd in Asia/Kolkata. */
+export function formatAtomStatusDate(now = new Date()): string {
+  return formatAtomMerchTxnDate(now).slice(0, 10)
+}
+
+function wholeRupees(amount: number): number {
+  return Math.floor(amount)
+}
+
+export type AipayAuthConfig = {
+  merchId: string
+  password: string
+  product: string
+  subChannel: string
+}
+
+/** AIPay auth body. Amount is a number. custAccNo is omitted (TPV only). */
+export function buildAipayAuthPayload(
+  input: CreatePaymentInput,
+  config: AipayAuthConfig,
+  now = new Date()
+) {
+  const email =
+    input.customerEmail?.trim() ||
+    (input.customerMobile
+      ? `${input.customerMobile}@citizen.chhata.in`
+      : "citizen@nagar-panchayat-chhata.in")
+  const mobile = input.customerMobile?.trim() || ""
+  const subChannel = config.subChannel.trim()
+
+  return {
+    payInstrument: {
+      headDetails: {
+        version: "OTSv1.1",
+        api: "AUTH",
+        platform: "FLASH",
+      },
+      merchDetails: {
+        merchId: config.merchId,
+        userId: "",
+        password: config.password,
+        merchTxnId: input.merchTxnId,
+        merchTxnDate: formatAtomMerchTxnDate(now),
+      },
+      payDetails: {
+        amount: Number(input.amount.toFixed(2)),
+        product: config.product,
+        txnCurrency: "INR",
+      },
+      custDetails: {
+        custEmail: email,
+        custMobile: mobile,
+      },
+      extras: {
+        udf1: input.customerName ?? "",
+        udf2: "",
+        udf3: "",
+        udf4: "",
+        udf5: "",
+      },
+      ...(subChannel
+        ? { payModeSpecificData: { subChannel } }
+        : {}),
+    },
+  }
+}
+
+export function buildAtomStatusPayload(input: {
+  merchId: string
+  merchTxnId: string
+  amount: number
+  merchTxnDate: string
+  reqHashKey: string
+}) {
+  const amount = wholeRupees(input.amount)
+  return {
+    payInstrument: {
+      payDetails: {
+        amount,
+        signature: atomStatusSignature({
+          merchId: input.merchId,
+          merchTxnId: input.merchTxnId,
+          amount,
+          reqHashKey: input.reqHashKey,
+        }),
+        txnCurrency: "INR",
+      },
+      merchDetails: {
+        merchId: input.merchId,
+        merchTxnId: input.merchTxnId,
+        merchTxnDate: input.merchTxnDate,
+      },
+    },
+  }
+}
+
+export function buildAtomRefundPayload(input: {
+  merchId: string
+  password: string
+  merchTxnId: string
+  atomTxnId: string
+  amount: number
+  product: string
+  reqHashKey: string
+  prodRefundId: string
+}) {
+  const totalRefundAmount = wholeRupees(input.amount)
+  return {
+    payInstrument: {
+      headDetails: { api: "REFUNDINIT", source: "OTS" },
+      merchDetails: {
+        merchId: input.merchId,
+        password: input.password,
+        merchTxnId: input.merchTxnId,
+      },
+      payDetails: {
+        atomTxnId: input.atomTxnId,
+        signature: atomRefundSignature({
+          merchId: input.merchId,
+          password: input.password,
+          merchTxnId: input.merchTxnId,
+          totalRefundAmount,
+          reqHashKey: input.reqHashKey,
+        }),
+        prodDetails: [
+          {
+            prodName: input.product,
+            prodRefundId: input.prodRefundId,
+            prodRefundAmount: totalRefundAmount,
+          },
+        ],
+        txnCurrency: "INR",
+        totalRefundAmount,
+      },
+    },
+  }
+}
+
 /**
  * Atom NDPS / OTS Non-Seamless provider.
  * Crypto follows official AtomAES (PBKDF2); paths follow docs/payments/.
@@ -167,16 +327,12 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
   private merchId = process.env.ATOM_MERCH_ID ?? ""
   private password = process.env.ATOM_PASSWORD ?? ""
   private apiSecret = process.env.ATOM_API_SECRET_KEY ?? ""
-  private reqKey = process.env.ATOM_AES_REQUEST_KEY ?? ""
-  private reqSalt =
-    process.env.ATOM_AES_REQUEST_IV ?? process.env.ATOM_AES_REQUEST_KEY ?? ""
-  private resKey =
-    process.env.ATOM_AES_RESPONSE_KEY ?? process.env.ATOM_AES_REQUEST_KEY ?? ""
-  private resSalt =
-    process.env.ATOM_AES_RESPONSE_IV ??
-    process.env.ATOM_AES_RESPONSE_KEY ??
-    this.reqSalt
-  private product = process.env.ATOM_PRODUCT ?? "NSE"
+  private reqKey = process.env.ATOM_AES_REQUEST_KEY?.trim() ?? ""
+  private reqSalt = process.env.ATOM_AES_REQUEST_IV?.trim() ?? ""
+  private resKey = process.env.ATOM_AES_RESPONSE_KEY?.trim() ?? ""
+  private resSalt = process.env.ATOM_AES_RESPONSE_IV?.trim() ?? ""
+  private product = process.env.ATOM_PRODUCT?.trim() ?? ""
+  private subChannel = process.env.ATOM_SUB_CHANNEL?.trim() ?? ""
 
   private authHeader() {
     const token = Buffer.from(`${this.merchId}:${this.apiSecret}`).toString(
@@ -230,47 +386,22 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
     return raw
   }
 
-  async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
-    const email =
-      input.customerEmail?.trim() ||
-      (input.customerMobile
-        ? `${input.customerMobile}@citizen.chhata.in`
-        : "citizen@nagar-panchayat-chhata.in")
-    const mobile = input.customerMobile?.trim() || ""
-
-    const payInstrument = {
-      headDetails: {
-        version: "OTSv1.1",
-        api: "AUTH",
-        platform: "FLASH",
-      },
-      merchDetails: {
+  authRequestBody(input: CreatePaymentInput, now = new Date()) {
+    return buildAipayAuthPayload(
+      input,
+      {
         merchId: this.merchId,
-        userId: "",
         password: this.password,
-        merchTxnId: input.merchTxnId,
-        merchTxnDate: new Date().toISOString().slice(0, 19).replace("T", " "),
-      },
-      payDetails: {
-        amount: input.amount.toFixed(2),
         product: this.product,
-        custAccNo: "000000000000",
-        txnCurrency: "INR",
+        subChannel: this.subChannel,
       },
-      custDetails: {
-        custEmail: email,
-        custMobile: mobile,
-      },
-      extras: {
-        udf1: input.customerName ?? "",
-        udf2: "",
-        udf3: "",
-        udf4: "",
-        udf5: "",
-      },
-    }
+      now
+    )
+  }
 
-    const encData = this.encryptRequest(JSON.stringify({ payInstrument }))
+  async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
+    const body = this.authRequestBody(input)
+    const encData = this.encryptRequest(JSON.stringify(body))
 
     // AIPay auth — returns atomTokenId for atomcheckout.js (card / UPI / NB).
     const authUrl =
@@ -383,21 +514,31 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
     return pickString(root.atomTokenId, responseDetails?.atomTokenId)
   }
 
-  async requery(input: RequeryInput): Promise<RequeryResult> {
-    const payload = {
-      payInstrument: {
-        headDetails: {
-          version: "OTSv1.1",
-          api: "TXNVERIFICATION",
-          platform: "FLASH",
-        },
-        merchDetails: {
-          merchId: this.merchId,
-          password: this.password,
-          merchTxnId: input.merchTxnId,
-        },
-      },
+  private reqHashKey(): string {
+    const key = process.env.ATOM_REQ_HASH_KEY?.trim() ?? ""
+    if (!key) {
+      throw new AtomCallbackParseError(
+        "MISSING_REQ_HASH_KEY",
+        "ATOM_REQ_HASH_KEY is required to sign Atom status and refund requests"
+      )
     }
+    return key
+  }
+
+  private refundEndpoint(): string {
+    const configured = process.env.ATOM_REFUND_URL?.trim()
+    if (configured) return configured.replace(/\/+$/, "")
+    return `${this.baseUrl.replace(/\/$/, "")}/ots/payment/refund`
+  }
+
+  async requery(input: RequeryInput): Promise<RequeryResult> {
+    const payload = buildAtomStatusPayload({
+      merchId: this.merchId,
+      merchTxnId: input.merchTxnId,
+      amount: input.amount,
+      merchTxnDate: formatAtomStatusDate(input.merchTxnAt),
+      reqHashKey: this.reqHashKey(),
+    })
     const encData = this.encryptRequest(JSON.stringify(payload))
     const response = await fetch(`${this.baseUrl}/ots/v2/payment/status`, {
       method: "POST",
@@ -424,23 +565,18 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
   }
 
   async refund(input: RefundInput): Promise<RefundResult> {
-    const payload = {
-      payInstrument: {
-        headDetails: { version: "OTSv1.1", api: "REFUND", platform: "FLASH" },
-        merchDetails: {
-          merchId: this.merchId,
-          password: this.password,
-          merchTxnId: input.merchTxnId,
-        },
-        payDetails: {
-          atomTxnId: input.atomTxnId,
-          amount: input.amount.toFixed(2),
-          txnCurrency: "INR",
-        },
-      },
-    }
+    const payload = buildAtomRefundPayload({
+      merchId: this.merchId,
+      password: this.password,
+      merchTxnId: input.merchTxnId,
+      atomTxnId: input.atomTxnId,
+      amount: input.amount,
+      product: this.product,
+      reqHashKey: this.reqHashKey(),
+      prodRefundId: `RF-${input.merchTxnId}`.slice(0, 30),
+    })
     const encData = this.encryptRequest(JSON.stringify(payload))
-    const response = await fetch(`${this.baseUrl}/ots/payment/refund`, {
+    const response = await fetch(this.refundEndpoint(), {
       method: "POST",
       headers: {
         Authorization: this.authHeader(),
