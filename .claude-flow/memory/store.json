@@ -359,6 +359,159 @@
       "lastAccessed": "2026-10-23T11:38:25.355Z",
       "accessCount": 0,
       "expiresAt": "2026-11-22T11:38:25.355Z"
+    },
+    "cmd-1792821154970": {
+      "key": "cmd-1792821154970",
+      "value": "{\"command\":\"pnpm --filter api exec jest src/health/verify-critical-routes.spec.ts src/health/health-v1.routing.spec.ts --runInBand\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T05:52:34.970Z",
+      "lastAccessed": "2026-10-24T05:52:34.970Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T05:52:34.970Z"
+    },
+    "cmd-1792821199061": {
+      "key": "cmd-1792821199061",
+      "value": "{\"command\":\"pnpm --filter api build\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T05:53:19.061Z",
+      "lastAccessed": "2026-10-24T05:53:19.061Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T05:53:19.061Z"
+    },
+    "cmd-1792821301127": {
+      "key": "cmd-1792821301127",
+      "value": "{\"command\":\"New-Item -ItemType Directory -Force -Path tmp | Out-Null; pnpm docker:prod:config > tmp/compose-config.out 2>&1; if ($LASTEXITCODE -ne 0) { Write-Output \\\"CONFIG_FAIL exit=$LASTEXITCODE\\\"; Get-Content tmp/compose-config.out -Tail 40 } else { Write-Output \\\"CONFIG_OK\\\"; Select-String -Path tmp/compose-config.out -Pattern \\\"chhata-api|dockerfile:|condition:\\\" | ForEach-Object { $_.Line.Trim() } }\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T05:55:01.127Z",
+      "lastAccessed": "2026-10-24T05:55:01.127Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T05:55:01.127Z"
+    },
+    "cmd-1792821321356": {
+      "key": "cmd-1792821321356",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml -p chhata-api-healthcheck --env-file .env up -d --build\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T05:55:21.356Z",
+      "lastAccessed": "2026-10-24T05:55:21.356Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T05:55:21.356Z"
+    },
+    "cmd-1792821331738": {
+      "key": "cmd-1792821331738",
+      "value": "{\"command\":\"Get-Command docker | Format-List; @(\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T05:55:31.738Z",
+      "lastAccessed": "2026-10-24T05:55:31.738Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T05:55:31.738Z"
+    },
+    "cmd-1792821347093": {
+      "key": "cmd-1792821347093",
+      "value": "{\"command\":\"Start-Process \\\"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\\\"; $deadline = (Get-Date).AddMinutes(4); do { Start-Sleep -Seconds 5; docker info --format \\\"{{.ServerVersion}}\\\" 2>$null; if ($LASTEXITCODE -eq 0) { Write-Output \\\"DOCKER_READY\\\"; exit 0 } } while ((Get-Date) -lt $deadline); Write-Output \\\"DOCKER_NOT_READY\\\"; exit 1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T05:55:47.093Z",
+      "lastAccessed": "2026-10-24T05:55:47.093Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T05:55:47.093Z"
+    },
+    "cmd-1792821353322": {
+      "key": "cmd-1792821353322",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml -p chhata-api-healthcheck --env-file .env up -d --build\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T05:55:53.322Z",
+      "lastAccessed": "2026-10-24T05:55:53.322Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T05:55:53.322Z"
+    },
+    "cmd-1792821535745": {
+      "key": "cmd-1792821535745",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml -p chhata-api-healthcheck ps --format \\\"table {{.Service}}\\\\t{{.Status}}\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T05:58:55.745Z",
+      "lastAccessed": "2026-10-24T05:58:55.745Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T05:58:55.745Z"
+    },
+    "cmd-1792821561934": {
+      "key": "cmd-1792821561934",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml -p chhata-api-healthcheck --env-file .env restart api\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T05:59:21.934Z",
+      "lastAccessed": "2026-10-24T05:59:21.934Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T05:59:21.934Z"
+    },
+    "cmd-1792821593492": {
+      "key": "cmd-1792821593492",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml -p chhata-api-healthcheck exec -T api node -e \\\"const p=require('./package.json'); const dev=p.devDependencies?Object.keys(p.devDependencies):[]; console.log('hasDevKey', Boolean(p.devDependencies)); console.log('devCount', dev.length); console.log('listsSupertest', dev.includes('supertest')); try { console.log('resolved', require.resolve('supertest')); } catch (e) { console.log('resolveError', e.code); }\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T05:59:53.492Z",
+      "lastAccessed": "2026-10-24T05:59:53.492Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T05:59:53.492Z"
+    },
+    "cmd-1792821624577": {
+      "key": "cmd-1792821624577",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml -p chhata-api-healthcheck exec -T api node -e \\\"const p=require.resolve('supertest'); console.log(p); const fs=require('fs'); const path=require('path'); const dir=path.dirname(p); const files=fs.readdirSync(dir); console.log(files.join(','));\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:00:24.577Z",
+      "lastAccessed": "2026-10-24T06:00:24.577Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:00:24.577Z"
+    },
+    "cmd-1792821630063": {
+      "key": "cmd-1792821630063",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml -p chhata-api-healthcheck exec -T api sh -c \\\"grep -n -E 'listen|address|Server' /app/node_modules/.pnpm/supertest@7.2.2_supports-color@8.1.1/node_modules/supertest/lib/*.js | head -n 80\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:00:30.063Z",
+      "lastAccessed": "2026-10-24T06:00:30.063Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:00:30.063Z"
+    },
+    "cmd-1792821637490": {
+      "key": "cmd-1792821637490",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml -p chhata-api-healthcheck exec -T api sh -c \\\"sed -n '50,160p' /app/node_modules/.pnpm/supertest@7.2.2_supports-color@8.1.1/node_modules/supertest/lib/test.js\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:00:37.490Z",
+      "lastAccessed": "2026-10-24T06:00:37.490Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:00:37.490Z"
+    },
+    "cmd-1792821668482": {
+      "key": "cmd-1792821668482",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml -p chhata-api-healthcheck exec -T api node -e \\\"const http=require('http'); const request=require('supertest'); const server=http.createServer((req,res)=>{res.statusCode=200; res.end('ok')}); request(server).get('/').then((res)=>{console.log('status', res.status, 'listening', server.listening); server.close();}).catch((e)=>{console.log('THREW', e && e.message);})\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:01:08.482Z",
+      "lastAccessed": "2026-10-24T06:01:08.482Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:01:08.482Z"
+    },
+    "cmd-1792821691101": {
+      "key": "cmd-1792821691101",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml -p chhata-api-healthcheck --env-file .env down\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:01:31.101Z",
+      "lastAccessed": "2026-10-24T06:01:31.101Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:01:31.101Z"
+    },
+    "cmd-1792821700480": {
+      "key": "cmd-1792821700480",
+      "value": "{\"command\":\"docker volume ls --filter name=chhata-api-healthcheck --format \\\"{{.Name}}\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:01:40.480Z",
+      "lastAccessed": "2026-10-24T06:01:40.480Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:01:40.480Z"
+    },
+    "cmd-1792821709737": {
+      "key": "cmd-1792821709737",
+      "value": "{\"command\":\"git diff -- .env.production.example\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:01:49.737Z",
+      "lastAccessed": "2026-10-24T06:01:49.737Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:01:49.737Z"
     }
   },
   "version": "3.0.0"
