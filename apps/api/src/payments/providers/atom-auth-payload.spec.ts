@@ -1,4 +1,4 @@
-import { atomAesEncrypt } from "./atom-aes"
+import { atomAesDecrypt, atomAesEncrypt } from "./atom-aes"
 import {
   AtomNdpsProvider,
   buildAipayAuthPayload,
@@ -59,6 +59,13 @@ describe("AtomNdpsProvider auth config", () => {
     "ATOM_AES_REQUEST_IV",
     "ATOM_AES_RESPONSE_KEY",
     "ATOM_AES_RESPONSE_IV",
+    "ATOM_API_SECRET_KEY",
+    "ATOM_REFUND_URL",
+    "ATOM_REQ_HASH_KEY",
+    "ProductID",
+    "PAYMENT_PROVIDER",
+    "NODE_ENV",
+    "ATOM_AUTH_URL",
   ] as const
   const saved: Record<string, string | undefined> = {}
 
@@ -72,6 +79,8 @@ describe("AtomNdpsProvider auth config", () => {
     delete process.env.ATOM_AES_REQUEST_IV
     delete process.env.ATOM_AES_RESPONSE_KEY
     delete process.env.ATOM_AES_RESPONSE_IV
+    delete process.env.ATOM_API_SECRET_KEY
+    delete process.env.ProductID
   })
 
   afterEach(() => {
@@ -83,9 +92,117 @@ describe("AtomNdpsProvider auth config", () => {
 
   it("does not default the product to NSE", () => {
     delete process.env.ATOM_PRODUCT
+    delete process.env.ProductID
     const provider = new AtomNdpsProvider()
     const body = provider.authRequestBody(paymentInput, NOW)
     expect(body.payInstrument.payDetails.product).toBe("")
+  })
+
+  it("sends ProductID when it is set, including when ATOM_PRODUCT is NSE", () => {
+    process.env.ATOM_PRODUCT = "NSE"
+    process.env.ProductID = "NAGAR"
+    const provider = new AtomNdpsProvider()
+    const body = provider.authRequestBody(paymentInput, NOW)
+    expect(body.payInstrument.payDetails.product).toBe("NAGAR")
+  })
+
+  it("uses UPI subchannel UP in production when it is unset", () => {
+    process.env.NODE_ENV = "production"
+    process.env.PAYMENT_PROVIDER = "atom"
+    delete process.env.ATOM_SUB_CHANNEL
+    const provider = new AtomNdpsProvider()
+    const body = provider.authRequestBody(paymentInput, NOW)
+    expect(body.payInstrument.payModeSpecificData).toEqual({ subChannel: "UP" })
+  })
+
+  it("encrypts the auth request with the request IV as PBKDF2 key and salt", async () => {
+    const reqIv = "A4476C2062FFA58980DC8F79EB6A799E"
+    process.env.ATOM_AES_REQUEST_IV = reqIv
+    process.env.ATOM_AES_RESPONSE_IV = reqIv
+    delete process.env.ATOM_AES_REQUEST_KEY
+    process.env.ATOM_AUTH_URL = "https://payment1.atomtech.in/ots/aipay/auth"
+    const provider = new AtomNdpsProvider()
+    const fetchMock = jest.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      text: async () => "",
+    } as Response)
+    try {
+      await provider.createPayment(paymentInput)
+      const call = fetchMock.mock.calls.find((args) =>
+        String(args[0]).includes("payment1.atomtech.in")
+      )
+      const init = call?.[1] as RequestInit
+      const params = new URLSearchParams(String(init.body))
+      const plain = atomAesDecrypt(params.get("encData") ?? "", reqIv, reqIv)
+      expect(JSON.parse(plain).payInstrument.merchDetails.password).toBe(
+        "txn-pass"
+      )
+      expect(String(init.body)).not.toContain(reqIv)
+      expect(String(init.body)).not.toContain("txn-pass")
+    } finally {
+      fetchMock.mockRestore()
+    }
+  })
+
+  it("posts refunds to the configured refund URL signed with the request hash key", async () => {
+    const reqIv = "A4476C2062FFA58980DC8F79EB6A799E"
+    const resIv = "75AEF0FA1B94B3C10D4F5B268F757F11"
+    process.env.ATOM_AES_REQUEST_IV = reqIv
+    process.env.ATOM_AES_RESPONSE_IV = resIv
+    delete process.env.ATOM_AES_REQUEST_KEY
+    delete process.env.ATOM_AES_RESPONSE_KEY
+    delete process.env.ATOM_API_SECRET_KEY
+    process.env.ATOM_REFUND_URL =
+      "https://payment.atomtech.in/ots/payment/refund"
+    process.env.ATOM_REQ_HASH_KEY = "KEY123657234"
+    process.env.ATOM_PASSWORD = "Test@123"
+    process.env.ATOM_MERCH_ID = "317157"
+    process.env.ATOM_PRODUCT = "NAGAR"
+    delete process.env.ProductID
+    const responsePlain = JSON.stringify({
+      payInstrument: {
+        responseDetails: { statusCode: "OTS0000", message: "SUCCESS" },
+        payDetails: { atomTxnId: 11000000460337 },
+      },
+    })
+    const responseEnc = atomAesEncrypt(responsePlain, resIv, resIv)
+    const fetchMock = jest.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      text: async () => `merchId=317157&encData=${responseEnc}`,
+    } as Response)
+    try {
+      const provider = new AtomNdpsProvider()
+      const result = await provider.refund({
+        merchTxnId: "6545e02c9d835",
+        atomTxnId: "11000000460337",
+        amount: 5,
+      })
+      expect(result.success).toBe(true)
+      const call = fetchMock.mock.calls.find((args) =>
+        String(args[0]).includes("payment.atomtech.in")
+      )
+      expect(call?.[0]).toBe("https://payment.atomtech.in/ots/payment/refund")
+      const init = call?.[1] as RequestInit
+      const headers = init.headers as Record<string, string>
+      expect(headers["Content-Type"]).toBe("application/x-www-form-urlencoded")
+      expect(headers.Authorization).toBeUndefined()
+      const params = new URLSearchParams(String(init.body))
+      const plain = atomAesDecrypt(params.get("encData") ?? "", reqIv, reqIv)
+      const parsed = JSON.parse(plain) as {
+        payInstrument: {
+          payDetails: { signature: string }
+          merchDetails: { password: string }
+        }
+      }
+      expect(parsed.payInstrument.payDetails.signature).toBe(
+        "a4df464724d1154cf2d33baf9b08cb6740637040e46d29034de472445b0df68af31de3c7089c0355bf0b5c887d568cd87b43a7b875ded9de8c9c946d4e57d40d"
+      )
+      expect(parsed.payInstrument.merchDetails.password).toBe("Test@123")
+      expect(String(init.body)).not.toContain("KEY123657234")
+      expect(String(init.body)).not.toContain("Test@123")
+    } finally {
+      fetchMock.mockRestore()
+    }
   })
 
   it("does not decrypt with the request key when the response salt is missing", () => {

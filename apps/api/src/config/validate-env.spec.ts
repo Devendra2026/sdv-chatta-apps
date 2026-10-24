@@ -94,7 +94,8 @@ describe("assertRequiredEnv", () => {
   })
 
   it("requires Atom merchant and AES secrets in production", () => {
-    expect(() =>
+    let thrown = ""
+    try {
       assertRequiredEnv({
         env: {
           ...baseProdEnv,
@@ -104,7 +105,107 @@ describe("assertRequiredEnv", () => {
         },
         includeSeedAdmin: true,
       })
-    ).toThrow(/ATOM_MERCH_ID/)
+    } catch (error) {
+      thrown = error instanceof Error ? error.message : String(error)
+    }
+    expect(thrown).toMatch(/ATOM_MERCH_ID/)
+    expect(thrown).toMatch(/ATOM_PASSWORD/)
+    expect(thrown).not.toMatch(/ATOM_API_SECRET_KEY is required/)
+  })
+
+  it("accepts canonical Atom names without a separate API secret or AES key", () => {
+    const env: NodeJS.ProcessEnv = {
+      ...baseProdEnv,
+      ATOM_API_SECRET_KEY: undefined,
+      ATOM_AES_REQUEST_KEY: undefined,
+      ATOM_AES_RESPONSE_KEY: undefined,
+      ATOM_AES_REQUEST_IV: "A".repeat(32),
+      ATOM_AES_RESPONSE_IV: "B".repeat(32),
+      ATOM_SUB_CHANNEL: undefined,
+      ATOM_REFUND_URL: undefined,
+      ATOM_PRODUCT: "NSE",
+      ProductID: "NAGAR",
+    }
+    expect(() =>
+      assertRequiredEnv({ env, includeSeedAdmin: true })
+    ).not.toThrow()
+    expect(env.ATOM_SUB_CHANNEL).toBe("UP")
+    expect(env.ATOM_REFUND_URL).toBe(
+      "https://payment.atomtech.in/ots/payment/refund"
+    )
+    expect(JSON.stringify(env.ATOM_PASSWORD)).not.toMatch(/api-secret/)
+  })
+
+  it("still fails when password or request encryption material is missing", () => {
+    let thrown = ""
+    try {
+      assertRequiredEnv({
+        env: {
+          ...baseProdEnv,
+          ATOM_PASSWORD: " ",
+          ATOM_AES_REQUEST_KEY: undefined,
+          ATOM_AES_REQUEST_IV: "",
+          ATOM_API_SECRET_KEY: undefined,
+        },
+      })
+    } catch (error) {
+      thrown = error instanceof Error ? error.message : String(error)
+    }
+    expect(thrown).toMatch(/ATOM_PASSWORD is required/)
+    expect(thrown).toMatch(/ATOM_AES_REQUEST_IV is required/)
+    expect(thrown).not.toMatch(/ATOM_AES_REQUEST_KEY is required/)
+    expect(thrown).not.toMatch(/ATOM_API_SECRET_KEY is required/)
+    expect(thrown).not.toContain("txn-pass")
+  })
+
+  it("rejects a refund URL on the auth host", () => {
+    expect(() =>
+      assertRequiredEnv({
+        env: {
+          ...baseProdEnv,
+          ATOM_REFUND_URL: "https://payment1.atomtech.in/ots/payment/refund",
+        },
+      })
+    ).toThrow(/ATOM_REFUND_URL must be https:\/\/payment\.atomtech\.in/)
+  })
+
+  it("does not apply Atom credential checks when the provider is not atom", () => {
+    let thrown = ""
+    try {
+      assertRequiredEnv({
+        env: {
+          NODE_ENV: "production",
+          DATABASE_URL: baseProdEnv.DATABASE_URL,
+          REDIS_URL: baseProdEnv.REDIS_URL,
+          SESSION_SECRET: baseProdEnv.SESSION_SECRET,
+          PUBLIC_APP_URL: baseProdEnv.PUBLIC_APP_URL,
+          PUBLIC_WEB_URL: baseProdEnv.PUBLIC_WEB_URL,
+          CORS_ORIGIN: baseProdEnv.CORS_ORIGIN,
+          STORAGE_DIR: baseProdEnv.STORAGE_DIR,
+          PAYMENT_PROVIDER: "sandbox",
+        },
+      })
+    } catch (error) {
+      thrown = error instanceof Error ? error.message : String(error)
+    }
+    expect(thrown).toMatch(/PAYMENT_PROVIDER must not be sandbox/)
+    expect(thrown).not.toMatch(/ATOM_API_SECRET_KEY/)
+    expect(thrown).not.toMatch(/ATOM_AES_/)
+    expect(thrown).not.toMatch(/ATOM_SUB_CHANNEL/)
+  })
+
+  it("does not require Atom settings outside production", () => {
+    expect(() =>
+      assertRequiredEnv({
+        env: {
+          NODE_ENV: "test",
+          DATABASE_URL: "postgresql://u:p@localhost:5433/chhata",
+          REDIS_URL: "redis://localhost:6380",
+          SESSION_SECRET: "x".repeat(32),
+          PAYMENT_PROVIDER: "sandbox",
+        },
+      })
+    ).not.toThrow()
   })
 
   it("requires ATOM_RETURN_URL and ATOM_CALLBACK_URL in production", () => {

@@ -512,6 +512,87 @@
       "lastAccessed": "2026-10-24T06:01:49.737Z",
       "accessCount": 0,
       "expiresAt": "2026-11-23T06:01:49.737Z"
+    },
+    "cmd-1792822868380": {
+      "key": "cmd-1792822868380",
+      "value": "{\"command\":\"pnpm exec tsx -e \\\"import { assertRequiredEnv } from './src/config/validate-env.ts'; const aes = 'A'.repeat(32); const env = { NODE_ENV: 'production', DATABASE_URL: 'postgresql://u:[redacted]@postgres:5432/chhata', REDIS_URL: 'redis://:s@redis:6379', SESSION_SECRET: 'x'.repeat(32), PUBLIC_APP_URL: 'https://portal.example.com', PUBLIC_WEB_URL: 'https://www.example.com', CORS_ORIGIN: 'https://portal.example.com,https://www.example.com', STORAGE_DIR: '/app/uploads', PAYMENT_PROVIDER: 'atom', ATOM_BASE_URL: 'https://payment1.atomtech.in', ATOM_AUTH_URL: 'https://payment1.atomtech.in/ots/aipay/auth', ATOM_CHECKOUT_CDN: 'https://psa.atomtech.in/staticdata/ots/js/atomcheckout.js', ATOM_CHECKOUT_ENV: 'prod', ATOM_MERCH_ID: '858781', ATOM_PASSWORD: 'placeholder-password', ATOM_AES_REQUEST_IV: aes, ATOM_AES_RESPONSE_IV: 'B'.repeat(32), ATOM_REQ_HASH_KEY: 'req-hash', ATOM_RESP_HASH_KEY: 'resp-hash', ATOM_PRODUCT: 'NSE', ProductID: 'NAGAR', ATOM_RETURN_URL: 'https://www.example.com/propertytax/payment/return', ATOM_CALLBACK_URL: 'https://www.example.com/api/v1/payments/gateway/callback' }; try { assertRequiredEnv({ env }); console.log('PASS'); } catch (e) { const msg = e instanceof Error ? e.message : String(e); console.log(msg); }\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:21:08.380Z",
+      "lastAccessed": "2026-10-24T06:21:08.380Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:21:08.380Z"
+    },
+    "cmd-1792823250322": {
+      "key": "cmd-1792823250322",
+      "value": "{\"command\":\"pnpm exec jest --runInBand src/config/validate-env.spec.ts src/config/atom-env.ts src/payments/providers/atom-auth-payload.spec.ts src/payments/providers/atom-hmac.spec.ts src/payments/atom-aes.spec.ts --no-coverage\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:27:30.322Z",
+      "lastAccessed": "2026-10-24T06:27:30.322Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:27:30.322Z"
+    },
+    "cmd-1792823259670": {
+      "key": "cmd-1792823259670",
+      "value": "{\"command\":\"pnpm exec tsx -e \\\"import { assertRequiredEnv } from './src/config/validate-env.ts'; const aes = 'A'.repeat(32); const env = { NODE_ENV: 'production', DATABASE_URL: 'postgresql://u:[redacted]@postgres:5432/chhata', REDIS_URL: 'redis://:s@redis:6379', SESSION_SECRET: 'x'.repeat(32), PUBLIC_APP_URL: 'https://portal.example.com', PUBLIC_WEB_URL: 'https://www.example.com', CORS_ORIGIN: 'https://portal.example.com,https://www.example.com', STORAGE_DIR: '/app/uploads', PAYMENT_PROVIDER: 'atom', ATOM_BASE_URL: 'https://payment1.atomtech.in', ATOM_AUTH_URL: 'https://payment1.atomtech.in/ots/aipay/auth', ATOM_CHECKOUT_CDN: 'https://psa.atomtech.in/staticdata/ots/js/atomcheckout.js', ATOM_CHECKOUT_ENV: 'prod', ATOM_MERCH_ID: '858781', ATOM_PASSWORD: 'placeholder-password', ATOM_AES_REQUEST_IV: aes, ATOM_AES_RESPONSE_IV: 'B'.repeat(32), ATOM_REQ_HASH_KEY: 'req-hash', ATOM_RESP_HASH_KEY: 'resp-hash', ATOM_PRODUCT: 'NSE', ProductID: 'NAGAR', ATOM_RETURN_URL: 'https://www.example.com/propertytax/payment/return', ATOM_CALLBACK_URL: 'https://www.example.com/api/v1/payments/gateway/callback' }; try { assertRequiredEnv({ env }); console.log('PASS sub=' + env.ATOM_SUB_CHANNEL + ' refund=' + env.ATOM_REFUND_URL); } catch (e) { console.log(e instanceof Error ? e.message : String(e)); }\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:27:39.670Z",
+      "lastAccessed": "2026-10-24T06:27:39.670Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:27:39.670Z"
+    },
+    "cmd-1792823364579": {
+      "key": "cmd-1792823364579",
+      "value": "{\"command\":\"pnpm exec eslint src/config/validate-env.ts src/config/atom-env.ts src/config/validate-env.spec.ts src/payments/providers/atom-ndps.provider.ts src/payments/providers/atom-auth-payload.spec.ts --max-warnings 0\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:29:24.579Z",
+      "lastAccessed": "2026-10-24T06:29:24.579Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:29:24.579Z"
+    },
+    "cmd-1792823367747": {
+      "key": "cmd-1792823367747",
+      "value": "{\"command\":\"pnpm exec tsc --noEmit -p tsconfig.build.json\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:29:27.747Z",
+      "lastAccessed": "2026-10-24T06:29:27.747Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:29:27.747Z"
+    },
+    "cmd-1792823385081": {
+      "key": "cmd-1792823385081",
+      "value": "{\"command\":\"pnpm --filter api lint\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:29:45.081Z",
+      "lastAccessed": "2026-10-24T06:29:45.081Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:29:45.081Z"
+    },
+    "cmd-1792823390030": {
+      "key": "cmd-1792823390030",
+      "value": "{\"command\":\"pnpm --filter api build\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:29:50.030Z",
+      "lastAccessed": "2026-10-24T06:29:50.030Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:29:50.030Z"
+    },
+    "cmd-1792823443381": {
+      "key": "cmd-1792823443381",
+      "value": "{\"command\":\"pnpm exec jest --runInBand src/payments src/config --no-coverage\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:30:43.381Z",
+      "lastAccessed": "2026-10-24T06:30:43.381Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:30:43.381Z"
+    },
+    "cmd-1792823786727": {
+      "key": "cmd-1792823786727",
+      "value": "{\"command\":\"pnpm exec jest --runInBand src/config/validate-env.spec.ts src/payments/providers/atom-auth-payload.spec.ts --no-coverage\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-24T06:36:26.727Z",
+      "lastAccessed": "2026-10-24T06:36:26.727Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-23T06:36:26.727Z"
     }
   },
   "version": "3.0.0"

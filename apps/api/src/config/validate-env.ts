@@ -1,4 +1,12 @@
 import { resolveSeedAdminConfig } from "../db/seed-admin-config"
+import {
+  atomAesMaterialErrors,
+  PROD_ATOM_REFUND_URL,
+  PROD_ATOM_SUB_CHANNEL,
+  resolveAtomProduct,
+  resolveAtomRefundUrl,
+  resolveAtomSubChannel,
+} from "./atom-env"
 
 export type ValidateEnvOptions = {
   /** Validate Super Admin seed credentials (container startup / seed-cli). */
@@ -10,21 +18,11 @@ function isProduction(env: NodeJS.ProcessEnv): boolean {
   return env.NODE_ENV === "production"
 }
 
-const AES_KEY_ENV = [
-  "ATOM_AES_REQUEST_KEY",
-  "ATOM_AES_REQUEST_IV",
-  "ATOM_AES_RESPONSE_KEY",
-  "ATOM_AES_RESPONSE_IV",
-] as const
-
-const AES_HEX_32 = /^[0-9A-Fa-f]{32}$/
-
 /** Public Atom production endpoints. Not secrets. */
 const PROD_ATOM_BASE_URL = "https://payment1.atomtech.in"
 const PROD_ATOM_AUTH_URL = "https://payment1.atomtech.in/ots/aipay/auth"
 const PROD_ATOM_CHECKOUT_CDN =
   "https://psa.atomtech.in/staticdata/ots/js/atomcheckout.js"
-const PROD_ATOM_REFUND_URL = "https://payment.atomtech.in/ots/payment/refund"
 
 const CALLBACK_PATH = "/api/v1/payments/gateway/callback"
 const GATEWAY_RETURN_PATH = "/api/v1/payments/gateway/return"
@@ -154,11 +152,8 @@ function collectProductionErrors(env: NodeJS.ProcessEnv): string[] {
     const requiredAtomSecrets = [
       "ATOM_MERCH_ID",
       "ATOM_PASSWORD",
-      "ATOM_API_SECRET_KEY",
       "ATOM_REQ_HASH_KEY",
       "ATOM_RESP_HASH_KEY",
-      "ATOM_PRODUCT",
-      ...AES_KEY_ENV,
     ] as const
     for (const key of requiredAtomSecrets) {
       if (!env[key]?.trim()) {
@@ -176,23 +171,37 @@ function collectProductionErrors(env: NodeJS.ProcessEnv): string[] {
     if (password && password.length > 80) {
       errors.push("ATOM_PASSWORD must be at most 80 characters")
     }
-    const product = env.ATOM_PRODUCT?.trim()
-    if (product && product.length > 50) {
+    const product = resolveAtomProduct(env)
+    if (!product) {
+      errors.push(
+        "ATOM_PRODUCT or ProductID is required in production when using Atom AIPay"
+      )
+    } else if (product.length > 50) {
       errors.push("ATOM_PRODUCT must be at most 50 characters")
     }
 
-    for (const key of AES_KEY_ENV) {
-      const value = env[key]?.trim()
-      if (value && !AES_HEX_32.test(value)) {
-        errors.push(`${key} must be 32 hexadecimal characters`)
-      }
-    }
+    const requestAes = atomAesMaterialErrors(
+      "ATOM_AES_REQUEST_KEY",
+      "ATOM_AES_REQUEST_IV",
+      env.ATOM_AES_REQUEST_KEY,
+      env.ATOM_AES_REQUEST_IV
+    )
+    const responseAes = atomAesMaterialErrors(
+      "ATOM_AES_RESPONSE_KEY",
+      "ATOM_AES_RESPONSE_IV",
+      env.ATOM_AES_RESPONSE_KEY,
+      env.ATOM_AES_RESPONSE_IV
+    )
+    errors.push(...requestAes.errors, ...responseAes.errors)
 
-    if (env.ATOM_SUB_CHANNEL?.trim() !== "UP") {
+    const subChannel = resolveAtomSubChannel(env)
+    env.ATOM_SUB_CHANNEL = subChannel
+    if (subChannel !== PROD_ATOM_SUB_CHANNEL) {
       errors.push(
         "ATOM_SUB_CHANNEL must be UP in production (UPI-only checkout)"
       )
     }
+    env.ATOM_REFUND_URL = resolveAtomRefundUrl(env, env.ATOM_BASE_URL ?? "")
     if (env.ATOM_CHECKOUT_ENV?.trim().toLowerCase() !== "prod") {
       errors.push("ATOM_CHECKOUT_ENV must be prod in production")
     } else {

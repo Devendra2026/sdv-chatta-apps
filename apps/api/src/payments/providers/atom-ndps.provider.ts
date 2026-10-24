@@ -1,12 +1,18 @@
 import { createHash } from "node:crypto"
 
+import {
+  resolveAtomAesPair,
+  resolveAtomProduct,
+  resolveAtomRefundUrl,
+  resolveAtomSubChannel,
+} from "../../config/atom-env"
 import { isAtomRefundSuccess } from "../payments.safety"
 import { atomAesDecrypt, atomAesEncrypt } from "./atom-aes"
 import {
   assertAtomCallbackSignatureIfConfigured,
+  AtomCallbackParseError,
   atomRefundSignature,
   atomStatusSignature,
-  AtomCallbackParseError,
 } from "./atom-hmac"
 import type {
   CreatePaymentInput,
@@ -237,9 +243,7 @@ export function buildAipayAuthPayload(
         udf4: "",
         udf5: "",
       },
-      ...(subChannel
-        ? { payModeSpecificData: { subChannel } }
-        : {}),
+      ...(subChannel ? { payModeSpecificData: { subChannel } } : {}),
     },
   }
 }
@@ -326,27 +330,46 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
     process.env.ATOM_BASE_URL ?? "https://paynetzuat.atomtech.in"
   private merchId = process.env.ATOM_MERCH_ID ?? ""
   private password = process.env.ATOM_PASSWORD ?? ""
-  private apiSecret = process.env.ATOM_API_SECRET_KEY ?? ""
-  private reqKey = process.env.ATOM_AES_REQUEST_KEY?.trim() ?? ""
-  private reqSalt = process.env.ATOM_AES_REQUEST_IV?.trim() ?? ""
-  private resKey = process.env.ATOM_AES_RESPONSE_KEY?.trim() ?? ""
-  private resSalt = process.env.ATOM_AES_RESPONSE_IV?.trim() ?? ""
-  private product = process.env.ATOM_PRODUCT?.trim() ?? ""
-  private subChannel = process.env.ATOM_SUB_CHANNEL?.trim() ?? ""
-
-  private authHeader() {
-    const token = Buffer.from(`${this.merchId}:${this.apiSecret}`).toString(
-      "base64"
-    )
-    return `Bearer ${token}`
-  }
+  private reqAes = resolveAtomAesPair(
+    process.env.ATOM_AES_REQUEST_KEY,
+    process.env.ATOM_AES_REQUEST_IV
+  )
+  private resAes = resolveAtomAesPair(
+    process.env.ATOM_AES_RESPONSE_KEY,
+    process.env.ATOM_AES_RESPONSE_IV
+  )
+  private product = resolveAtomProduct(process.env)
+  private subChannel = resolveAtomSubChannel(process.env)
 
   private encryptRequest(plain: string) {
-    return atomAesEncrypt(plain, this.reqKey, this.reqSalt)
+    return atomAesEncrypt(plain, this.reqAes.key, this.reqAes.salt)
   }
 
   private decryptResponse(encHex: string) {
-    return atomAesDecrypt(encHex, this.resKey, this.resSalt)
+    return atomAesDecrypt(encHex, this.resAes.key, this.resAes.salt)
+  }
+
+  /**
+   * Auth, status, and refund share the kit body: merchId + encData.
+   * A Bearer token is sent only when ATOM_API_SECRET_KEY is set. This
+   * protocol does not use that secret; the password and hash keys do.
+   */
+  private async postEncrypted(url: string, encData: string): Promise<Response> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/x-www-form-urlencoded",
+    }
+    const apiSecret = process.env.ATOM_API_SECRET_KEY?.trim()
+    if (apiSecret) {
+      headers.Authorization = `Bearer ${Buffer.from(`${this.merchId}:${apiSecret}`).toString("base64")}`
+    }
+    return fetch(url, {
+      method: "POST",
+      headers,
+      body: new URLSearchParams({
+        encData,
+        merchId: this.merchId,
+      }).toString(),
+    })
   }
 
   /** Decrypt gateway encData (callback / return / API response). */
@@ -526,9 +549,7 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
   }
 
   private refundEndpoint(): string {
-    const configured = process.env.ATOM_REFUND_URL?.trim()
-    if (configured) return configured.replace(/\/+$/, "")
-    return `${this.baseUrl.replace(/\/$/, "")}/ots/payment/refund`
+    return resolveAtomRefundUrl(process.env, this.baseUrl)
   }
 
   async requery(input: RequeryInput): Promise<RequeryResult> {
@@ -540,14 +561,10 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
       reqHashKey: this.reqHashKey(),
     })
     const encData = this.encryptRequest(JSON.stringify(payload))
-    const response = await fetch(`${this.baseUrl}/ots/v2/payment/status`, {
-      method: "POST",
-      headers: {
-        Authorization: this.authHeader(),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ encData, merchId: this.merchId }),
-    })
+    const response = await this.postEncrypted(
+      `${this.baseUrl.replace(/\/$/, "")}/ots/v2/payment/status`,
+      encData
+    )
     const rawText = await response.text()
     const raw: unknown = tryParseJson(rawText) ?? rawText
     const decoded = this.decodeMaybeEncrypted(raw)
@@ -576,14 +593,8 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
       prodRefundId: `RF-${input.merchTxnId}`.slice(0, 30),
     })
     const encData = this.encryptRequest(JSON.stringify(payload))
-    const response = await fetch(this.refundEndpoint(), {
-      method: "POST",
-      headers: {
-        Authorization: this.authHeader(),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ encData, merchId: this.merchId }),
-    })
+    const endpoint = this.refundEndpoint()
+    const response = await this.postEncrypted(endpoint, encData)
     const rawText = await response.text()
     const raw: unknown = tryParseJson(rawText) ?? rawText
     const decoded = this.decodeMaybeEncrypted(raw)

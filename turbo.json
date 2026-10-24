@@ -45,6 +45,7 @@
     "ATOM_REQ_HASH_KEY",
     "ATOM_RESP_HASH_KEY",
     "ATOM_PRODUCT",
+    "ProductID",
     "ATOM_AUTH_URL",
     "ATOM_CHECKOUT_ENV",
     "ATOM_CHECKOUT_CDN",

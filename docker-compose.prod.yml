@@ -71,11 +71,15 @@ services:
     # Required names (values stay in Dokploy, never in the image):
     #   SESSION_SECRET, POSTGRES_*, REDIS_PASSWORD, PUBLIC_WEB_URL,
     #   PUBLIC_PORTAL_URL, SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD,
-    #   PAYMENT_PROVIDER, ATOM_MERCH_ID, ATOM_PASSWORD, ATOM_API_SECRET_KEY,
-    #   ATOM_AES_REQUEST_KEY, ATOM_AES_REQUEST_IV, ATOM_AES_RESPONSE_KEY,
-    #   ATOM_AES_RESPONSE_IV, ATOM_REQ_HASH_KEY, ATOM_RESP_HASH_KEY,
-    #   ATOM_PRODUCT, ATOM_SUB_CHANNEL, ATOM_BASE_URL, ATOM_AUTH_URL,
-    #   ATOM_CHECKOUT_CDN, ATOM_CHECKOUT_ENV, ATOM_REFUND_URL
+    #   PAYMENT_PROVIDER, ATOM_MERCH_ID, ATOM_PASSWORD,
+    #   ATOM_AES_REQUEST_IV, ATOM_AES_RESPONSE_IV,
+    #   ATOM_REQ_HASH_KEY, ATOM_RESP_HASH_KEY,
+    #   ATOM_PRODUCT or ProductID, ATOM_BASE_URL, ATOM_AUTH_URL,
+    #   ATOM_CHECKOUT_CDN, ATOM_CHECKOUT_ENV
+    # Applied when unset in production: ATOM_SUB_CHANNEL=UP,
+    # ATOM_REFUND_URL=https://payment.atomtech.in/ots/payment/refund
+    # Optional, only if NTT issued them separately: ATOM_AES_REQUEST_KEY,
+    # ATOM_AES_RESPONSE_KEY. ATOM_API_SECRET_KEY is not part of this protocol.
     env_file: .env
     environment:
       NODE_ENV: production
