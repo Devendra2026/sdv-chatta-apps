@@ -106,6 +106,14 @@ export default function DemandLedgerPage() {
       ).data,
   })
 
+  React.useEffect(() => {
+    if (yearId || !yearsQuery.data?.length) return
+    const latest = [...yearsQuery.data].sort((a, b) =>
+      b.code.localeCompare(a.code)
+    )[0]
+    if (latest) setYearId(latest.id)
+  }, [yearsQuery.data, yearId])
+
   const listQuery = useQuery({
     queryKey: ["demand-ledger", wardId, yearId, status, debounced, page],
     queryFn: async () => {
@@ -249,6 +257,11 @@ export default function DemandLedgerPage() {
             <div className="flex justify-center py-10">
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
             </div>
+          ) : listQuery.isError ? (
+            <p className="px-3 py-8 text-center text-sm text-destructive">
+              {(listQuery.error as Error)?.message ||
+                "Failed to load demand ledger"}
+            </p>
           ) : (
             <table className="w-full min-w-[900px] text-sm">
               <thead>
@@ -270,7 +283,8 @@ export default function DemandLedgerPage() {
                       colSpan={8}
                       className="px-3 py-8 text-center text-muted-foreground"
                     >
-                      No demands found
+                      No demands found. Publish tax rates for this assessment
+                      year to generate PropertyDemand rows.
                     </td>
                   </tr>
                 ) : (

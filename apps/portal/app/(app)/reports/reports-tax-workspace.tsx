@@ -343,40 +343,62 @@ export function ReportsTaxWorkspace({
 
   const publishMut = useMutation({
     mutationFn: async () => {
-      if (!config) return
+      if (!config) return null
       const payload = {
         cells: buildCellsFromDraft(cellDraft),
         ...buildParamsFromDraft(),
       }
-      await api.post(`/api/v1/tax-configs/${config.id}/publish`, payload)
+      const res = await api.post<{
+        version: number
+        ratesUnchanged?: boolean
+        demands?: { created: number; updated: number; total: number }
+      }>(`/api/v1/tax-configs/${config.id}/publish`, payload)
+      return res.data
     },
-    onSuccess: () => {
-      toast.success("Tax rates published")
+    onSuccess: (data) => {
+      const demandTotal = data?.demands?.total ?? 0
+      const demandCreated = data?.demands?.created ?? 0
+      const demandUpdated = data?.demands?.updated ?? 0
+      toast.success(
+        data?.ratesUnchanged
+          ? `Tax rates unchanged (v${data.version}). Demands: ${demandTotal} (${demandCreated} new, ${demandUpdated} updated)`
+          : `Tax rates published (v${data?.version ?? "?"}). Demands: ${demandTotal} (${demandCreated} new, ${demandUpdated} updated)`
+      )
       void qc.invalidateQueries({
         queryKey: ["tax-config", wardId, assessmentYearId],
       })
       void qc.invalidateQueries({ queryKey: ["tax-preview"] })
+      void qc.invalidateQueries({ queryKey: ["demand-ledger"] })
+      void qc.invalidateQueries({ queryKey: ["offline-demand"] })
     },
     onError: (e: Error) => toast.error(e.message),
   })
 
   const copyMut = useMutation({
     mutationFn: async () => {
-      const res = await api.post<{ updated: number }>(
-        "/api/v1/tax-configs/copy-to-wards",
-        {
-          sourceWardId: wardId,
-          assessmentYearId,
-          cells: buildCellsFromDraft(cellDraft),
-          ...buildParamsFromDraft(),
-        }
-      )
+      const res = await api.post<{
+        updated: number
+        version?: number
+        demands?: { created: number; updated: number; total: number }
+      }>("/api/v1/tax-configs/copy-to-wards", {
+        sourceWardId: wardId,
+        assessmentYearId,
+        cells: buildCellsFromDraft(cellDraft),
+        ...buildParamsFromDraft(),
+      })
       return res.data
     },
     onSuccess: (data) => {
-      toast.success(`Copied rates to ${data.updated ?? 0} wards`)
+      const demandTotal = data.demands?.total ?? 0
+      const versionNote =
+        data.version != null ? ` at v${data.version}` : ""
+      toast.success(
+        `Copied rates to ${data.updated ?? 0} wards${versionNote}. Demands: ${demandTotal}`
+      )
       void qc.invalidateQueries({ queryKey: ["tax-config"] })
       void qc.invalidateQueries({ queryKey: ["tax-preview"] })
+      void qc.invalidateQueries({ queryKey: ["demand-ledger"] })
+      void qc.invalidateQueries({ queryKey: ["offline-demand"] })
     },
     onError: (e: Error) => toast.error(e.message || "Failed to copy rates"),
   })

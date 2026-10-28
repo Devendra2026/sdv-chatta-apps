@@ -1,6 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing"
 
 import { AuditService } from "../audit/audit.service"
+import { DemandsService } from "../demands/demands.service"
 import { PrismaService } from "../prisma/prisma.service"
 import { TaxConfigsService } from "./tax-configs.service"
 
@@ -50,12 +51,17 @@ describe("TaxConfigsService copy/publish with client rates", () => {
       update: jest.Mock
     }
     taxRateCell: { upsert: jest.Mock }
-    taxConfigVersion: { create: jest.Mock }
+    taxConfigVersion: {
+      create: jest.Mock
+      findFirst: jest.Mock
+      update: jest.Mock
+    }
     ward: { findMany: jest.Mock; findUnique: jest.Mock }
     referenceEntry: { findUnique: jest.Mock; findMany: jest.Mock }
     $transaction: jest.Mock
   }
   let audit: { log: jest.Mock }
+  let demands: { publishForWard: jest.Mock }
 
   beforeEach(async () => {
     prisma = {
@@ -71,6 +77,8 @@ describe("TaxConfigsService copy/publish with client rates", () => {
           id: "ver-1",
           ...data,
         })),
+        findFirst: jest.fn().mockResolvedValue(null),
+        update: jest.fn().mockResolvedValue({}),
       },
       ward: {
         findMany: jest.fn(),
@@ -83,48 +91,52 @@ describe("TaxConfigsService copy/publish with client rates", () => {
       $transaction: jest.fn(),
     }
     audit = { log: jest.fn() }
+    demands = {
+      publishForWard: jest.fn().mockResolvedValue({
+        created: 2,
+        updated: 1,
+        total: 3,
+      }),
+    }
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TaxConfigsService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: audit },
+        { provide: DemandsService, useValue: demands },
       ],
     }).compile()
 
     service = module.get(TaxConfigsService)
   })
 
-  it("copyToAllWards with cells writes those rates onto a published ward and bumps version", async () => {
+  it("copyToAllWards from a published source stamps the source version on targets", async () => {
     const source = makeConfig({
       id: "cfg-source",
       wardId: "ward-1",
       status: "PUBLISHED",
-      version: 4,
+      version: 6,
+      cells: nonZeroCells,
     })
-    const publishedTarget = makeConfig({
-      id: "cfg-ward-2",
-      wardId: "ward-2",
-      status: "PUBLISHED",
-      version: 2,
+    const draftTarget = makeConfig({
+      id: "cfg-ward-3",
+      wardId: "ward-3",
+      status: "DRAFT",
+      version: 1,
     })
 
     prisma.taxConfig.findUnique
       .mockResolvedValueOnce(source)
-      .mockResolvedValueOnce(publishedTarget)
-      .mockResolvedValue(publishedTarget)
+      .mockResolvedValueOnce(draftTarget)
 
-    prisma.taxConfig.findUniqueOrThrow.mockResolvedValue({
-      ...publishedTarget,
-      cells: nonZeroCells,
-      version: 3,
-    })
     prisma.taxConfig.update.mockResolvedValue({
-      ...publishedTarget,
-      version: 3,
+      ...draftTarget,
+      status: "PUBLISHED",
+      version: 6,
       cells: nonZeroCells,
     })
-    prisma.ward.findMany.mockResolvedValue([{ id: "ward-2" }])
+    prisma.ward.findMany.mockResolvedValue([{ id: "ward-1" }, { id: "ward-3" }])
 
     const result = await service.copyToAllWards(
       {
@@ -141,25 +153,35 @@ describe("TaxConfigsService copy/publish with client rates", () => {
       "user-1"
     )
 
-    expect(result.updated).toBeGreaterThanOrEqual(1)
-    expect(prisma.taxRateCell.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        create: expect.objectContaining({ annualRatePerSqFt: 0.36 }),
-        update: expect.objectContaining({ annualRatePerSqFt: 0.36 }),
-      })
-    )
+    expect(result.updated).toBe(1)
+    expect(result.version).toBe(6)
+    expect(result.demands.total).toBe(6)
     expect(prisma.taxConfigVersion.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          taxConfigId: "cfg-ward-2",
-          version: 3,
-          snapshot: expect.objectContaining({
-            cells: expect.arrayContaining([
-              expect.objectContaining({ annualRatePerSqFt: 0.36 }),
-            ]),
-          }),
+          taxConfigId: "cfg-ward-3",
+          version: 6,
         }),
       })
+    )
+    expect(prisma.taxConfig.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "cfg-ward-3" },
+        data: expect.objectContaining({
+          status: "PUBLISHED",
+          version: 6,
+        }),
+      })
+    )
+    expect(demands.publishForWard).toHaveBeenCalledWith(
+      "ward-3",
+      assessmentYearId,
+      "user-1"
+    )
+    expect(demands.publishForWard).toHaveBeenCalledWith(
+      "ward-1",
+      assessmentYearId,
+      "user-1"
     )
   })
 
@@ -203,9 +225,11 @@ describe("TaxConfigsService copy/publish with client rates", () => {
       status: "PUBLISHED",
       version: 1,
       cells: nonZeroCells,
+      wardId: "ward-1",
+      assessmentYearId,
     })
 
-    await service.publish(
+    const result = await service.publish(
       "cfg-draft",
       {
         cells: nonZeroCells,
@@ -236,5 +260,52 @@ describe("TaxConfigsService copy/publish with client rates", () => {
         }),
       })
     )
+    expect(demands.publishForWard).toHaveBeenCalledWith(
+      "ward-1",
+      assessmentYearId,
+      "user-1"
+    )
+    expect(result.demands.total).toBe(3)
+    expect(result.ratesUnchanged).toBe(false)
+  })
+
+  it("publish does not bump version when published rates are unchanged", async () => {
+    const published = makeConfig({
+      id: "cfg-published",
+      status: "PUBLISHED",
+      version: 6,
+      cells: nonZeroCells,
+    })
+
+    prisma.taxConfig.findUnique.mockResolvedValue(published)
+    prisma.taxConfig.update.mockResolvedValue({
+      ...published,
+      status: "PUBLISHED",
+      version: 6,
+    })
+
+    const result = await service.publish(
+      "cfg-published",
+      {
+        cells: nonZeroCells,
+        propertyTaxPct: 10,
+        waterTaxPct: 7.5,
+        drainageTaxPct: 2.5,
+        penaltyPct: 0,
+        assessablePct: 80,
+        commercialAssessablePct: 80,
+      },
+      "user-1"
+    )
+
+    expect(prisma.taxConfigVersion.create).not.toHaveBeenCalled()
+    expect(prisma.taxConfig.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ version: 6 }),
+      })
+    )
+    expect(demands.publishForWard).toHaveBeenCalled()
+    expect(result.ratesUnchanged).toBe(true)
+    expect(result.version).toBe(6)
   })
 })

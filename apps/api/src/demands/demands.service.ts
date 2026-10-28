@@ -42,6 +42,50 @@ export class DemandsService {
     demandArrears: true,
   } as const
 
+  private readonly surveyForDemandSelect = {
+    id: true,
+    surveyId: true,
+    ownerName: true,
+    mobile: true,
+    propertyNo: true,
+    parcelNo: true,
+    houseNo: true,
+    streetName: true,
+    locality: true,
+    colony: true,
+    city: true,
+    pincode: true,
+    propertyUse: true,
+    taxRateZone: true,
+    roadType: true,
+    hasMunicipalWaterSupply: true,
+    plotAreaSqFt: true,
+    plinthAreaSqFt: true,
+    totalBuiltUpAreaSqFt: true,
+    wardId: true,
+    ward: { select: { id: true, number: true, name: true } },
+    floors: {
+      orderBy: { sortOrder: "asc" as const },
+      select: {
+        floorLabel: true,
+        usageType: true,
+        usageFactor: true,
+        buildingType: true,
+        areaSqFt: true,
+      },
+    },
+  } as const
+
+  private readonly taxConfigForDemandInclude = {
+    assessmentYear: { select: { id: true, code: true, name: true } },
+    cells: {
+      include: {
+        roadWidthEntry: { select: { code: true } },
+        constructionEntry: { select: { code: true } },
+      },
+    },
+  } as const
+
   async getBySurveyAndYear(surveyId: string, assessmentYearId: string) {
     const demand = await this.prisma.propertyDemand.findUnique({
       where: {
@@ -60,74 +104,157 @@ export class DemandsService {
         status: "ACTIVE",
         deletedAt: null,
       },
-      select: {
-        id: true,
-        surveyId: true,
-        ownerName: true,
-        mobile: true,
-        propertyNo: true,
-        parcelNo: true,
-        houseNo: true,
-        streetName: true,
-        locality: true,
-        colony: true,
-        city: true,
-        pincode: true,
-        propertyUse: true,
-        taxRateZone: true,
-        roadType: true,
-        hasMunicipalWaterSupply: true,
-        plotAreaSqFt: true,
-        plinthAreaSqFt: true,
-        totalBuiltUpAreaSqFt: true,
-        wardId: true,
-        ward: { select: { id: true, number: true, name: true } },
-        floors: {
-          orderBy: { sortOrder: "asc" },
-          select: {
-            floorLabel: true,
-            usageType: true,
-            usageFactor: true,
-            buildingType: true,
-            areaSqFt: true,
-          },
-        },
-      },
+      select: this.surveyForDemandSelect,
     })
     if (!survey) throw new NotFoundException("Survey not found")
 
+    await this.assertAssessmentYear(dto.assessmentYearId)
+
+    const taxConfig = await this.loadPublishedTaxConfigForDues(
+      survey.wardId,
+      dto.assessmentYearId
+    )
+    const rules = await this.loadPublishedRules(dto.assessmentYearId)
+    const demand = await this.upsertPublishedDemandForSurvey({
+      survey,
+      assessmentYearId: dto.assessmentYearId,
+      taxConfig,
+      rules,
+      preserveArrears: false,
+      actorId,
+    })
+
+    await this.audit.log({
+      action: "PUBLISH",
+      entity: "PropertyDemand",
+      entityId: demand.id,
+      newValue: {
+        surveyId: survey.id,
+        assessmentYearId: dto.assessmentYearId,
+        totalPayable: toNumber(demand.totalPayable),
+        verified: demand.verified,
+      },
+      actorId,
+    })
+
+    return demand
+  }
+
+  /**
+   * Publish PropertyDemand rows for every active survey in a ward/year.
+   * Loads the published TaxConfig once and pages surveys in batches.
+   * Existing demand arrears are preserved; new rows start at arrears 0.
+   */
+  async publishForWard(
+    wardId: string,
+    assessmentYearId: string,
+    actorId?: string
+  ): Promise<{ created: number; updated: number; total: number }> {
+    const ward = await this.prisma.ward.findUnique({
+      where: { id: wardId },
+      select: { id: true },
+    })
+    if (!ward) throw new NotFoundException("Ward not found")
+
+    await this.assertAssessmentYear(assessmentYearId)
+
+    const taxConfig = await this.loadPublishedTaxConfigForDues(
+      wardId,
+      assessmentYearId
+    )
+    const rules = await this.loadPublishedRules(assessmentYearId)
+
+    const batchSize = 100
+    let created = 0
+    let updated = 0
+    let cursor: string | undefined
+
+    for (;;) {
+      const surveys = await this.prisma.survey.findMany({
+        where: {
+          wardId,
+          status: "ACTIVE",
+          deletedAt: null,
+        },
+        select: this.surveyForDemandSelect,
+        orderBy: { id: "asc" },
+        take: batchSize,
+        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      })
+      if (surveys.length === 0) break
+
+      for (const survey of surveys) {
+        const existing = await this.prisma.propertyDemand.findUnique({
+          where: {
+            surveyId_assessmentYearId: {
+              surveyId: survey.id,
+              assessmentYearId,
+            },
+          },
+          select: { id: true },
+        })
+        await this.upsertPublishedDemandForSurvey({
+          survey,
+          assessmentYearId,
+          taxConfig,
+          rules,
+          preserveArrears: true,
+          actorId,
+        })
+        if (existing) updated += 1
+        else created += 1
+      }
+
+      cursor = surveys[surveys.length - 1]?.id
+      if (surveys.length < batchSize) break
+    }
+
+    const total = created + updated
+    await this.audit.log({
+      action: "PUBLISH_WARD",
+      entity: "PropertyDemand",
+      entityId: `${wardId}:${assessmentYearId}`,
+      newValue: {
+        wardId,
+        assessmentYearId,
+        created,
+        updated,
+        total,
+        taxConfigId: taxConfig.id,
+        taxConfigVersion: taxConfig.version,
+      },
+      actorId,
+    })
+
+    return { created, updated, total }
+  }
+
+  private async assertAssessmentYear(assessmentYearId: string) {
     const year = await this.prisma.referenceEntry.findUnique({
-      where: { id: dto.assessmentYearId },
+      where: { id: assessmentYearId },
       include: { category: true },
     })
     if (!year || year.category.code !== "ASSESSMENT_YEAR") {
       throw new BadRequestException("Invalid assessment year")
     }
+  }
 
+  private async loadPublishedTaxConfigForDues(
+    wardId: string,
+    assessmentYearId: string
+  ): Promise<TaxConfigForDues> {
     const taxConfig = await this.prisma.taxConfig.findUnique({
       where: {
-        wardId_assessmentYearId: {
-          wardId: survey.wardId,
-          assessmentYearId: dto.assessmentYearId,
-        },
+        wardId_assessmentYearId: { wardId, assessmentYearId },
       },
-      include: {
-        assessmentYear: { select: { id: true, code: true, name: true } },
-        cells: {
-          include: {
-            roadWidthEntry: { select: { code: true } },
-            constructionEntry: { select: { code: true } },
-          },
-        },
-      },
+      include: this.taxConfigForDemandInclude,
     })
     if (!taxConfig || taxConfig.status !== "PUBLISHED") {
       throw new ConflictException(
         "No published tax configuration for this ward and assessment year"
       )
     }
-
-    const configForDues: TaxConfigForDues = {
+    return {
       id: taxConfig.id,
       version: taxConfig.version,
       assessablePct: taxConfig.assessablePct,
@@ -140,13 +267,73 @@ export class DemandsService {
       cells: taxConfig.cells,
       updatedAt: taxConfig.updatedAt,
     }
+  }
 
-    const dues = computePublicDuesPayload(survey, configForDues)
-    const rules = await this.loadPublishedRules(dto.assessmentYearId)
+  private async upsertPublishedDemandForSurvey(input: {
+    survey: {
+      id: string
+      surveyId: string
+      ownerName: string | null
+      mobile: string | null
+      propertyNo: string | null
+      parcelNo: string | null
+      houseNo: string | null
+      streetName: string | null
+      locality: string | null
+      colony: string | null
+      city: string | null
+      pincode: string | null
+      propertyUse: string | null
+      taxRateZone: string | null
+      roadType: string | null
+      hasMunicipalWaterSupply: boolean | null
+      plotAreaSqFt: { toString(): string } | number | null
+      plinthAreaSqFt: { toString(): string } | number | null
+      totalBuiltUpAreaSqFt: { toString(): string } | number | null
+      wardId: string
+      ward: { id: string; number: number; name: string }
+      floors: Array<{
+        floorLabel: string
+        usageType: string | null
+        usageFactor: string | null
+        buildingType: string | null
+        areaSqFt: { toString(): string } | number | null
+      }>
+    }
+    assessmentYearId: string
+    taxConfig: TaxConfigForDues
+    rules: TaxAdjustmentRuleInput[]
+    preserveArrears: boolean
+    actorId?: string
+  }) {
+    const {
+      survey,
+      assessmentYearId,
+      taxConfig,
+      rules,
+      preserveArrears,
+      actorId,
+    } = input
+
+    const existing = await this.prisma.propertyDemand.findUnique({
+      where: {
+        surveyId_assessmentYearId: {
+          surveyId: survey.id,
+          assessmentYearId,
+        },
+      },
+    })
+
+    const dues = computePublicDuesPayload(survey, taxConfig)
     const amountPaid = await this.sumSuccessPayments(
       survey.id,
-      dto.assessmentYearId
+      assessmentYearId
     )
+    const arrears = preserveArrears
+      ? existing
+        ? toNumber(existing.arrears)
+        : 0
+      : 0
     const assessment = computePropertyAssessment({
       base: {
         propertyTax: dues.tax.propertyTax,
@@ -156,13 +343,13 @@ export class DemandsService {
         totalDemand: dues.tax.totalDemand,
       },
       rules,
-      arrears: 0,
+      arrears,
       amountPaid,
     })
 
     const priorYearIssue = await this.hasPriorYearPaymentsWithoutDemand(
       survey.id,
-      dto.assessmentYearId
+      assessmentYearId
     )
     const verified =
       !(amountPaid > assessment.totalPayable) && !priorYearIssue
@@ -175,15 +362,6 @@ export class DemandsService {
       assessment,
       priorYearIssue,
     }
-
-    const existing = await this.prisma.propertyDemand.findUnique({
-      where: {
-        surveyId_assessmentYearId: {
-          surveyId: survey.id,
-          assessmentYearId: dto.assessmentYearId,
-        },
-      },
-    })
 
     const data = {
       status: "PUBLISHED" as const,
@@ -203,35 +381,22 @@ export class DemandsService {
       publishedById: actorId,
     }
 
-    const demand = existing
-      ? await this.prisma.propertyDemand.update({
-          where: { id: existing.id },
-          data,
-          include: this.include,
-        })
-      : await this.prisma.propertyDemand.create({
-          data: {
-            surveyId: survey.id,
-            assessmentYearId: dto.assessmentYearId,
-            ...data,
-          },
-          include: this.include,
-        })
+    if (existing) {
+      return this.prisma.propertyDemand.update({
+        where: { id: existing.id },
+        data,
+        include: this.include,
+      })
+    }
 
-    await this.audit.log({
-      action: "PUBLISH",
-      entity: "PropertyDemand",
-      entityId: demand.id,
-      newValue: {
+    return this.prisma.propertyDemand.create({
+      data: {
         surveyId: survey.id,
-        assessmentYearId: dto.assessmentYearId,
-        totalPayable: assessment.totalPayable,
-        verified,
+        assessmentYearId,
+        ...data,
       },
-      actorId,
+      include: this.include,
     })
-
-    return demand
   }
 
   private async loadPublishedRules(

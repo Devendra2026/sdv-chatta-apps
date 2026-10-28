@@ -17,6 +17,16 @@ export class PublishDemandDto {
   assessmentYearId!: string
 }
 
+export class PublishWardDemandsDto {
+  @IsString()
+  @MinLength(1)
+  wardId!: string
+
+  @IsString()
+  @MinLength(1)
+  assessmentYearId!: string
+}
+
 export class GetDemandQueryDto {
   @IsString()
   @MinLength(1)

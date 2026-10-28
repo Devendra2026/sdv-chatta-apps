@@ -18,6 +18,7 @@ import {
   GetPublishedDemandQueryDto,
   ListDemandsQueryDto,
   PublishDemandDto,
+  PublishWardDemandsDto,
   YearEndDto,
 } from "./dto/demand.dto"
 
@@ -111,6 +112,20 @@ export class DemandsController {
     @CurrentUser() user: AuthUser
   ) {
     const data = await this.demands.publish(dto, user.id)
+    return { success: true, data }
+  }
+
+  @Post("publish-ward")
+  @RequirePermission("settings:update")
+  async publishWard(
+    @Body() dto: PublishWardDemandsDto,
+    @CurrentUser() user: AuthUser
+  ) {
+    const data = await this.demands.publishForWard(
+      dto.wardId,
+      dto.assessmentYearId,
+      user.id
+    )
     return { success: true, data }
   }
 

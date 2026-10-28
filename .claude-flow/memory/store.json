@@ -1277,6 +1277,33 @@
       "lastAccessed": "2026-10-28T09:42:23.564Z",
       "accessCount": 0,
       "expiresAt": "2026-11-27T09:42:23.564Z"
+    },
+    "cmd-1793183119249": {
+      "key": "cmd-1793183119249",
+      "value": "{\"command\":\"pnpm --filter api exec jest --testPathPatterns=\\\"tax-configs.service.spec|demands.service.spec|offline-collection.spec\\\" --no-coverage 2>&1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:25:19.249Z",
+      "lastAccessed": "2026-10-28T10:25:19.249Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:25:19.249Z"
+    },
+    "cmd-1793183151116": {
+      "key": "cmd-1793183151116",
+      "value": "{\"command\":\"pnpm --filter api exec jest --testPathPatterns=\\\"tax-configs.service.spec|demands.service.spec\\\" --no-coverage 2>&1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:25:51.116Z",
+      "lastAccessed": "2026-10-28T10:25:51.116Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:25:51.116Z"
+    },
+    "cmd-1793183172698": {
+      "key": "cmd-1793183172698",
+      "value": "{\"command\":\"pnpm --filter api exec jest --testPathPatterns=\\\"tax-configs.service.spec|demands.service.spec|offline-collection.spec\\\" --no-coverage 2>&1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:26:12.698Z",
+      "lastAccessed": "2026-10-28T10:26:12.698Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:26:12.698Z"
     }
   },
   "version": "3.0.0"
