@@ -185,8 +185,14 @@ export function ReportsTaxWorkspace({
   })
 
   const config = taxConfigQuery.data
-  const roads = zonesQuery.data ?? []
-  const constructions = constructionsQuery.data ?? []
+  const roads = React.useMemo(
+    () => zonesQuery.data ?? [],
+    [zonesQuery.data]
+  )
+  const constructions = React.useMemo(
+    () => constructionsQuery.data ?? [],
+    [constructionsQuery.data]
+  )
 
   const assessmentYearItems = React.useMemo(
     () =>
@@ -238,6 +244,7 @@ export function ReportsTaxWorkspace({
     drainageTaxPct: "",
     penaltyPct: "",
   })
+  const [cellDraft, setCellDraft] = React.useState<Record<string, string>>({})
 
   React.useEffect(() => {
     if (!config) {
@@ -249,6 +256,7 @@ export function ReportsTaxWorkspace({
         drainageTaxPct: "",
         penaltyPct: "",
       })
+      setCellDraft({})
       return
     }
     setParamDraft({
@@ -259,18 +267,46 @@ export function ReportsTaxWorkspace({
       drainageTaxPct: String(num(config.drainageTaxPct)),
       penaltyPct: String(num(config.penaltyPct)),
     })
-  }, [configIdentity, config])
-
-  const cellMap = React.useMemo(() => {
-    const m = new Map<string, number>()
-    for (const c of config?.cells ?? []) {
-      m.set(
-        `${c.roadWidthEntryId}:${c.constructionEntryId}`,
+    const nextCells: Record<string, string> = {}
+    for (const c of config.cells) {
+      nextCells[`${c.roadWidthEntryId}:${c.constructionEntryId}`] = String(
         num(c.annualRatePerSqFt)
       )
     }
-    return m
-  }, [config?.cells])
+    for (const road of roads) {
+      for (const c of constructions) {
+        const key = `${road.id}:${c.id}`
+        if (!(key in nextCells)) nextCells[key] = "0"
+      }
+    }
+    setCellDraft(nextCells)
+    // Reset drafts only when the server config identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- roads/constructions fill missing keys for the same identity
+  }, [configIdentity])
+
+  const buildCellsFromDraft = React.useCallback(
+    (draft: Record<string, string>) =>
+      roads.flatMap((road) =>
+        constructions.map((c) => ({
+          roadWidthEntryId: road.id,
+          constructionEntryId: c.id,
+          annualRatePerSqFt: Number(draft[`${road.id}:${c.id}`]) || 0,
+        }))
+      ),
+    [roads, constructions]
+  )
+
+  const buildParamsFromDraft = React.useCallback(
+    () => ({
+      assessablePct: Number(paramDraft.assessablePct) || 0,
+      commercialAssessablePct: Number(paramDraft.commercialAssessablePct) || 0,
+      propertyTaxPct: Number(paramDraft.propertyTaxPct) || 0,
+      waterTaxPct: Number(paramDraft.waterTaxPct) || 0,
+      drainageTaxPct: Number(paramDraft.drainageTaxPct) || 0,
+      penaltyPct: Number(paramDraft.penaltyPct) || 0,
+    }),
+    [paramDraft]
+  )
 
   const saveCells = useMutation({
     mutationFn: async (
@@ -288,6 +324,7 @@ export function ReportsTaxWorkspace({
         queryKey: ["tax-config", wardId, assessmentYearId],
       })
     },
+    onError: (e: Error) => toast.error(e.message || "Failed to save rate cells"),
   })
 
   const saveParams = useMutation({
@@ -300,18 +337,25 @@ export function ReportsTaxWorkspace({
         queryKey: ["tax-config", wardId, assessmentYearId],
       })
     },
+    onError: (e: Error) =>
+      toast.error(e.message || "Failed to save tax percentages"),
   })
 
   const publishMut = useMutation({
     mutationFn: async () => {
       if (!config) return
-      await api.post(`/api/v1/tax-configs/${config.id}/publish`, {})
+      const payload = {
+        cells: buildCellsFromDraft(cellDraft),
+        ...buildParamsFromDraft(),
+      }
+      await api.post(`/api/v1/tax-configs/${config.id}/publish`, payload)
     },
     onSuccess: () => {
       toast.success("Tax rates published")
       void qc.invalidateQueries({
         queryKey: ["tax-config", wardId, assessmentYearId],
       })
+      void qc.invalidateQueries({ queryKey: ["tax-preview"] })
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -323,13 +367,18 @@ export function ReportsTaxWorkspace({
         {
           sourceWardId: wardId,
           assessmentYearId,
+          cells: buildCellsFromDraft(cellDraft),
+          ...buildParamsFromDraft(),
         }
       )
       return res.data
     },
     onSuccess: (data) => {
       toast.success(`Copied rates to ${data.updated ?? 0} wards`)
+      void qc.invalidateQueries({ queryKey: ["tax-config"] })
+      void qc.invalidateQueries({ queryKey: ["tax-preview"] })
     },
+    onError: (e: Error) => toast.error(e.message || "Failed to copy rates"),
   })
 
   const previewQuery = useQuery({
@@ -367,18 +416,14 @@ export function ReportsTaxWorkspace({
   })
 
   const debouncedCellSave = useDebounced(
-    (roadId: string, constructionId: string, value: number) => {
-      if (!config) return
-      const cells = roads.flatMap((road) =>
-        constructions.map((c) => ({
-          roadWidthEntryId: road.id,
-          constructionEntryId: c.id,
-          annualRatePerSqFt:
-            road.id === roadId && c.id === constructionId
-              ? value
-              : (cellMap.get(`${road.id}:${c.id}`) ?? 0),
-        }))
-      )
+    (
+      cells: Array<{
+        roadWidthEntryId: string
+        constructionEntryId: string
+        annualRatePerSqFt: number
+      }>
+    ) => {
+      if (!config || config.status !== "DRAFT") return
       saveCells.mutate(cells)
     },
     600
@@ -438,9 +483,8 @@ export function ReportsTaxWorkspace({
             <button
               key={w.id}
               type="button"
-              className={`w-full cursor-pointer rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted ${
-                wardId === w.id ? "bg-primary/10 font-medium" : ""
-              }`}
+              className={`w-full cursor-pointer rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted ${wardId === w.id ? "bg-primary/10 font-medium" : ""
+                }`}
               onClick={() => onWardChange(w.id)}
             >
               {w.name}
@@ -541,24 +585,25 @@ export function ReportsTaxWorkspace({
                     <td className="border p-2 font-medium">{road.name}</td>
                     {constructions.map((c) => {
                       const key = `${road.id}:${c.id}`
-                      const value = cellMap.get(key) ?? 0
                       return (
                         <td key={c.id} className="border p-1">
                           <Input
-                            key={`${configIdentity}-${key}-${value}`}
                             type="number"
                             step="0.01"
                             min={0}
                             className="h-8 cursor-pointer"
-                            defaultValue={value}
+                            value={cellDraft[key] ?? "0"}
                             disabled={!config}
-                            onChange={(e) =>
-                              debouncedCellSave(
-                                road.id,
-                                c.id,
-                                Number(e.target.value) || 0
-                              )
-                            }
+                            onChange={(e) => {
+                              const next = {
+                                ...cellDraft,
+                                [key]: e.target.value,
+                              }
+                              setCellDraft(next)
+                              if (config?.status === "DRAFT") {
+                                debouncedCellSave(buildCellsFromDraft(next))
+                              }
+                            }}
                           />
                         </td>
                       )
@@ -600,7 +645,7 @@ export function ReportsTaxWorkspace({
                       }))
                     }
                     onBlur={() => {
-                      if (!config) return
+                      if (!config || config.status !== "DRAFT") return
                       const next = Number(paramDraft[field]) || 0
                       if (next === num(config[field])) return
                       saveParams.mutate({ [field]: next })

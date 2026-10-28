@@ -1223,6 +1223,60 @@
       "lastAccessed": "2026-10-28T08:44:56.418Z",
       "accessCount": 0,
       "expiresAt": "2026-11-27T08:44:56.418Z"
+    },
+    "cmd-1793180373070": {
+      "key": "cmd-1793180373070",
+      "value": "{\"command\":\"pnpm --filter api test -- tax-configs.service.spec.ts 2>&1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T09:39:33.070Z",
+      "lastAccessed": "2026-10-28T09:39:33.070Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T09:39:33.070Z"
+    },
+    "cmd-1793180461284": {
+      "key": "cmd-1793180461284",
+      "value": "{\"command\":\"pnpm --filter api test -- tax-configs.service.spec.ts 2>&1; pnpm --filter api exec tsc --noEmit -p tsconfig.build.json 2>&1 | Select-Object -Last 40; pnpm --filter portal exec tsc --noEmit 2>&1 | Select-Object -Last 40\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T09:41:01.284Z",
+      "lastAccessed": "2026-10-28T09:41:01.284Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T09:41:01.284Z"
+    },
+    "cmd-1793180489173": {
+      "key": "cmd-1793180489173",
+      "value": "{\"command\":\"pnpm --filter api lint 2>&1 | Select-Object -Last 30; pnpm --filter portal lint 2>&1 | Select-Object -Last 40\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T09:41:29.173Z",
+      "lastAccessed": "2026-10-28T09:41:29.173Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T09:41:29.173Z"
+    },
+    "cmd-1793180528230": {
+      "key": "cmd-1793180528230",
+      "value": "{\"command\":\"head -n 10 *.txt 2>$null; Get-ChildItem | Select-Object Name\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T09:42:08.230Z",
+      "lastAccessed": "2026-10-28T09:42:08.230Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T09:42:08.230Z"
+    },
+    "cmd-1793180540219": {
+      "key": "cmd-1793180540219",
+      "value": "{\"command\":\"Get-Content -Path *.txt -TotalCount 10\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T09:42:20.219Z",
+      "lastAccessed": "2026-10-28T09:42:20.219Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T09:42:20.219Z"
+    },
+    "cmd-1793180543564": {
+      "key": "cmd-1793180543564",
+      "value": "{\"command\":\"pnpm --filter api test -- tax-configs.service.spec.ts 2>&1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T09:42:23.564Z",
+      "lastAccessed": "2026-10-28T09:42:23.564Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T09:42:23.564Z"
     }
   },
   "version": "3.0.0"
