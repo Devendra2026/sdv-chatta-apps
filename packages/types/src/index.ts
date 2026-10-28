@@ -146,9 +146,17 @@ export type PublicPropertyTaxDues = {
     waterTax: number
     drainageTax: number
     penalty: number
+    rebate?: number
+    arrears?: number
+    currentDemand?: number
+    totalPayable?: number
+    amountPaid?: number
+    outstanding?: number
     totalDemand: number
     annualBaseRate: number | null
     configFound: boolean
+    published?: boolean
+    verified?: boolean
   }
   /** True when a SUCCESS payment exists for this dues assessment year. */
   paidForAssessmentYear: boolean
@@ -215,6 +223,27 @@ export type PublicPropertyTaxReceipt = PublicPropertyTaxPaymentStatus & {
   atomTxnId: string | null
 }
 
+/** Demand breakdown frozen on Payment.receiptSnapshot at SUCCESS. */
+export type PaymentReceiptSnapshot = {
+  propertyTax: number
+  waterTax: number
+  drainageTax: number
+  penalty: number
+  rebate: number
+  arrears: number
+  currentDemand: number
+  totalPayable: number
+  amountReceived: number
+  outstandingAfter: number
+  amountPaidAfter: number
+  assessmentYear: { id: string; code: string; name: string } | null
+  surveyId: string | null
+  municipalSurveyId: string | null
+  paymentMode: string
+  receiptNumber: string
+  paidAt: string
+}
+
 /** Staff portal offline / counter collection receipt (full PII — authenticated only). */
 export type StaffPaymentReceipt = {
   paymentId: string
@@ -230,6 +259,15 @@ export type StaffPaymentReceipt = {
   remarks: string | null
   collectionDate: string
   collectedBy: { id: string; name: string } | null
+  assessmentYear?: string | null
+  taxBreakdown?: {
+    propertyTax: number
+    waterTax: number
+    drainageTax: number
+    penalty: number
+    totalDemand: number
+  } | null
+  receiptSnapshot?: PaymentReceiptSnapshot | null
   survey: {
     id: string
     surveyId: string

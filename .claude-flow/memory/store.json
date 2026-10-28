@@ -593,6 +593,636 @@
       "lastAccessed": "2026-10-24T06:36:26.727Z",
       "accessCount": 0,
       "expiresAt": "2026-11-23T06:36:26.727Z"
+    },
+    "cmd-1793172868670": {
+      "key": "cmd-1793172868670",
+      "value": "{\"command\":\"Get-ChildItem -Path \\\"C:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\" -Name | Select-Object -First 80; Write-Host \\\"---APPS---\\\"; Get-ChildItem -Path \\\"C:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\\apps\\\" -Directory -Name -ErrorAction SilentlyContinue; Write-Host \\\"---PACKAGES---\\\"; Get-ChildItem -Path \\\"C:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\\packages\\\" -Directory -Name -ErrorAction SilentlyContinue; Write-Host \\\"---FIXTURES---\\\"; if (Test-Path \\\"C:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\\fixtures\\\") { Get-ChildItem -Path \\\"C:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\\fixtures\\\" -Recurse -Name | Select-Object -First 100 } else { Write-Host \\\"no fixtures dir\\\" }\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:34:28.670Z",
+      "lastAccessed": "2026-10-28T07:34:28.670Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:34:28.670Z"
+    },
+    "cmd-1793172898485": {
+      "key": "cmd-1793172898485",
+      "value": "{\"command\":\"Write-Host \\\"=== PDF ===\\\"; Get-ChildItem -Path \\\"C:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\" -Recurse -Include *.pdf -File -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch 'node_modules|\\\\.git\\\\\\\\|\\\\\\\\dist\\\\\\\\|\\\\\\\\.next\\\\\\\\' } | Select-Object -ExpandProperty FullName; Write-Host \\\"=== IMAGES ===\\\"; Get-ChildItem -Path \\\"C:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\" -Recurse -Include *.png,*.jpg,*.jpeg,*.webp -File -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch 'node_modules|\\\\.git\\\\\\\\|\\\\\\\\dist\\\\\\\\|\\\\\\\\.next\\\\\\\\' } | Select-Object -ExpandProperty FullName; Write-Host \\\"=== DOCS TREE ===\\\"; Get-ChildItem -Path \\\"C:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\\docs\\\" -Recurse -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName; Write-Host \\\"=== PROMPT FILES ===\\\"; Get-ChildItem -Path \\\"C:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\" -Recurse -Include *prompt*,*requirement* -File -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch 'node_modules|\\\\.git\\\\\\\\' } | Select-Object -ExpandProperty FullName\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:34:58.485Z",
+      "lastAccessed": "2026-10-28T07:34:58.485Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:34:58.485Z"
+    },
+    "cmd-1793172934272": {
+      "key": "cmd-1793172934272",
+      "value": "{\"command\":\"$roots = @(\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:35:34.272Z",
+      "lastAccessed": "2026-10-28T07:35:34.272Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:35:34.272Z"
+    },
+    "cmd-1793172951580": {
+      "key": "cmd-1793172951580",
+      "value": "{\"command\":\"if (Test-Path \\\"C:\\\\sdv-books\\\\Data\\\\chatta\\\") { Get-ChildItem \\\"C:\\\\sdv-books\\\\Data\\\\chatta\\\" -Name | Select-Object -First 80 } else { Write-Host \\\"NO Data\\\\chatta\\\" }; Write-Host \\\"---\\\"; Get-ChildItem \\\"C:\\\\sdv-books\\\" -Directory -Name -ErrorAction SilentlyContinue\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:35:51.580Z",
+      "lastAccessed": "2026-10-28T07:35:51.580Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:35:51.580Z"
+    },
+    "cmd-1793172957670": {
+      "key": "cmd-1793172957670",
+      "value": "{\"command\":\"Get-ChildItem -Path \\\"C:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\\fixtures\\\\survey\\\" -Force | Select-Object Name, Length, LastWriteTime; Write-Host \\\"---SEARCH---\\\"; Get-ChildItem -Path \\\"C:\\\\sdv-books\\\" -Recurse -Filter \\\"survey-export-ward-1-2026-10-28.xlsx\\\" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName; Write-Host \\\"---XLSX SAMPLE---\\\"; Get-ChildItem -Path \\\"C:\\\\sdv-books\\\" -Recurse -Include \\\"*.xlsx\\\",\\\"*.xls\\\" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:35:57.670Z",
+      "lastAccessed": "2026-10-28T07:35:57.670Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:35:57.670Z"
+    },
+    "cmd-1793172971517": {
+      "key": "cmd-1793172971517",
+      "value": "{\"command\":\"Get-ChildItem -LiteralPath \\\"C:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\\fixtures\\\\survey\\\" -Force | ForEach-Object { $_.Name + \\\" \\\" + $_.Length }; Write-Host \\\"DONE-FIXTURES\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:36:11.517Z",
+      "lastAccessed": "2026-10-28T07:36:11.517Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:36:11.517Z"
+    },
+    "cmd-1793172976593": {
+      "key": "cmd-1793172976593",
+      "value": "{\"command\":\"$roots = @(\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:36:16.593Z",
+      "lastAccessed": "2026-10-28T07:36:16.593Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:36:16.593Z"
+    },
+    "cmd-1793172991256": {
+      "key": "cmd-1793172991256",
+      "value": "{\"command\":\"Write-Host \\\"=== sdv-books\\\\docs ===\\\"; Get-ChildItem \\\"C:\\\\sdv-books\\\\docs\\\" -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 60 -ExpandProperty FullName; Write-Host \\\"=== Data\\\\chatta pdf/png ===\\\"; Get-ChildItem \\\"C:\\\\sdv-books\\\\Data\\\" -Recurse -Include *.pdf,*.png,*.jpg,*.webp,*.md,*.txt,*.docx -File -ErrorAction SilentlyContinue | Select-Object -First 40 -ExpandProperty FullName; Write-Host \\\"=== prompt-like names under sdv-books (depth limited) ===\\\"; Get-ChildItem \\\"C:\\\\sdv-books\\\" -Recurse -File -Include *prompt*,*requirement* -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch 'node_modules|\\\\.git|agent-transcripts' } | Select-Object -First 30 -ExpandProperty FullName\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:36:31.256Z",
+      "lastAccessed": "2026-10-28T07:36:31.256Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:36:31.256Z"
+    },
+    "cmd-1793173032032": {
+      "key": "cmd-1793173032032",
+      "value": "{\"command\":\"Write-Host \\\"=== Data dirs ===\\\"; Get-ChildItem \\\"C:\\\\sdv-books\\\\Data\\\" -Directory -Name; Write-Host \\\"=== chatta ===\\\"; Get-ChildItem \\\"C:\\\\sdv-books\\\\Data\\\\chatta\\\" -Name; Write-Host \\\"=== name hits demand/dhanaura/notice/prompt under Data and docs (top 2 levels via cmd) ===\\\"; cmd /c \\\"dir /s /b /a-d C:\\\\sdv-books\\\\Data\\\\*demand* C:\\\\sdv-books\\\\Data\\\\*Dhanaura* C:\\\\sdv-books\\\\Data\\\\*notice* C:\\\\sdv-books\\\\docs\\\\*prompt* C:\\\\sdv-books\\\\docs\\\\*Dhanaura* C:\\\\sdv-books\\\\client-project\\\\*prompt* 2>nul\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:37:12.032Z",
+      "lastAccessed": "2026-10-28T07:37:12.032Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:37:12.032Z"
+    },
+    "cmd-1793173035354": {
+      "key": "cmd-1793173035354",
+      "value": "{\"command\":\"Write-Host \\\"=== DATA ===\\\"; if (Test-Path \\\"C:\\\\sdv-books\\\\Data\\\") { Get-ChildItem -LiteralPath \\\"C:\\\\sdv-books\\\\Data\\\" -Recurse -Include *.xlsx,*.xls -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName } }; Write-Host \\\"=== REPO XLSX ===\\\"; Get-ChildItem -LiteralPath \\\"C:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\" -Recurse -Include *.xlsx,*.xls -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch '\\\\\\\\node_modules\\\\\\\\|\\\\\\\\\\\\.next\\\\\\\\|\\\\\\\\dist\\\\\\\\' } | ForEach-Object { $_.FullName }; Write-Host \\\"=== NAMED UNDER SDV-BOOKS ===\\\"; Get-ChildItem -LiteralPath \\\"C:\\\\sdv-books\\\" -Recurse -Filter \\\"survey-export-ward-1-2026-10-28.xlsx\\\" -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }; Write-Host \\\"DONE-LIST\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:37:15.354Z",
+      "lastAccessed": "2026-10-28T07:37:15.354Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:37:15.354Z"
+    },
+    "cmd-1793173081349": {
+      "key": "cmd-1793173081349",
+      "value": "{\"command\":\"Stop-Process -Id 14648,9768 -Force -ErrorAction SilentlyContinue; Write-Host \\\"stopped\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:38:01.349Z",
+      "lastAccessed": "2026-10-28T07:38:01.349Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:38:01.349Z"
+    },
+    "cmd-1793173208487": {
+      "key": "cmd-1793173208487",
+      "value": "{\"command\":\"python -c \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:40:08.487Z",
+      "lastAccessed": "2026-10-28T07:40:08.487Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:40:08.487Z"
+    },
+    "cmd-1793173231832": {
+      "key": "cmd-1793173231832",
+      "value": "{\"command\":\"$env:PYTHONIOENCODING='utf-8'; python -c \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:40:31.832Z",
+      "lastAccessed": "2026-10-28T07:40:31.832Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:40:31.832Z"
+    },
+    "cmd-1793173241091": {
+      "key": "cmd-1793173241091",
+      "value": "{\"command\":\"$env:PYTHONIOENCODING='utf-8'; python -c \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:40:41.091Z",
+      "lastAccessed": "2026-10-28T07:40:41.091Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:40:41.091Z"
+    },
+    "cmd-1793173250943": {
+      "key": "cmd-1793173250943",
+      "value": "{\"command\":\"$env:PYTHONIOENCODING='utf-8'; python -c \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:40:50.943Z",
+      "lastAccessed": "2026-10-28T07:40:50.943Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:40:50.943Z"
+    },
+    "cmd-1793174012132": {
+      "key": "cmd-1793174012132",
+      "value": "{\"command\":\"mkdir \\\"apps\\\\api\\\\prisma\\\\migrations\\\\20261028140000_property_demand_ledger\\\" 2>$null; echo ok\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:53:32.132Z",
+      "lastAccessed": "2026-10-28T07:53:32.132Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:53:32.132Z"
+    },
+    "cmd-1793174066269": {
+      "key": "cmd-1793174066269",
+      "value": "{\"command\":\"pnpm exec prisma generate\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:54:26.269Z",
+      "lastAccessed": "2026-10-28T07:54:26.269Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:54:26.269Z"
+    },
+    "cmd-1793174212759": {
+      "key": "cmd-1793174212759",
+      "value": "{\"command\":\"npx @claude-flow/cli@latest memory search --query \\\"tax admin assessment adjustment demand\\\" --namespace patterns 2>$null; ls docs/SPEC.md, docs/adr 2>$null | Select-Object -First 30\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:56:52.759Z",
+      "lastAccessed": "2026-10-28T07:56:52.759Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:56:52.759Z"
+    },
+    "cmd-1793174217413": {
+      "key": "cmd-1793174217413",
+      "value": "{\"command\":\"npx @claude-flow/cli@latest memory search --query \\\"import preview excel\\\" --namespace patterns 2>$null; if (-not $?) { echo \\\"memory search skipped\\\" }\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:56:57.413Z",
+      "lastAccessed": "2026-10-28T07:56:57.413Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:56:57.413Z"
+    },
+    "cmd-1793174277170": {
+      "key": "cmd-1793174277170",
+      "value": "{\"command\":\"npx @claude-flow/cli@latest hooks pre-edit --file \\\"apps/api/src/tax-configs/tax-configs.service.ts\\\" 2>&1 | Select-Object -Last 20\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:57:57.170Z",
+      "lastAccessed": "2026-10-28T07:57:57.170Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:57:57.170Z"
+    },
+    "cmd-1793174284833": {
+      "key": "cmd-1793174284833",
+      "value": "{\"command\":\"node -e \\\"const ExcelJS=require('exceljs');(async()=>{for (const f of ['Ward 1.xlsx','Ward 2.xlsx']){const wb=new ExcelJS.Workbook();await wb.xlsx.readFile('../../fixtures/survey/'+f);console.log(f, wb.worksheets.map(s=>s.name));}})()\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:58:04.833Z",
+      "lastAccessed": "2026-10-28T07:58:04.833Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:58:04.833Z"
+    },
+    "cmd-1793174303141": {
+      "key": "cmd-1793174303141",
+      "value": "{\"command\":\"npx @claude-flow/cli@latest hooks pre-edit --file \\\"apps/api/src/imports/imports.service.ts\\\" 2>&1 | Select-Object -First 20\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T07:58:23.141Z",
+      "lastAccessed": "2026-10-28T07:58:23.141Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T07:58:23.141Z"
+    },
+    "cmd-1793174649571": {
+      "key": "cmd-1793174649571",
+      "value": "{\"command\":\"pnpm --filter portal exec tsc --noEmit -p tsconfig.json 2>&1 | Select-String -Pattern \\\"tax-admin|error TS\\\" | Select-Object -First 40\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:04:09.571Z",
+      "lastAccessed": "2026-10-28T08:04:09.571Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:04:09.571Z"
+    },
+    "cmd-1793174669271": {
+      "key": "cmd-1793174669271",
+      "value": "{\"command\":\"pnpm --filter api exec jest --testPathPatterns=\\\"column-maps|import-preview|import-reconcile|import-soft-delete\\\" --no-coverage 2>&1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:04:29.271Z",
+      "lastAccessed": "2026-10-28T08:04:29.271Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:04:29.271Z"
+    },
+    "cmd-1793174734647": {
+      "key": "cmd-1793174734647",
+      "value": "{\"command\":\"npx @claude-flow/cli@latest memory search --query \\\"payment demand outstanding receipt\\\" --namespace patterns 2>$null; if (-not $?) { Write-Host \\\"memory search skipped\\\" }\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:05:34.647Z",
+      "lastAccessed": "2026-10-28T08:05:34.647Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:05:34.647Z"
+    },
+    "cmd-1793174757027": {
+      "key": "cmd-1793174757027",
+      "value": "{\"command\":\"npx @claude-flow/cli@latest hooks pre-edit --file \\\"apps/api/src/payments/payments.service.ts\\\" 2>$null; Write-Host done\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:05:57.027Z",
+      "lastAccessed": "2026-10-28T08:05:57.027Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:05:57.027Z"
+    },
+    "cmd-1793174783307": {
+      "key": "cmd-1793174783307",
+      "value": "{\"command\":\"Get-Content \\\"C:\\\\Users\\\\sikar\\\\.cursor\\\\projects\\\\c-sdv-books-client-project-sdv-chatta-apps\\\\agent-transcripts\\\\cd05e48f-b559-45c4-960e-46659a6c8a6f\\\\subagents\\\\9454b662-b036-401c-b17c-8958c64c9a72.jsonl\\\" -Tail 5 | ForEach-Object { $_.Substring(0, [Math]::Min(500, $_.Length)) }\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:06:23.307Z",
+      "lastAccessed": "2026-10-28T08:06:23.307Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:06:23.307Z"
+    },
+    "cmd-1793174812915": {
+      "key": "cmd-1793174812915",
+      "value": "{\"command\":\"npx @claude-flow/cli@latest hooks pre-edit --file \\\"apps/api/src/payments/offline-rules.ts\\\" 2>&1; npx @claude-flow/cli@latest hooks pre-edit --file \\\"apps/api/src/payments/payments.service.ts\\\" 2>&1; npx @claude-flow/cli@latest hooks pre-edit --file \\\"apps/api/src/demands/demands.service.ts\\\" 2>&1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:06:52.915Z",
+      "lastAccessed": "2026-10-28T08:06:52.915Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:06:52.915Z"
+    },
+    "cmd-1793174813119": {
+      "key": "cmd-1793174813119",
+      "value": "{\"command\":\"npx @claude-flow/cli@latest hooks pre-edit --file \\\"apps/api/src/payments/payment-demand-balance.util.ts\\\" 2>$null; npx @claude-flow/cli@latest hooks pre-edit --file \\\"apps/api/src/public-property-tax/due-status.util.ts\\\" 2>$null; Write-Host done\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:06:53.119Z",
+      "lastAccessed": "2026-10-28T08:06:53.119Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:06:53.119Z"
+    },
+    "cmd-1793174816964": {
+      "key": "cmd-1793174816964",
+      "value": "{\"command\":\"git status --short apps/api/src/payments apps/api/src/demands packages/types 2>&1 | Select-Object -First 40\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:06:56.964Z",
+      "lastAccessed": "2026-10-28T08:06:56.964Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:06:56.964Z"
+    },
+    "cmd-1793174906103": {
+      "key": "cmd-1793174906103",
+      "value": "{\"command\":\"Remove-Item -Force \\\"apps\\\\api\\\\src\\\\payments\\\\payment-demand-balance.util.ts\\\" -ErrorAction SilentlyContinue; Write-Host removed\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:08:26.103Z",
+      "lastAccessed": "2026-10-28T08:08:26.103Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:08:26.103Z"
+    },
+    "cmd-1793175034232": {
+      "key": "cmd-1793175034232",
+      "value": "{\"command\":\"npx @claude-flow/cli@latest hooks pre-edit --file \\\"apps/api/src/public-property-tax/public-property-tax.service.ts\\\" 2>$null; Write-Host done\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:10:34.232Z",
+      "lastAccessed": "2026-10-28T08:10:34.232Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:10:34.232Z"
+    },
+    "cmd-1793175187526": {
+      "key": "cmd-1793175187526",
+      "value": "{\"command\":\"pnpm --filter api exec jest --testPathPatterns=\\\"payments.idempotency|payment-demand-balance|due-status.util|public-property-tax.payment|offline-collection\\\" --no-coverage 2>&1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:13:07.526Z",
+      "lastAccessed": "2026-10-28T08:13:07.526Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:13:07.526Z"
+    },
+    "cmd-1793175232992": {
+      "key": "cmd-1793175232992",
+      "value": "{\"command\":\"npx @claude-flow/cli@latest hooks post-edit --file \\\"apps/api/src/payments/payments.service.ts\\\" --success true 2>$null; npx @claude-flow/cli@latest hooks post-edit --file \\\"apps/api/src/public-property-tax/public-property-tax.service.ts\\\" --success true 2>$null; npx @claude-flow/cli@latest hooks post-edit --file \\\"apps/api/src/public-property-tax/due-status.util.ts\\\" --success true 2>$null; npx @claude-flow/cli@latest hooks post-edit --file \\\"apps/api/src/payments/receipt-snapshot.ts\\\" --success true 2>$null; Write-Host done\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:13:52.992Z",
+      "lastAccessed": "2026-10-28T08:13:52.992Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:13:52.992Z"
+    },
+    "cmd-1793175265347": {
+      "key": "cmd-1793175265347",
+      "value": "{\"command\":\"pnpm --filter api exec jest --testPathPatterns=\\\"payments.idempotency|payment-demand-balance|due-status.util|public-property-tax.payment\\\" --no-coverage 2>&1\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:14:25.347Z",
+      "lastAccessed": "2026-10-28T08:14:25.347Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:14:25.347Z"
+    },
+    "cmd-1793175279496": {
+      "key": "cmd-1793175279496",
+      "value": "{\"command\":\"pnpm --filter api exec jest src/payments/offline-collection.spec.ts src/demands/year-end.spec.ts --no-coverage 2>&1 | Select-Object -Last 40\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:14:39.496Z",
+      "lastAccessed": "2026-10-28T08:14:39.496Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:14:39.496Z"
+    },
+    "cmd-1793175326311": {
+      "key": "cmd-1793175326311",
+      "value": "{\"command\":\"pnpm --filter api exec tsc --noEmit -p tsconfig.json --pretty false 2>&1 | Select-String -Pattern \\\"payments/|demands/|receipt-snapshot|offline-rules\\\" | Select-Object -First 30; pnpm --filter portal exec tsc --noEmit -p tsconfig.json --pretty false 2>&1 | Select-String -Pattern \\\"payments/|reports/notice|reports/demand|app-nav|types\\\" | Select-Object -First 40\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:15:26.311Z",
+      "lastAccessed": "2026-10-28T08:15:26.311Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:15:26.311Z"
+    },
+    "cmd-1793175404885": {
+      "key": "cmd-1793175404885",
+      "value": "{\"command\":\"pnpm --filter api test -- --testPathPatterns=\\\"tax-calc|import-preview|column-maps|import-reconcile|payment-demand|payments.idempotency|offline-collection|year-end|due-status\\\" 2>&1 | Select-Object -Last 100\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:16:44.885Z",
+      "lastAccessed": "2026-10-28T08:16:44.885Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:16:44.885Z"
+    },
+    "cmd-1793175414923": {
+      "key": "cmd-1793175414923",
+      "value": "{\"command\":\"pnpm --filter api typecheck 2>&1 | Select-Object -Last 60\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:16:54.923Z",
+      "lastAccessed": "2026-10-28T08:16:54.923Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:16:54.923Z"
+    },
+    "cmd-1793175430587": {
+      "key": "cmd-1793175430587",
+      "value": "{\"command\":\"pnpm --filter portal typecheck 2>&1 | Select-Object -Last 80\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:17:10.587Z",
+      "lastAccessed": "2026-10-28T08:17:10.587Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:17:10.587Z"
+    },
+    "cmd-1793175448848": {
+      "key": "cmd-1793175448848",
+      "value": "{\"command\":\"pnpm --filter api lint 2>&1 | Select-Object -Last 50\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:17:28.848Z",
+      "lastAccessed": "2026-10-28T08:17:28.848Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:17:28.848Z"
+    },
+    "cmd-1793175481385": {
+      "key": "cmd-1793175481385",
+      "value": "{\"command\":\"pnpm --filter portal lint 2>&1 | Select-Object -Last 40; pnpm --filter api test -- --testPathPatterns=\\\"public-property-tax.payment|payments.safety|tax-zone\\\" 2>&1 | Select-Object -Last 40\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:18:01.385Z",
+      "lastAccessed": "2026-10-28T08:18:01.385Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:18:01.385Z"
+    },
+    "cmd-1793175496390": {
+      "key": "cmd-1793175496390",
+      "value": "{\"command\":\"pnpm --filter api test -- --testPathPatterns=\\\"tax-calc|import-preview|column-maps|import-reconcile|payment-demand|payments.idempotency|offline-collection|year-end|due-status|public-property-tax.payment|payments.safety\\\" 2>&1 | Select-Object -Last 25\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:18:16.390Z",
+      "lastAccessed": "2026-10-28T08:18:16.390Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:18:16.390Z"
+    },
+    "cmd-1793175904861": {
+      "key": "cmd-1793175904861",
+      "value": "{\"command\":\"docker compose ps -a; Write-Host \\\"---PORT 6380---\\\"; try { $tcp = New-Object System.Net.Sockets.TcpClient; $iar = $tcp.BeginConnect(\\\"127.0.0.1\\\", 6380, $null, $null); $ok = $iar.AsyncWaitHandle.WaitOne(800, $false); if ($ok -and $tcp.Connected) { Write-Host \\\"127.0.0.1:6380 OPEN\\\" } else { Write-Host \\\"127.0.0.1:6380 CLOSED\\\" }; $tcp.Close() } catch { Write-Host \\\"127.0.0.1:6380 ERROR $($_.Exception.Message)\\\" }; try { $tcp6 = New-Object System.Net.Sockets.TcpClient([System.Net.Sockets.AddressFamily]::InterNetworkV6); $iar6 = $tcp6.BeginConnect(\\\"::1\\\", 6380, $null, $null); $ok6 = $iar6.AsyncWaitHandle.WaitOne(800, $false); if ($ok6 -and $tcp6.Connected) { Write-Host \\\"::1:6380 OPEN\\\" } else { Write-Host \\\"::1:6380 CLOSED\\\" }; $tcp6.Close() } catch { Write-Host \\\"::1:6380 ERROR $($_.Exception.Message)\\\" }; Write-Host \\\"---PORT 6379---\\\"; try { $tcp2 = New-Object System.Net.Sockets.TcpClient; $iar2 = $tcp2.BeginConnect(\\\"127.0.0.1\\\", 6379, $null, $null); $ok2 = $iar2.AsyncWaitHandle.WaitOne(800, $false); if ($ok2 -and $tcp2.Connected) { Write-Host \\\"127.0.0.1:6379 OPEN\\\" } else { Write-Host \\\"127.0.0.1:6379 CLOSED\\\" }; $tcp2.Close() } catch { Write-Host \\\"127.0.0.1:6379 ERROR $($_.Exception.Message)\\\" }; Write-Host \\\"---DOCKER---\\\"; docker ps -a --filter \\\"name=redis\\\" --format \\\"table {{.Names}}\\\\t{{.Status}}\\\\t{{.Ports}}\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:25:04.861Z",
+      "lastAccessed": "2026-10-28T08:25:04.861Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:25:04.861Z"
+    },
+    "cmd-1793175929599": {
+      "key": "cmd-1793175929599",
+      "value": "{\"command\":\"docker inspect mainpuri-redis --format \\\"{{json .HostConfig.PortBindings}}\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:25:29.599Z",
+      "lastAccessed": "2026-10-28T08:25:29.599Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:25:29.599Z"
+    },
+    "cmd-1793175930724": {
+      "key": "cmd-1793175930724",
+      "value": "{\"command\":\"docker inspect mainpuri-redis --format \\\"{{json .Config.Labels}}\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:25:30.724Z",
+      "lastAccessed": "2026-10-28T08:25:30.724Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:25:30.724Z"
+    },
+    "cmd-1793175940877": {
+      "key": "cmd-1793175940877",
+      "value": "{\"command\":\"docker inspect mainpuri-redis --format \\\"{{json .NetworkSettings.Ports}}\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:25:40.877Z",
+      "lastAccessed": "2026-10-28T08:25:40.877Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:25:40.877Z"
+    },
+    "cmd-1793175941303": {
+      "key": "cmd-1793175941303",
+      "value": "{\"command\":\"docker port mainpuri-redis\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:25:41.303Z",
+      "lastAccessed": "2026-10-28T08:25:41.303Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:25:41.303Z"
+    },
+    "cmd-1793175960105": {
+      "key": "cmd-1793175960105",
+      "value": "{\"command\":\"docker inspect mainpuri-postgres --format \\\"bindings={{json .HostConfig.PortBindings}} published={{json .NetworkSettings.Ports}}\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:26:00.105Z",
+      "lastAccessed": "2026-10-28T08:26:00.105Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:26:00.105Z"
+    },
+    "cmd-1793175960202": {
+      "key": "cmd-1793175960202",
+      "value": "{\"command\":\"docker inspect mainpuri-mailpit --format \\\"bindings={{json .HostConfig.PortBindings}} published={{json .NetworkSettings.Ports}}\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:26:00.202Z",
+      "lastAccessed": "2026-10-28T08:26:00.202Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:26:00.202Z"
+    },
+    "cmd-1793176006759": {
+      "key": "cmd-1793176006759",
+      "value": "{\"command\":\"docker compose up -d --dry-run postgres redis mailpit\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:26:46.759Z",
+      "lastAccessed": "2026-10-28T08:26:46.759Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:26:46.759Z"
+    },
+    "cmd-1793176026382": {
+      "key": "cmd-1793176026382",
+      "value": "{\"command\":\"docker compose ps --format \\\"table {{.Name}}\\\\t{{.Status}}\\\\t{{.Ports}}\\\"; Write-Host \\\"---6380---\\\"; docker port mainpuri-redis; Write-Host \\\"---5433---\\\"; docker port mainpuri-postgres\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:27:06.382Z",
+      "lastAccessed": "2026-10-28T08:27:06.382Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:27:06.382Z"
+    },
+    "cmd-1793176195903": {
+      "key": "cmd-1793176195903",
+      "value": "{\"command\":\"docker compose up -d postgres redis mailpit\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:29:55.903Z",
+      "lastAccessed": "2026-10-28T08:29:55.903Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:29:55.903Z"
+    },
+    "cmd-1793176205030": {
+      "key": "cmd-1793176205030",
+      "value": "{\"command\":\"docker compose ps --format \\\"table {{.Name}}\\\\t{{.Status}}\\\\t{{.Ports}}\\\"; Write-Host \\\"---PORTS---\\\"; docker port mainpuri-redis; docker port mainpuri-postgres; docker port mainpuri-mailpit; Write-Host \\\"---PING---\\\"; docker exec mainpuri-redis redis-cli ping; try { $tcp = New-Object System.Net.Sockets.TcpClient; $iar = $tcp.BeginConnect(\\\"127.0.0.1\\\", 6380, $null, $null); $ok = $iar.AsyncWaitHandle.WaitOne(1000, $false); if ($ok -and $tcp.Connected) { Write-Host \\\"127.0.0.1:6380 OPEN\\\" } else { Write-Host \\\"127.0.0.1:6380 CLOSED\\\" }; $tcp.Close() } catch { Write-Host \\\"6380 ERROR\\\" }; try { $tcp = New-Object System.Net.Sockets.TcpClient; $iar = $tcp.BeginConnect(\\\"127.0.0.1\\\", 5433, $null, $null); $ok = $iar.AsyncWaitHandle.WaitOne(1000, $false); if ($ok -and $tcp.Connected) { Write-Host \\\"127.0.0.1:5433 OPEN\\\" } else { Write-Host \\\"127.0.0.1:5433 CLOSED\\\" }; $tcp.Close() } catch { Write-Host \\\"5433 ERROR\\\" }\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:30:05.030Z",
+      "lastAccessed": "2026-10-28T08:30:05.030Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:30:05.030Z"
+    },
+    "cmd-1793176274379": {
+      "key": "cmd-1793176274379",
+      "value": "{\"command\":\"pnpm --filter api test -- src/common/redis.client.spec.ts src/config/validate-env.spec.ts\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:31:14.379Z",
+      "lastAccessed": "2026-10-28T08:31:14.379Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:31:14.379Z"
+    },
+    "cmd-1793176277956": {
+      "key": "cmd-1793176277956",
+      "value": "{\"command\":\"node scripts/ensure-local-ports.mjs; docker exec mainpuri-redis redis-cli ping\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:31:17.956Z",
+      "lastAccessed": "2026-10-28T08:31:17.956Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:31:17.956Z"
+    },
+    "cmd-1793176293615": {
+      "key": "cmd-1793176293615",
+      "value": "{\"command\":\"pnpm --filter api lint; pnpm --filter api typecheck; pnpm --filter api test\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:31:33.615Z",
+      "lastAccessed": "2026-10-28T08:31:33.615Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:31:33.615Z"
+    },
+    "cmd-1793176298443": {
+      "key": "cmd-1793176298443",
+      "value": "{\"command\":\"pnpm --filter api dev\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:31:38.443Z",
+      "lastAccessed": "2026-10-28T08:31:38.443Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:31:38.443Z"
+    },
+    "cmd-1793176311641": {
+      "key": "cmd-1793176311641",
+      "value": "{\"command\":\"curl -s http://localhost:4000/api/v1/health; Write-Host \\\"\\\"; curl -s http://localhost:4000/api/v1/health/ready; Write-Host \\\"\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:31:51.641Z",
+      "lastAccessed": "2026-10-28T08:31:51.641Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:31:51.641Z"
+    },
+    "cmd-1793176314828": {
+      "key": "cmd-1793176314828",
+      "value": "{\"command\":\"pnpm --filter portal dev\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:31:54.828Z",
+      "lastAccessed": "2026-10-28T08:31:54.828Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:31:54.828Z"
+    },
+    "cmd-1793176314970": {
+      "key": "cmd-1793176314970",
+      "value": "{\"command\":\"pnpm --filter web dev\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:31:54.970Z",
+      "lastAccessed": "2026-10-28T08:31:54.970Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:31:54.970Z"
+    },
+    "cmd-1793176335469": {
+      "key": "cmd-1793176335469",
+      "value": "{\"command\":\"curl.exe -s http://localhost:4000/api/v1/health; Write-Host \\\"\\\"; curl.exe -s http://localhost:4000/api/v1/health/ready; Write-Host \\\"\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:32:15.469Z",
+      "lastAccessed": "2026-10-28T08:32:15.469Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:32:15.469Z"
+    },
+    "cmd-1793176342733": {
+      "key": "cmd-1793176342733",
+      "value": "{\"command\":\"curl.exe -s -o NUL -w \\\"portal:%{http_code}`n\\\" http://localhost:3000/login; curl.exe -s -o NUL -w \\\"web:%{http_code}`n\\\" http://localhost:3001/\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:32:22.733Z",
+      "lastAccessed": "2026-10-28T08:32:22.733Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:32:22.733Z"
+    },
+    "cmd-1793176985409": {
+      "key": "cmd-1793176985409",
+      "value": "{\"command\":\"docker ps --format \\\"table {{.Names}}\\\\t{{.Status}}\\\\t{{.Ports}}\\\"; Write-Host \\\"---PORTS---\\\"; netstat -ano | findstr \\\"LISTENING\\\" | findstr \\\":3000 :3001 :4000 :5433 :6380\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:43:05.409Z",
+      "lastAccessed": "2026-10-28T08:43:05.409Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:43:05.409Z"
+    },
+    "cmd-1793177011367": {
+      "key": "cmd-1793177011367",
+      "value": "{\"command\":\"$sql = @'\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:43:31.367Z",
+      "lastAccessed": "2026-10-28T08:43:31.367Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:43:31.367Z"
+    },
+    "cmd-1793177017340": {
+      "key": "cmd-1793177017340",
+      "value": "{\"command\":\"\\\"SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;\\\" | docker exec -i mainpuri-postgres psql -U chhata -d chhata\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:43:37.340Z",
+      "lastAccessed": "2026-10-28T08:43:37.340Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:43:37.340Z"
+    },
+    "cmd-1793177026497": {
+      "key": "cmd-1793177026497",
+      "value": "{\"command\":\"$sql = @'\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:43:46.497Z",
+      "lastAccessed": "2026-10-28T08:43:46.497Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:43:46.497Z"
+    },
+    "cmd-1793177036698": {
+      "key": "cmd-1793177036698",
+      "value": "{\"command\":\"$sql = @'\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:43:56.698Z",
+      "lastAccessed": "2026-10-28T08:43:56.698Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:43:56.698Z"
+    },
+    "cmd-1793177082828": {
+      "key": "cmd-1793177082828",
+      "value": "{\"command\":\"pnpm exec tsx scripts/_check-admin-password.ts\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:44:42.828Z",
+      "lastAccessed": "2026-10-28T08:44:42.828Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:44:42.828Z"
+    },
+    "cmd-1793177096418": {
+      "key": "cmd-1793177096418",
+      "value": "{\"command\":\"Remove-Item -Force \\\"apps\\\\api\\\\scripts\\\\_check-admin-password.ts\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T08:44:56.418Z",
+      "lastAccessed": "2026-10-28T08:44:56.418Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T08:44:56.418Z"
     }
   },
   "version": "3.0.0"

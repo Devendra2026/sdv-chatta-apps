@@ -9,6 +9,7 @@ import { RolesGuard } from "./auth/roles.guard"
 import { CsrfController } from "./common/csrf.controller"
 import { CsrfGuard } from "./common/csrf.guard"
 import { DashboardModule } from "./dashboard/dashboard.module"
+import { DemandsModule } from "./demands/demands.module"
 import { HealthModule } from "./health/health.module"
 import { ImportsModule } from "./imports/imports.module"
 import { PaymentsModule } from "./payments/payments.module"
@@ -19,6 +20,7 @@ import { ReferenceModule } from "./reference/reference.module"
 import { ReportsModule } from "./reports/reports.module"
 import { StorageModule } from "./storage/storage.module"
 import { SurveysModule } from "./surveys/surveys.module"
+import { TaxAdjustmentsModule } from "./tax-adjustments/tax-adjustments.module"
 import { TaxConfigsModule } from "./tax-configs/tax-configs.module"
 import { WardsModule } from "./wards/wards.module"
 import { createObserveModule } from "@nestjs/observe"
@@ -54,6 +56,8 @@ const observeOptions = observeOptionsFromEnv()
     PaymentsModule,
     ReportsModule,
     TaxConfigsModule,
+    TaxAdjustmentsModule,
+    DemandsModule,
     ReferenceModule,
     PublicPropertyTaxModule,
     ...(observeOptions ? [ObserveModule.forRoot(observeOptions)] : []),

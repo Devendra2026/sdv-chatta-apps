@@ -9,7 +9,19 @@ describe("import-reconcile", () => {
     const touched = new Set(["s1", "s2"])
     const oneWard = new Set(["ward-2"])
 
-    it("returns ward id for successful single-ward UPDATE", () => {
+    it("returns ward id for successful single-ward UPDATE when pruneMissing is true", () => {
+      expect(
+        shouldReconcileWardAfterImport({
+          duplicateStrategy: "UPDATE",
+          failedRows: 0,
+          wardIdsSeen: oneWard,
+          touchedSurveyIds: touched,
+          pruneMissing: true,
+        })
+      ).toBe("ward-2")
+    })
+
+    it("does not reconcile unless pruneMissing is explicitly true (opt-in)", () => {
       expect(
         shouldReconcileWardAfterImport({
           duplicateStrategy: "UPDATE",
@@ -17,7 +29,16 @@ describe("import-reconcile", () => {
           wardIdsSeen: oneWard,
           touchedSurveyIds: touched,
         })
-      ).toBe("ward-2")
+      ).toBeNull()
+      expect(
+        shouldReconcileWardAfterImport({
+          duplicateStrategy: "UPDATE",
+          failedRows: 0,
+          wardIdsSeen: oneWard,
+          touchedSurveyIds: touched,
+          pruneMissing: false,
+        })
+      ).toBeNull()
     })
 
     it("does not reconcile SKIP strategy", () => {
@@ -27,6 +48,7 @@ describe("import-reconcile", () => {
           failedRows: 0,
           wardIdsSeen: oneWard,
           touchedSurveyIds: touched,
+          pruneMissing: true,
         })
       ).toBeNull()
     })
@@ -38,6 +60,7 @@ describe("import-reconcile", () => {
           failedRows: 1,
           wardIdsSeen: oneWard,
           touchedSurveyIds: touched,
+          pruneMissing: true,
         })
       ).toBeNull()
     })
@@ -49,6 +72,7 @@ describe("import-reconcile", () => {
           failedRows: 0,
           wardIdsSeen: new Set(["ward-1", "ward-2"]),
           touchedSurveyIds: touched,
+          pruneMissing: true,
         })
       ).toBeNull()
     })
@@ -60,6 +84,7 @@ describe("import-reconcile", () => {
           failedRows: 0,
           wardIdsSeen: oneWard,
           touchedSurveyIds: new Set(),
+          pruneMissing: true,
         })
       ).toBeNull()
     })

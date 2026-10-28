@@ -103,7 +103,7 @@ export default function NoticePage() {
       ).data
 
       type DuesPayload = {
-        assessmentYear: { name: string }
+        assessmentYear: { id: string; name: string }
         floors: Array<{
           floorLabel: string
           usageType: string
@@ -118,13 +118,35 @@ export default function NoticePage() {
           propertyTaxPct: number
           waterTaxPct: number
           drainageTaxPct: number
+          penaltyPct?: number
           propertyTax: number
           waterTax: number
           drainageTax: number
+          penalty?: number
           totalDemand: number
           annualBaseRate: number | null
           configFound: boolean
         }
+      }
+
+      type DemandPayload = {
+        status: string
+        verified: boolean
+        propertyTax: number
+        waterTax: number
+        drainageTax: number
+        penalty: number
+        rebate: number
+        arrears: number
+        currentDemand: number
+        totalPayable: number
+        amountPaid: number
+        outstanding: number
+        assessmentYear?: { name: string } | null
+        demandArrears?: Array<{
+          amount: number
+          sourceAssessmentYear?: { name: string } | null
+        }>
       }
 
       let dues: DuesPayload
@@ -138,25 +160,61 @@ export default function NoticePage() {
         const message =
           err instanceof ApiError
             ? err.message
-            : "Published tax rates are not available for this ward. Configure and publish rates on Reports → Tax Rates first."
+            : "Published tax rates are not available for this ward. Configure and publish rates on Tax Administration → Tax Rates first."
         toast.error(message)
         return
       }
 
+      let demand: DemandPayload | null = null
+      try {
+        demand = (
+          await api.get<DemandPayload | null>(
+            `/api/v1/demands/published?surveyId=${encodeURIComponent(row.id)}&assessmentYearId=${encodeURIComponent(dues.assessmentYear.id)}`
+          )
+        ).data
+      } catch {
+        demand = null
+      }
+
       if (dues.floors.every((f) => f.rate <= 0) && dues.tax.totalDemand <= 0) {
         toast.warning(
-          "Tax matrix rates are zero for this property’s zone/construction. Check published rates on Reports → Tax Rates."
+          "Tax matrix rates are zero for this property’s zone/construction. Check published rates on Tax Administration → Tax Rates."
         )
       }
 
+      const published = demand?.status === "PUBLISHED"
       const logoUrl = `${window.location.origin}/branding/up-government-logo.png`
       const html = generateDemandNoticeHtml(survey, {
         logoUrl,
         websiteDisplayHost: getCitizenWebDisplayHost(),
         floors: dues.floors,
         tax: {
-          ...dues.tax,
+          propertyTaxPct: dues.tax.propertyTaxPct,
+          waterTaxPct: dues.tax.waterTaxPct,
+          drainageTaxPct: dues.tax.drainageTaxPct,
+          penaltyPct: dues.tax.penaltyPct,
+          propertyTax: demand?.propertyTax ?? dues.tax.propertyTax,
+          waterTax: demand?.waterTax ?? dues.tax.waterTax,
+          drainageTax: demand?.drainageTax ?? dues.tax.drainageTax,
+          penalty: demand?.penalty ?? dues.tax.penalty ?? 0,
+          rebate: demand?.rebate ?? 0,
+          arrears: demand?.arrears ?? 0,
+          currentDemand: demand?.currentDemand ?? dues.tax.totalDemand,
+          totalPayable: demand?.totalPayable ?? dues.tax.totalDemand,
+          amountPaid: demand?.amountPaid ?? 0,
+          outstanding:
+            demand?.outstanding ??
+            Math.max(0, dues.tax.totalDemand),
+          totalDemand: demand?.totalPayable ?? dues.tax.totalDemand,
+          annualBaseRate: dues.tax.annualBaseRate,
+          configFound: dues.tax.configFound,
           assessmentYear: dues.assessmentYear.name,
+          published,
+          verified: demand?.verified ?? true,
+          yearWiseArrears: (demand?.demandArrears ?? []).map((a) => ({
+            yearLabel: a.sourceAssessmentYear?.name ?? "—",
+            amount: Number(a.amount),
+          })),
         },
         assessmentYear: dues.assessmentYear.name,
       })

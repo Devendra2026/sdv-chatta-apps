@@ -301,10 +301,14 @@ export function detectPreset(columnCount: number): MappingPreset {
   return columnCount >= 50 ? "chhata-v2-55" : "chhata-v1-38"
 }
 
-export function detectPresetFromHeaders(
+/**
+ * Detect a known Chhata layout from the header row.
+ * Returns null when the sheet does not look like a supported survey export.
+ */
+export function tryDetectPresetFromHeaders(
   headers: string[],
-  columnCount = headers.length
-): MappingPreset {
+  _columnCount = headers.length
+): MappingPreset | null {
   const first = (headers[0] ?? "").toLowerCase().replace(/[.\s]/g, "")
   if (first === "sn" || first === "sno") return "chhata-v2-55"
   if (first.includes("surveyid")) {
@@ -316,7 +320,35 @@ export function detectPresetFromHeaders(
     if (hasAadhaar || floorsIdx === 25) return "chhata-v1-39"
     return "chhata-v1-38"
   }
-  return detectPreset(columnCount)
+  return null
+}
+
+export function detectPresetFromHeaders(
+  headers: string[],
+  columnCount = headers.length
+): MappingPreset {
+  return tryDetectPresetFromHeaders(headers, columnCount) ?? detectPreset(columnCount)
+}
+
+/** Headers that do not match a known field token (ignores SN / Actions). */
+export function listUnmappedHeaders(headers: string[]): string[] {
+  const known = new Set(HEADER_FIELD_TOKENS.map((t) => t.token))
+  const ignorable = new Set(["sn", "sno", "actions"])
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const header of headers) {
+    const raw = (header ?? "").trim()
+    if (!raw) continue
+    const token = normHeader(raw)
+    if (!token || ignorable.has(token) || known.has(token)) continue
+    // Duplicate municipal-water headers are intentionally remapped.
+    if (token === "ismuncipalwatersupply") continue
+    const key = raw.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(raw)
+  }
+  return out
 }
 
 export function getMapping(preset: MappingPreset): ColumnMap {

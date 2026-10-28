@@ -268,6 +268,7 @@ model Survey {
   floors      SurveyFloor[]
   attachments SurveyAttachment[]
   payments    Payment[]
+  demands     PropertyDemand[]
 
   @@index([wardId])
   @@index([mobile])
@@ -453,10 +454,15 @@ model ReferenceEntry {
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
-  taxConfigsAssessmentYear TaxConfig[]   @relation("TaxConfigAssessmentYear")
-  paymentsAssessmentYear   Payment[]     @relation("PaymentAssessmentYear")
-  taxCellsRoad             TaxRateCell[] @relation("CellRoadWidth")
-  taxCellsConstruction     TaxRateCell[] @relation("CellConstruction")
+  taxConfigsAssessmentYear       TaxConfig[]         @relation("TaxConfigAssessmentYear")
+  paymentsAssessmentYear         Payment[]           @relation("PaymentAssessmentYear")
+  taxCellsRoad                   TaxRateCell[]       @relation("CellRoadWidth")
+  taxCellsConstruction           TaxRateCell[]       @relation("CellConstruction")
+  propertyDemandsAssessmentYear  PropertyDemand[]    @relation("PropertyDemandAssessmentYear")
+  demandArrearsSource            DemandArrear[]      @relation("DemandArrearSourceYear")
+  taxAdjustmentRules             TaxAdjustmentRule[] @relation("TaxAdjustmentAssessmentYear")
+  yearEndRunsFrom                YearEndRun[]        @relation("YearEndFromYear")
+  yearEndRunsTo                  YearEndRun[]        @relation("YearEndToYear")
 
   @@unique([categoryId, code])
   @@index([categoryId, status])
@@ -523,7 +529,125 @@ model TaxConfigVersion {
   @@map("tax_config_version")
 }
 
+model PropertyDemand {
+  id               String               @id @default(cuid())
+  surveyId         String
+  survey           Survey               @relation(fields: [surveyId], references: [id])
+  assessmentYearId String
+  assessmentYear   ReferenceEntry       @relation("PropertyDemandAssessmentYear", fields: [assessmentYearId], references: [id])
+  status           PropertyDemandStatus @default(DRAFT)
+  propertyTax      Decimal              @default(0) @db.Decimal(14, 2)
+  waterTax         Decimal              @default(0) @db.Decimal(14, 2)
+  drainageTax      Decimal              @default(0) @db.Decimal(14, 2)
+  penalty          Decimal              @default(0) @db.Decimal(14, 2)
+  rebate           Decimal              @default(0) @db.Decimal(14, 2)
+  arrears          Decimal              @default(0) @db.Decimal(14, 2)
+  currentDemand    Decimal              @default(0) @db.Decimal(14, 2)
+  totalPayable     Decimal              @default(0) @db.Decimal(14, 2)
+  amountPaid       Decimal              @default(0) @db.Decimal(14, 2)
+  outstanding      Decimal              @default(0) @db.Decimal(14, 2)
+  verified         Boolean              @default(true)
+  snapshot         Json?
+  publishedAt      DateTime?
+  publishedById    String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  demandArrears DemandArrear[]
+  payments      Payment[]
+
+  @@unique([surveyId, assessmentYearId])
+  @@index([status])
+  @@index([assessmentYearId])
+  @@index([surveyId])
+  @@map("property_demand")
+}
+
+model DemandArrear {
+  id                     String         @id @default(cuid())
+  demandId               String
+  demand                 PropertyDemand @relation(fields: [demandId], references: [id], onDelete: Cascade)
+  sourceAssessmentYearId String
+  sourceAssessmentYear   ReferenceEntry @relation("DemandArrearSourceYear", fields: [sourceAssessmentYearId], references: [id])
+  amount                 Decimal        @db.Decimal(14, 2)
+
+  @@unique([demandId, sourceAssessmentYearId])
+  @@map("demand_arrear")
+}
+
+model TaxAdjustmentRule {
+  id               String               @id @default(cuid())
+  kind             TaxAdjustmentKind
+  head             TaxAdjustmentHead
+  assessmentYearId String?
+  assessmentYear   ReferenceEntry?      @relation("TaxAdjustmentAssessmentYear", fields: [assessmentYearId], references: [id])
+  name             String
+  method           TaxAdjustmentMethod
+  value            Decimal              @db.Decimal(14, 4)
+  cap              Decimal?             @db.Decimal(14, 2)
+  effectiveFrom    DateTime?
+  effectiveTo      DateTime?
+  status           TaxAdjustmentStatus  @default(DRAFT)
+  publishedAt      DateTime?
+  publishedById    String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([kind, head, status])
+  @@index([assessmentYearId])
+  @@map("tax_adjustment_rule")
+}
+
+model YearEndRun {
+  id                   String            @id @default(cuid())
+  fromAssessmentYearId String
+  fromAssessmentYear   ReferenceEntry    @relation("YearEndFromYear", fields: [fromAssessmentYearId], references: [id])
+  toAssessmentYearId   String
+  toAssessmentYear     ReferenceEntry    @relation("YearEndToYear", fields: [toAssessmentYearId], references: [id])
+  status               YearEndRunStatus
+  summary              Json?
+  createdById          String?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  committedAt          DateTime?
+
+  @@unique([fromAssessmentYearId, toAssessmentYearId])
+  @@map("year_end_run")
+}
+
 // ─── Payments ──────────────────────────────────────────────────
+
+enum PropertyDemandStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum TaxAdjustmentKind {
+  REBATE
+  PENALTY
+}
+
+enum TaxAdjustmentHead {
+  PROPERTY
+  WATER
+}
+
+enum TaxAdjustmentMethod {
+  PERCENT_OF_HEAD
+  FLAT_AMOUNT
+}
+
+enum TaxAdjustmentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum YearEndRunStatus {
+  PREVIEWED
+  COMMITTED
+}
 
 enum PaymentMode {
   ONLINE
@@ -545,35 +669,39 @@ enum PaymentStatus {
 }
 
 model Payment {
-  id                String        @id @default(cuid())
-  paymentReference  String        @unique
-  merchTxnId        String?       @unique
-  atomTxnId         String?       @unique
-  surveyId          String?
-  survey            Survey?       @relation(fields: [surveyId], references: [id])
-  wardId            String?
-  ward              Ward?         @relation(fields: [wardId], references: [id])
-  assessmentYearId  String?
-  assessmentYear    ReferenceEntry? @relation("PaymentAssessmentYear", fields: [assessmentYearId], references: [id])
-  payerName         String?
-  payerMobile       String?
-  payerEmail        String?
-  amount            Decimal       @db.Decimal(14, 2)
-  currency          String        @default("INR")
-  paymentMode       PaymentMode
-  status            PaymentStatus @default(INITIATED)
-  gateway           String?
-  gatewayReference  String?
-  receiptNumber     String?       @unique
-  collectionDate    DateTime?
-  chequeDdReference String?
-  remarks           String?
-  collectedById     String?
-  collectedBy       User?         @relation("PaymentCollectedBy", fields: [collectedById], references: [id])
-  attachmentKey     String?
-  refundableAmount  Decimal?      @db.Decimal(14, 2)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id                   String          @id @default(cuid())
+  paymentReference     String          @unique
+  merchTxnId           String?         @unique
+  atomTxnId            String?         @unique
+  surveyId             String?
+  survey               Survey?         @relation(fields: [surveyId], references: [id])
+  wardId               String?
+  ward                 Ward?           @relation(fields: [wardId], references: [id])
+  assessmentYearId     String?
+  assessmentYear       ReferenceEntry? @relation("PaymentAssessmentYear", fields: [assessmentYearId], references: [id])
+  propertyDemandId     String?
+  propertyDemand       PropertyDemand? @relation(fields: [propertyDemandId], references: [id])
+  payerName            String?
+  payerMobile          String?
+  payerEmail           String?
+  amount               Decimal         @db.Decimal(14, 2)
+  currency             String          @default("INR")
+  paymentMode          PaymentMode
+  status               PaymentStatus   @default(INITIATED)
+  gateway              String?
+  gatewayReference     String?
+  receiptNumber        String?         @unique
+  receiptSnapshot      Json?
+  collectionDate       DateTime?
+  chequeDdReference    String?
+  remarks              String?
+  collectedById        String?
+  collectedBy          User?           @relation("PaymentCollectedBy", fields: [collectedById], references: [id])
+  attachmentKey        String?
+  refundableAmount     Decimal?        @db.Decimal(14, 2)
+  clientIdempotencyKey String?         @unique
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
 
   transactions PaymentTransaction[]
   callbacks    PaymentCallback[]

@@ -1,9 +1,14 @@
 /**
  * A4 Property Tax Payment Receipt for counter / offline collection.
- * Matches municipal demand-notice visual language.
+ * Consumer and office copies share the same Payment / receiptSnapshot.
  */
 
-import type { StaffPaymentReceipt } from "@workspace/types"
+import type {
+  PaymentReceiptSnapshot,
+  StaffPaymentReceipt,
+} from "@workspace/types"
+
+export type ReceiptCopyType = "consumer" | "office"
 
 function esc(value: unknown): string {
   const s = String(value ?? "—")
@@ -56,22 +61,54 @@ function wardLabel(receipt: StaffPaymentReceipt): string {
   return `${String(receipt.ward.number).padStart(2, "0")} · ${receipt.ward.name}`
 }
 
+function snapshotRows(snap: PaymentReceiptSnapshot | null | undefined): string {
+  if (!snap) {
+    return `<div class="row"><div class="lbl">Breakdown</div><div class="val">Not available on this receipt</div></div>`
+  }
+  const rows: Array<[string, number]> = [
+    ["Property tax", snap.propertyTax],
+    ["Water tax", snap.waterTax],
+    ["Drainage tax", snap.drainageTax],
+    ["Penalty", snap.penalty],
+    ["Rebate", -Math.abs(snap.rebate)],
+    ["Arrears", snap.arrears],
+    ["Current demand", snap.currentDemand],
+    ["Total payable", snap.totalPayable],
+    ["Amount received", snap.amountReceived],
+    ["Outstanding after", snap.outstandingAfter],
+  ]
+  return rows
+    .map(
+      ([label, value]) => `
+      <div class="row">
+        <div class="lbl">${esc(label)}</div>
+        <div class="val">₹${money(value)}</div>
+      </div>`
+    )
+    .join("")
+}
+
 export function generateOfflinePaymentReceiptHtml(
   receipt: StaffPaymentReceipt,
-  options?: { logoUrl?: string }
+  options?: { logoUrl?: string; copyType?: ReceiptCopyType }
 ): string {
   const logoUrl = options?.logoUrl?.trim() || "/branding/up-government-logo.png"
+  const copyType = options?.copyType ?? "consumer"
+  const copyLabel =
+    copyType === "office" ? "OFFICE COPY · कार्यालय प्रति" : "CONSUMER COPY · उपभोक्ता प्रति"
   const survey = receipt.survey
+  const snap = receipt.receiptSnapshot ?? null
   const printedAt = new Date().toLocaleString("en-IN", {
     dateStyle: "medium",
     timeStyle: "short",
   })
+  const yearLabel = snap?.assessmentYear?.name ?? "—"
 
   return `<!DOCTYPE html>
 <html lang="hi">
 <head>
 <meta charset="UTF-8">
-<title>Payment Receipt - ${esc(receipt.receiptNumber)}</title>
+<title>Payment Receipt (${esc(copyType)}) - ${esc(receipt.receiptNumber)}</title>
 <style>
 @page {
   size: A4 portrait;
@@ -81,7 +118,7 @@ export function generateOfflinePaymentReceiptHtml(
 
 html { background: #e2e8f0; }
 body {
-  font-family: "Segoe UI", "Noto Sans Devanagari", Lato, Tahoma, sans-serif;
+  font-family: "Noto Sans Devanagari", "Mangal", "Kokila", "Segoe UI", Lato, Tahoma, sans-serif;
   font-size: 11px;
   line-height: 1.45;
   color: #020617;
@@ -146,8 +183,21 @@ body {
 }
 .title-hi { font-size: 15px; font-weight: 700; color: #0f172a; margin-top: 2px; }
 
+.copy-banner {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #0f172a;
+  background: #f1f5f9;
+  border: 1.5px solid #94a3b8;
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+
 .status-banner {
-  margin-top: 12px;
+  margin-top: 10px;
   text-align: center;
   font-size: 12px;
   font-weight: 800;
@@ -258,6 +308,7 @@ body {
       <div class="logo" aria-hidden="true"></div>
     </header>
 
+    <div class="copy-banner">${esc(copyLabel)}</div>
     <div class="status-banner">PAYMENT RECEIVED</div>
 
     <div class="meta">
@@ -299,14 +350,8 @@ body {
           <div class="val">${esc(survey?.address)}</div>
         </div>
         <div class="row">
-          <div class="lbl">Payer (if different)</div>
-          <div class="val">${esc(
-            receipt.payerName &&
-              survey?.ownerName &&
-              receipt.payerName.trim() !== survey.ownerName.trim()
-              ? `${receipt.payerName}${receipt.payerMobile ? ` · ${receipt.payerMobile}` : ""}`
-              : "—"
-          )}</div>
+          <div class="lbl">Assessment year</div>
+          <div class="val">${esc(yearLabel)}</div>
         </div>
       </div>
       <div class="col">
@@ -335,15 +380,12 @@ body {
           <div class="lbl">Property use</div>
           <div class="val">${esc(survey?.propertyUse)}</div>
         </div>
-        <div class="row">
-          <div class="lbl">Zone / Road</div>
-          <div class="val">${esc(
-            [survey?.taxRateZone, survey?.roadType]
-              .filter(Boolean)
-              .join(" · ") || null
-          )}</div>
-        </div>
       </div>
+    </div>
+
+    <div class="payment-box">
+      <div class="col-head">Demand breakdown (from receipt snapshot)</div>
+      ${snapshotRows(snap)}
     </div>
 
     <div class="payment-box">
@@ -361,21 +403,13 @@ body {
         <div class="val">${esc(receipt.collectedBy?.name)}</div>
       </div>
       <div class="row">
-        <div class="lbl">Currency</div>
-        <div class="val">${esc(receipt.currency)}</div>
-      </div>
-      <div class="row">
         <div class="lbl">Remarks</div>
         <div class="val">${esc(receipt.remarks)}</div>
-      </div>
-      <div class="row">
-        <div class="lbl">Amount received</div>
-        <div class="val">₹${money(receipt.amount)}</div>
       </div>
     </div>
 
     <div class="received">Received with thanks — ₹${money(receipt.amount)}</div>
-    <div class="thanks">धन्यवाद · Computer-generated municipal receipt</div>
+    <div class="thanks">धन्यवाद · Computer-generated municipal receipt · Payment id ${esc(receipt.paymentId)}</div>
 
     <div class="sign-row">
       <div class="sign-block">
@@ -391,7 +425,7 @@ body {
     <footer class="footer">
       This receipt confirms offline / counter collection of property tax by
       Nagar Panchayat Chhata, Mathura. Retain for your records.<br />
-      Printed: ${esc(printedAt)}
+      Printed: ${esc(printedAt)} · Copy: ${esc(copyType)}
     </footer>
   </article>
 </body>
@@ -399,10 +433,11 @@ body {
 }
 
 export async function printOfflinePaymentReceipt(
-  receipt: StaffPaymentReceipt
+  receipt: StaffPaymentReceipt,
+  copyType: ReceiptCopyType = "consumer"
 ): Promise<boolean> {
   const logoUrl = `${window.location.origin}/branding/up-government-logo.png`
-  const html = generateOfflinePaymentReceiptHtml(receipt, { logoUrl })
+  const html = generateOfflinePaymentReceiptHtml(receipt, { logoUrl, copyType })
   const w = window.open("", "_blank")
   if (!w) return false
   w.document.write(html)

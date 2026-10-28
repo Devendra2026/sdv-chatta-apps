@@ -142,6 +142,11 @@ export class TaxConfigsService {
     if (existing.status === "ARCHIVED") {
       throw new BadRequestException("Cannot edit archived tax config")
     }
+    if (existing.status === "PUBLISHED") {
+      throw new BadRequestException(
+        "Published tax configs are immutable. Create a new draft or copy before editing parameters."
+      )
+    }
 
     const updated = await this.prisma.taxConfig.update({
       where: { id },
@@ -152,7 +157,6 @@ export class TaxConfigsService {
         penaltyPct: dto.penaltyPct,
         assessablePct: dto.assessablePct,
         commercialAssessablePct: dto.commercialAssessablePct,
-        status: "DRAFT",
       },
       include: this.include,
     })
@@ -173,6 +177,14 @@ export class TaxConfigsService {
   async upsertCells(id: string, cells: UpsertTaxCellDto[], actorId?: string) {
     const existing = await this.prisma.taxConfig.findUnique({ where: { id } })
     if (!existing) throw new NotFoundException("Tax config not found")
+    if (existing.status === "ARCHIVED") {
+      throw new BadRequestException("Cannot edit archived tax config")
+    }
+    if (existing.status === "PUBLISHED") {
+      throw new BadRequestException(
+        "Published tax configs are immutable. Create a new draft or copy before editing rate cells."
+      )
+    }
 
     for (const cell of cells) {
       await this.prisma.taxRateCell.upsert({
@@ -194,11 +206,6 @@ export class TaxConfigsService {
         },
       })
     }
-
-    await this.prisma.taxConfig.update({
-      where: { id },
-      data: { status: "DRAFT" },
-    })
 
     await this.audit.log({
       action: "UPSERT_CELLS",
@@ -232,6 +239,7 @@ export class TaxConfigsService {
     })
 
     let updated = 0
+    let skippedPublished = 0
     for (const ward of wards) {
       if (ward.id === dto.sourceWardId) continue
       const config = await this.getOrCreate(
@@ -239,6 +247,10 @@ export class TaxConfigsService {
         dto.assessmentYearId,
         actorId
       )
+      if (config.status === "PUBLISHED" || config.status === "ARCHIVED") {
+        skippedPublished += 1
+        continue
+      }
       await this.upsertCells(config.id, cells, actorId)
       await this.updateParams(
         config.id,
@@ -255,7 +267,7 @@ export class TaxConfigsService {
       updated += 1
     }
 
-    return { updated }
+    return { updated, skippedPublished }
   }
 
   async preview(dto: TaxPreviewDto) {

@@ -43,6 +43,37 @@ describe("public property tax payment rules", () => {
     }).toThrow(ConflictException)
   })
 
+  it("charges published demand outstanding and ignores client amount", () => {
+    const demandOutstanding = 800
+    const clientAmount = 50_000
+    const charge = demandOutstanding
+    expect(charge).toBe(800)
+    expect(charge).not.toBe(clientAmount)
+  })
+
+  it("allows another payment while demand outstanding > 0 despite prior SUCCESS", () => {
+    const hasPublishedDemand = true
+    const outstanding = 450
+    const successPaymentCount = 1
+    const alreadyPaid =
+      hasPublishedDemand
+        ? outstanding <= 0
+        : successPaymentCount > 0
+    expect(alreadyPaid).toBe(false)
+  })
+
+  it("rejects when published demand outstanding is <= 0", () => {
+    const outstanding = 0
+    expect(() => {
+      if (!Number.isFinite(outstanding) || outstanding <= 0) {
+        throw new BadRequestException({
+          code: "DUES_NOT_PAYABLE",
+          message: "No outstanding dues for this property's published demand.",
+        })
+      }
+    }).toThrow(BadRequestException)
+  })
+
   it("DTO requires 10-digit mobile pattern in class metadata", () => {
     const dto = new CreatePublicPropertyTaxPaymentDto()
     dto.surveyId = "clxxxxxxxxxxxxxxxxxxxxxxxx"

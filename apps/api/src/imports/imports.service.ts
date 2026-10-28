@@ -8,10 +8,10 @@ import { DuplicateStrategy, ImportJobStatus, Prisma } from "@prisma/client"
 import { resolveImportSurveyId } from "@workspace/types"
 import { Queue } from "bullmq"
 import ExcelJS from "exceljs"
-import IORedis from "ioredis"
 
 import { AuditService } from "../audit/audit.service"
 import type { AuthUser } from "../auth/auth.decorators"
+import { createBullMqRedisConnection } from "../common/redis.client"
 import { PrismaService } from "../prisma/prisma.service"
 import { StorageService } from "../storage/storage.service"
 import { computeDataQuality, parseFloorsRaw } from "../surveys/floors.util"
@@ -22,16 +22,24 @@ import {
 import { getUlbCode } from "../surveys/survey-id.util"
 import {
   cell,
-  detectPresetFromHeaders,
   extractWardNumber,
-  getMapping,
+  listUnmappedHeaders,
   normalizeParcelNo,
   normalizePropertyNo,
   parseBool,
   parseNumber,
   parseSurveyedAt,
   resolveColumnMap,
+  tryDetectPresetFromHeaders,
 } from "./column-maps"
+import {
+  collectAreaInconsistencyMessages,
+  columnMapToJson,
+  getImportMaxFileSizeBytes,
+  isAllowedChhataCity,
+  type ImportPreviewResult,
+  type ImportPreviewSampleRow,
+} from "./import-preview"
 import {
   orphanSurveyWhere,
   shouldPruneOrphanCount,
@@ -55,12 +63,7 @@ export class ImportsService {
     private readonly audit: AuditService
   ) {
     try {
-      const connection = new IORedis(
-        process.env.REDIS_URL ?? "redis://localhost:6379",
-        {
-          maxRetriesPerRequest: null,
-        }
-      )
+      const connection = createBullMqRedisConnection()
       this.queue = new Queue("survey-import", { connection })
     } catch (err) {
       this.logger.warn(`BullMQ queue unavailable: ${String(err)}`)
@@ -72,63 +75,56 @@ export class ImportsService {
     user: AuthUser,
     duplicateStrategy: DuplicateStrategy = "UPDATE"
   ) {
-    const objectKey = `imports/${Date.now()}-${file.originalname}`
-    await this.storage.putObject(objectKey, file.buffer, file.mimetype)
+    if (!file?.buffer?.length) {
+      throw new BadRequestException({
+        code: "FILE_REQUIRED",
+        message: "Excel file is required",
+      })
+    }
+
+    const maxBytes = getImportMaxFileSizeBytes()
+    if (file.size > maxBytes) {
+      const maxMb = Math.round(maxBytes / (1024 * 1024))
+      throw new BadRequestException({
+        code: "FILE_TOO_LARGE",
+        message: `File must be under ${maxMb}MB`,
+      })
+    }
 
     const workbook = new ExcelJS.Workbook()
     await workbook.xlsx.load(file.buffer as unknown as ExcelJS.Buffer)
-    const sheet = workbook.getWorksheet("Survey Data") ?? workbook.worksheets[0]
-    const headerRow = sheet?.getRow(1)
+    const sheet = workbook.getWorksheet("Survey Data")
+    if (!sheet) {
+      throw new BadRequestException({
+        code: "SHEET_MISSING",
+        message: 'Workbook must include a sheet named "Survey Data"',
+      })
+    }
+
+    const headerRow = sheet.getRow(1)
     const columnCount = Math.max(
-      headerRow?.cellCount ?? 0,
-      sheet?.columnCount ?? 0
+      headerRow.cellCount ?? 0,
+      sheet.columnCount ?? 0
     )
     const headers: string[] = []
     for (let col = 1; col <= columnCount; col++) {
-      headers[col - 1] = cell([headerRow?.getCell(col)?.value], 0)
+      headers[col - 1] = cell([headerRow.getCell(col)?.value], 0)
     }
-    const mappingPreset = detectPresetFromHeaders(headers, columnCount)
+    const mappingPreset = tryDetectPresetFromHeaders(headers, columnCount)
+    if (!mappingPreset) {
+      throw new BadRequestException({
+        code: "UNKNOWN_HEADER_PRESET",
+        message:
+          "Could not detect a supported Chhata survey header layout. Use a Ward 1 or Ward 2+ export workbook.",
+      })
+    }
+    const { map } = resolveColumnMap(headers, columnCount)
+    const columnMapping = columnMapToJson(
+      map as unknown as Record<string, number>
+    )
 
-    // #region agent log
-    {
-      const floorsIdx = headers.findIndex((h) =>
-        /^floors$/i.test((h ?? "").trim())
-      )
-      const aadhaarIdx = headers.findIndex((h) => /aadhaar/i.test(h ?? ""))
-      const map = getMapping(mappingPreset)
-      fetch(
-        "http://127.0.0.1:7787/ingest/931237b4-c66c-490a-b4d4-33ab324d8e01",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Debug-Session-Id": "de1763",
-          },
-          body: JSON.stringify({
-            sessionId: "de1763",
-            runId: "pre-fix",
-            hypothesisId: "B,E",
-            location: "imports.service.ts:createUpload",
-            message: "import preset detection",
-            data: {
-              fileName: file.originalname,
-              columnCount,
-              firstHeader: headers[0] ?? null,
-              mappingPreset,
-              floorsHeaderIdx: floorsIdx,
-              aadhaarHeaderIdx: aadhaarIdx,
-              mapFloorsRawIdx: map.floorsRaw,
-              mapTaxRateZoneIdx: map.taxRateZone,
-              headerAtMapFloors: headers[map.floorsRaw] ?? null,
-              headerAtMapZone: headers[map.taxRateZone] ?? null,
-              floorsMisaligned: floorsIdx >= 0 && floorsIdx !== map.floorsRaw,
-            },
-            timestamp: Date.now(),
-          }),
-        }
-      ).catch(() => {})
-    }
-    // #endregion
+    const objectKey = `imports/${Date.now()}-${file.originalname}`
+    await this.storage.putObject(objectKey, file.buffer, file.mimetype)
 
     const job = await this.prisma.importJob.create({
       data: {
@@ -137,18 +133,21 @@ export class ImportsService {
         objectKey,
         status: ImportJobStatus.READY,
         mappingPreset,
+        columnMapping,
         duplicateStrategy,
         createdById: user.id,
-        totalRows: Math.max(0, (sheet?.rowCount ?? 1) - 1),
+        totalRows: Math.max(0, (sheet.rowCount ?? 1) - 1),
       },
     })
 
     return job
   }
 
-  async start(jobId: string) {
+  async start(jobId: string, options?: { pruneMissing?: boolean }) {
     const job = await this.prisma.importJob.findUnique({ where: { id: jobId } })
     if (!job) throw new NotFoundException("Import job not found")
+
+    const pruneMissing = options?.pruneMissing === true
 
     await this.prisma.importJob.update({
       where: { id: jobId },
@@ -156,13 +155,221 @@ export class ImportsService {
     })
 
     if (this.queue) {
-      await this.queue.add("process", { jobId }, { removeOnComplete: 100 })
+      await this.queue.add(
+        "process",
+        { jobId, pruneMissing },
+        { removeOnComplete: 100 }
+      )
     } else {
       // Fallback: process inline when Redis is down
-      await this.processJob(jobId)
+      await this.processJob(jobId, { pruneMissing })
     }
 
     return this.getJob(jobId)
+  }
+
+  async preview(jobId: string): Promise<ImportPreviewResult> {
+    const job = await this.prisma.importJob.findUnique({ where: { id: jobId } })
+    if (!job) throw new NotFoundException("Import job not found")
+    if (!job.objectKey) {
+      throw new BadRequestException({
+        code: "MISSING_FILE",
+        message: "Import file is missing",
+      })
+    }
+
+    const buffer = await this.storage.getObject(job.objectKey)
+    const { sheet, headers, columnCount, map, preset } =
+      await this.loadSurveySheet(buffer)
+
+    if (job.mappingPreset !== preset || !job.columnMapping) {
+      await this.prisma.importJob.update({
+        where: { id: jobId },
+        data: {
+          mappingPreset: preset,
+          columnMapping: columnMapToJson(
+            map as unknown as Record<string, number>
+          ),
+        },
+      })
+    }
+
+    const wards = await this.prisma.ward.findMany()
+    const wardByNumber = new Map(wards.map((w) => [w.number, w]))
+    const fileSurveyIds = new Set<string>()
+    const sampleRows: ImportPreviewSampleRow[] = []
+    const warnings: string[] = []
+    const unmappedHeaders = listUnmappedHeaders(headers)
+    if (unmappedHeaders.length > 0) {
+      warnings.push(
+        `${unmappedHeaders.length} header(s) are not mapped to survey fields`
+      )
+    }
+
+    let totalRows = 0
+    let validRows = 0
+    let invalidRows = 0
+    let duplicateRows = 0
+    let warningRows = 0
+
+    for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
+      const values = this.readRowValues(sheet.getRow(rowNumber), columnCount)
+      const rawSurveyId = cell(values, map.surveyId)
+      if (!rawSurveyId) continue
+      totalRows++
+
+      const rowMessages: string[] = []
+      let classification: ImportPreviewSampleRow["classification"] = "valid"
+
+      const wardName = cell(values, map.wardName)
+      const wardNumber = extractWardNumber(wardName, rawSurveyId)
+      const ward = wardNumber ? wardByNumber.get(wardNumber) : undefined
+      if (!ward) {
+        classification = "invalid"
+        rowMessages.push(`Ward not found for ${wardName || rawSurveyId}`)
+      }
+
+      const excelParcelRaw = cell(values, map.parcelNo)
+      const excelPropertyRaw = cell(values, map.propertyNo)
+      const parcelNo = normalizeParcelNo(excelParcelRaw, rawSurveyId)
+      const propertyNo = normalizePropertyNo(excelPropertyRaw, rawSurveyId)
+      if (!parcelNo || !propertyNo) {
+        classification = "invalid"
+        rowMessages.push("Unparseable parcel or property number")
+      }
+
+      let surveyId = rawSurveyId
+      if (ward && parcelNo && propertyNo) {
+        surveyId = resolveImportSurveyId(
+          rawSurveyId,
+          ward.number,
+          parcelNo,
+          propertyNo,
+          getUlbCode()
+        )
+      }
+
+      if (classification !== "invalid") {
+        if (fileSurveyIds.has(surveyId) || fileSurveyIds.has(rawSurveyId)) {
+          classification = "duplicate"
+          rowMessages.push("Duplicate Survey Id within this file")
+        } else {
+          fileSurveyIds.add(surveyId)
+          fileSurveyIds.add(rawSurveyId)
+          const existing = ward
+            ? await this.findImportDuplicate({
+                surveyId,
+                rawSurveyId,
+                wardId: ward.id,
+                parcelNo,
+                propertyNo,
+              })
+            : null
+          if (existing) {
+            classification = "duplicate"
+            rowMessages.push("Survey already exists in the database")
+          }
+        }
+      }
+
+      const city = cell(values, map.city)
+      if (city && !isAllowedChhataCity(city)) {
+        rowMessages.push(`City outside Chhata / Chhata Rural: ${city}`)
+        if (classification === "valid") classification = "warning"
+      }
+
+      const areaMessages = collectAreaInconsistencyMessages({
+        plotAreaSqFt: parseNumber(cell(values, map.plotAreaSqFt)),
+        plotAreaSqMeter: parseNumber(cell(values, map.plotAreaSqMeter)),
+        plinthAreaSqFt: parseNumber(cell(values, map.plinthAreaSqFt)),
+        plinthAreaSqMeter: parseNumber(cell(values, map.plinthAreaSqMeter)),
+        totalBuiltUpAreaSqFt: parseNumber(
+          cell(values, map.totalBuiltUpAreaSqFt)
+        ),
+        totalBuiltUpAreaSqMeter: parseNumber(
+          cell(values, map.totalBuiltUpAreaSqMeter)
+        ),
+      })
+      if (areaMessages.length > 0) {
+        rowMessages.push(...areaMessages)
+        if (classification === "valid") classification = "warning"
+      }
+
+      if (classification === "invalid") invalidRows++
+      else if (classification === "duplicate") duplicateRows++
+      else if (classification === "warning") warningRows++
+      else validRows++
+
+      if (sampleRows.length < 25 && rowMessages.length > 0) {
+        sampleRows.push({
+          rowNumber,
+          surveyId: rawSurveyId,
+          classification,
+          messages: rowMessages,
+        })
+      } else if (sampleRows.length < 10 && classification === "valid") {
+        sampleRows.push({
+          rowNumber,
+          surveyId: rawSurveyId,
+          classification,
+          messages: [],
+        })
+      }
+    }
+
+    if (invalidRows > 0) {
+      warnings.push(`${invalidRows} row(s) are invalid and will fail on import`)
+    }
+    if (duplicateRows > 0) {
+      warnings.push(
+        `${duplicateRows} row(s) match duplicates (file or database)`
+      )
+    }
+
+    return {
+      totalRows,
+      validRows,
+      invalidRows,
+      duplicateRows,
+      warningRows,
+      sampleRows,
+      unmappedHeaders,
+      columnMapping: columnMapToJson(map as unknown as Record<string, number>),
+      warnings,
+    }
+  }
+
+  async buildErrorsWorkbook(jobId: string): Promise<{
+    buffer: Buffer
+    fileName: string
+  }> {
+    const job = await this.prisma.importJob.findUnique({ where: { id: jobId } })
+    if (!job) throw new NotFoundException("Import job not found")
+
+    const errors = await this.prisma.importError.findMany({
+      where: { importJobId: jobId },
+      orderBy: [{ rowNumber: "asc" }, { createdAt: "asc" }],
+    })
+
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet("Import Errors")
+    sheet.addRow(["rowNumber", "surveyId", "field", "message", "severity"])
+    for (const err of errors) {
+      sheet.addRow([
+        err.rowNumber,
+        err.surveyId ?? "",
+        err.field ?? "",
+        err.message,
+        err.severity,
+      ])
+    }
+
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
+    const safeName = (job.fileName || "import").replace(/[^\w.-]+/g, "_")
+    return {
+      buffer,
+      fileName: `import-errors-${safeName}-${job.id.slice(0, 8)}.xlsx`,
+    }
   }
 
   async getJob(jobId: string) {
@@ -242,31 +449,26 @@ export class ImportsService {
     return this.processJob(jobId)
   }
 
-  async processJob(jobId: string) {
+  async processJob(jobId: string, options?: { pruneMissing?: boolean }) {
+    const pruneMissing = options?.pruneMissing === true
     const job = await this.prisma.importJob.findUniqueOrThrow({
       where: { id: jobId },
     })
     if (!job.objectKey) throw new Error("Missing object key")
 
     const buffer = await this.storage.getObject(job.objectKey)
-    const workbook = new ExcelJS.Workbook()
-    await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer)
-    const sheet = workbook.getWorksheet("Survey Data") ?? workbook.worksheets[0]
-    if (!sheet) throw new Error("Sheet not found")
+    const { sheet, columnCount, map, preset } =
+      await this.loadSurveySheet(buffer)
 
-    const columnCount = Math.max(sheet.columnCount, 1)
-    const headerRow = sheet.getRow(1)
-    const headers: string[] = []
-    for (let col = 1; col <= columnCount; col++) {
-      headers[col - 1] = cell([headerRow.getCell(col).value], 0)
-    }
-    // Always resolve from the file headers (do not trust a stale job preset —
-    // v1-38 on aadhaar-shifted sheets mapped Floors → Road Type).
-    const { preset, map } = resolveColumnMap(headers, columnCount)
-    if (job.mappingPreset !== preset) {
+    if (job.mappingPreset !== preset || !job.columnMapping) {
       await this.prisma.importJob.update({
         where: { id: jobId },
-        data: { mappingPreset: preset },
+        data: {
+          mappingPreset: preset,
+          columnMapping: columnMapToJson(
+            map as unknown as Record<string, number>
+          ),
+        },
       })
     }
     const wards = await this.prisma.ward.findMany()
@@ -283,60 +485,38 @@ export class ImportsService {
     const wardIdsSeen = new Set<string>()
 
     for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
-      const excelRow = sheet.getRow(rowNumber)
-      const values: unknown[] = []
-      for (let col = 1; col <= columnCount; col++) {
-        values[col - 1] = excelRow.getCell(col).value
-      }
+      const values = this.readRowValues(sheet.getRow(rowNumber), columnCount)
 
       const rawSurveyId = cell(values, map.surveyId)
       if (!rawSurveyId) continue
       processed++
 
+      const wardName = cell(values, map.wardName)
+      const excelParcelRaw = cell(values, map.parcelNo)
+      const excelPropertyRaw = cell(values, map.propertyNo)
+      const rawRowSnapshot = {
+        surveyId: rawSurveyId,
+        wardName,
+        parcelNo: excelParcelRaw,
+        propertyNo: excelPropertyRaw,
+        ownerName: cell(values, map.ownerName),
+        city: cell(values, map.city),
+      }
+
       try {
-        const wardName = cell(values, map.wardName)
         const wardNumber = extractWardNumber(wardName, rawSurveyId)
         const ward = wardNumber ? wardByNumber.get(wardNumber) : undefined
         if (!ward) {
-          throw new Error(`Ward not found for ${wardName || rawSurveyId}`)
+          throw Object.assign(
+            new Error(`Ward not found for ${wardName || rawSurveyId}`),
+            { field: "wardName" }
+          )
         }
 
         const mobileRaw = cell(values, map.mobile)
         const mobile = !mobileRaw || mobileRaw === "0" ? "" : mobileRaw
         const floorsRaw = cell(values, map.floorsRaw)
         const floors = parseFloorsRaw(floorsRaw)
-        // #region agent log
-        if (ward.number === 13 && processed <= 2) {
-          fetch(
-            "http://127.0.0.1:7787/ingest/931237b4-c66c-490a-b4d4-33ab324d8e01",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Debug-Session-Id": "de1763",
-              },
-              body: JSON.stringify({
-                sessionId: "de1763",
-                runId: "post-fix",
-                hypothesisId: "B,E",
-                location: "imports.service.ts:processJob",
-                message: "ward13 row floor parse",
-                data: {
-                  preset,
-                  mapFloorsRawIdx: map.floorsRaw,
-                  floorsRawPreview: floorsRaw.slice(0, 80),
-                  parsedFloorCount: floors.length,
-                  parsedAreas: floors.map((f) => f.areaSqFt ?? null),
-                  taxRateZone: cell(values, map.taxRateZone).slice(0, 40),
-                  roadType: cell(values, map.roadType).slice(0, 40),
-                  plotAreaSqFt: parseNumber(cell(values, map.plotAreaSqFt)),
-                },
-                timestamp: Date.now(),
-              }),
-            }
-          ).catch(() => {})
-        }
-        // #endregion
         const plotAreaSqFt = parseNumber(cell(values, map.plotAreaSqFt))
         const plotAreaSqMeter = parseNumber(cell(values, map.plotAreaSqMeter))
         const plinthAreaSqFt = parseNumber(cell(values, map.plinthAreaSqFt))
@@ -349,15 +529,19 @@ export class ImportsService {
         const totalBuiltUpAreaSqMeter = parseNumber(
           cell(values, map.totalBuiltUpAreaSqMeter)
         )
-        const excelParcelRaw = cell(values, map.parcelNo)
-        const excelPropertyRaw = cell(values, map.propertyNo)
         const parcelNo = normalizeParcelNo(excelParcelRaw, rawSurveyId)
         const propertyNo = normalizePropertyNo(excelPropertyRaw, rawSurveyId)
+        if (!parcelNo || !propertyNo) {
+          throw Object.assign(
+            new Error("Unparseable parcel or property number"),
+            { field: "parcelNo" }
+          )
+        }
         const surveyId = resolveImportSurveyId(
           rawSurveyId,
           ward.number,
-          parcelNo ?? "",
-          propertyNo ?? "",
+          parcelNo,
+          propertyNo,
           getUlbCode()
         )
 
@@ -456,6 +640,21 @@ export class ImportsService {
             const beforeAudit = surveyToAuditSnapshot(
               existing as unknown as Record<string, unknown>
             )
+            const proposedAudit = surveyToAuditSnapshot({
+              ...(existing as unknown as Record<string, unknown>),
+              ...payload,
+              deletedAt: null,
+              status: "ACTIVE",
+            })
+            const proposedDiff = diffSurveyChanges(beforeAudit, proposedAudit)
+            if (proposedDiff.changes.length === 0 && !isSoftDeleted) {
+              // No mapped field changes — skip write but keep row touched for prune.
+              success++
+              touchedSurveyIds.add(existing.id)
+              wardIdsSeen.add(ward.id)
+              continue
+            }
+
             const updatedSurvey = await this.prisma.$transaction(async (tx) => {
               await tx.surveyFloor.deleteMany({
                 where: { surveyId: existing.id },
@@ -574,13 +773,22 @@ export class ImportsService {
         }
       } catch (err) {
         failed++
+        const field =
+          err &&
+          typeof err === "object" &&
+          "field" in err &&
+          typeof (err as { field?: unknown }).field === "string"
+            ? (err as { field: string }).field
+            : inferImportErrorField(err)
         await this.prisma.importError.create({
           data: {
             importJobId: job.id,
             rowNumber,
             surveyId: rawSurveyId || null,
+            field,
             message: formatImportErrorMessage(err),
             severity: "error",
+            rawRow: rawRowSnapshot as Prisma.InputJsonValue,
           },
         })
       }
@@ -591,6 +799,7 @@ export class ImportsService {
       failedRows: failed,
       wardIdsSeen,
       touchedSurveyIds,
+      pruneMissing,
     })
     if (reconcileWardId) {
       pruned = await this.reconcileWardOrphans({
@@ -627,6 +836,42 @@ export class ImportsService {
         completedAt: new Date(),
       },
     })
+  }
+
+  private async loadSurveySheet(buffer: Buffer) {
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer)
+    const sheet = workbook.getWorksheet("Survey Data")
+    if (!sheet) {
+      throw new BadRequestException({
+        code: "SHEET_MISSING",
+        message: 'Workbook must include a sheet named "Survey Data"',
+      })
+    }
+    const columnCount = Math.max(sheet.columnCount, 1)
+    const headerRow = sheet.getRow(1)
+    const headers: string[] = []
+    for (let col = 1; col <= columnCount; col++) {
+      headers[col - 1] = cell([headerRow.getCell(col).value], 0)
+    }
+    const detected = tryDetectPresetFromHeaders(headers, columnCount)
+    if (!detected) {
+      throw new BadRequestException({
+        code: "UNKNOWN_HEADER_PRESET",
+        message: "Could not detect a supported Chhata survey header layout",
+      })
+    }
+    // Always resolve from file headers (stale presets can shift Floors → Road Type).
+    const { preset, map } = resolveColumnMap(headers, columnCount)
+    return { workbook, sheet, headers, columnCount, map, preset }
+  }
+
+  private readRowValues(excelRow: ExcelJS.Row, columnCount: number): unknown[] {
+    const values: unknown[] = []
+    for (let col = 1; col <= columnCount; col++) {
+      values[col - 1] = excelRow.getCell(col).value
+    }
+    return values
   }
 
   /**
@@ -784,4 +1029,17 @@ function formatImportErrorMessage(err: unknown): string {
     return first && first.length > 0 ? first : "Import row failed"
   }
   return "Import row failed"
+}
+
+function inferImportErrorField(err: unknown): string | null {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === "P2002") return "surveyId"
+    return "database"
+  }
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase()
+    if (msg.includes("ward")) return "wardName"
+    if (msg.includes("parcel") || msg.includes("property")) return "parcelNo"
+  }
+  return null
 }

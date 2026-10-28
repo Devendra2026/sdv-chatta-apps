@@ -18,11 +18,25 @@ import {
   pickLatestPublishedConfig,
 } from "../public-property-tax/dues.util"
 import {
+  assertOfflineAmountAgainstOutstanding,
+  assertOfflinePaymentMode,
+  assertOfflineReference,
+  assertPublishedDemandPresent,
+  computeOutstandingAfterPayment,
+} from "./offline-rules"
+import {
   canApplyRefundToPayment,
   redactSensitivePaymentPayload,
   shouldReprocessProcessedCallback,
   toClientGatewayResult,
 } from "./payments.safety"
+import {
+  assessmentYearNameFromSnapshot,
+  buildReceiptSnapshot,
+  parseReceiptSnapshot,
+  receiptSnapshotToJson,
+  taxBreakdownFromReceiptSnapshot,
+} from "./receipt-snapshot"
 import {
   AtomNdpsProvider,
   extractAtomTxnFields,
@@ -31,17 +45,25 @@ import {
 import type { PaymentGatewayProvider } from "./providers/payment-provider"
 import { SandboxPaymentProvider } from "./providers/sandbox.provider"
 
+function toMoney(value: { toString(): string } | number | string): number {
+  return typeof value === "number" ? value : Number(value)
+}
+
 const AMOUNT_TOLERANCE = 0.01
 
+/**
+ * Primary identity is merchTxnId. atomTxnId may arrive on a later callback
+ * and must UPDATE the same PaymentCallback row, not insert a second key.
+ */
 export function buildPaymentCallbackIdempotencyKey(input: {
   merchTxnId?: string
   atomTxnId?: string
   idempotencyKey?: string
 }) {
-  return (
-    input.idempotencyKey ||
-    `${input.merchTxnId ?? "na"}:${input.atomTxnId ?? "na"}`
-  )
+  if (input.idempotencyKey?.trim()) return input.idempotencyKey.trim()
+  const merch = input.merchTxnId?.trim()
+  if (merch) return merch
+  return "na"
 }
 
 export function amountsMatchWithinTolerance(
@@ -124,7 +146,7 @@ export class PaymentsService {
       })
     }
 
-    const { amount, survey, wardId, assessmentYearId } =
+    const { amount, survey, wardId, assessmentYearId, propertyDemandId } =
       await this.resolveSurveyPayableAmount(input.surveyId)
     assertSurveyAccess(user, survey, "read")
     assertPaymentAccess(user, { id: "", collectedById: user.id }, "create")
@@ -138,6 +160,7 @@ export class PaymentsService {
         payerMobile: input.payerMobile?.trim() || survey.mobile || undefined,
         payerEmail: input.payerEmail?.trim() || undefined,
         assessmentYearId,
+        propertyDemandId,
       },
       user.id
     )
@@ -152,6 +175,7 @@ export class PaymentsService {
     payerMobile: string
     payerEmail?: string
     assessmentYearId?: string
+    propertyDemandId?: string
   }) {
     return this.createOnlinePayment(input, null)
   }
@@ -251,6 +275,40 @@ export class PaymentsService {
       })
     }
 
+    const assessmentYearId = config.assessmentYear.id
+    const demand = await this.prisma.propertyDemand.findUnique({
+      where: {
+        surveyId_assessmentYearId: {
+          surveyId: survey.id,
+          assessmentYearId,
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+        outstanding: true,
+      },
+    })
+
+    if (demand?.status === "PUBLISHED") {
+      const outstanding = toMoney(demand.outstanding)
+      if (!Number.isFinite(outstanding) || outstanding <= 0) {
+        throw new BadRequestException({
+          code: "DUES_NOT_PAYABLE",
+          message:
+            "No outstanding dues for this property's published demand. The assessment year may already be paid.",
+        })
+      }
+      return {
+        amount: outstanding,
+        survey,
+        wardId: survey.wardId,
+        assessmentYearId,
+        propertyDemandId: demand.id,
+      }
+    }
+
+    // Legacy: no published demand — charge recomputed full demand (Atom flow).
     const dues = computePublicDuesPayload(survey, config)
     const amount = Number(dues.tax.totalDemand)
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -265,7 +323,8 @@ export class PaymentsService {
       amount,
       survey,
       wardId: survey.wardId,
-      assessmentYearId: config.assessmentYear.id,
+      assessmentYearId,
+      propertyDemandId: undefined as string | undefined,
     }
   }
 
@@ -278,6 +337,7 @@ export class PaymentsService {
       payerMobile?: string
       payerEmail?: string
       assessmentYearId?: string
+      propertyDemandId?: string
     },
     collectedById: string | null
   ) {
@@ -293,6 +353,7 @@ export class PaymentsService {
         surveyId: input.surveyId,
         wardId: input.wardId,
         assessmentYearId: input.assessmentYearId?.trim() || null,
+        propertyDemandId: input.propertyDemandId?.trim() || null,
         payerName: input.payerName,
         payerMobile: input.payerMobile,
         payerEmail: input.payerEmail,
@@ -330,12 +391,6 @@ export class PaymentsService {
     return { payment: updated, gateway: toClientGatewayResult(result) }
   }
 
-  private static readonly MODES_REQUIRING_REFERENCE = new Set<PaymentMode>([
-    PaymentMode.CHEQUE,
-    PaymentMode.DD,
-    PaymentMode.UPI_MANUAL,
-  ])
-
   private readonly receiptSurveySelect = {
     id: true,
     surveyId: true,
@@ -362,33 +417,39 @@ export class PaymentsService {
       paymentMode: PaymentMode
       surveyId: string
       wardId?: string
+      assessmentYearId?: string
       payerName?: string
       payerMobile?: string
       receiptNumber?: string
       collectionDate?: string
       chequeDdReference?: string
       remarks?: string
+      clientIdempotencyKey?: string
     },
     user: AuthUser
   ) {
-    if (input.paymentMode === PaymentMode.ONLINE) {
-      throw new BadRequestException("Use online endpoint for gateway payments")
-    }
+    assertOfflinePaymentMode(input.paymentMode)
     if (!input.surveyId?.trim()) {
       throw new BadRequestException({
         code: "SURVEY_REQUIRED",
         message: "Select a property/survey before recording offline payment",
       })
     }
-    if (
-      PaymentsService.MODES_REQUIRING_REFERENCE.has(input.paymentMode) &&
-      !input.chequeDdReference?.trim()
-    ) {
-      throw new BadRequestException({
-        code: "REFERENCE_REQUIRED",
-        message:
-          "Cheque / DD / UPI reference is required for this payment mode",
+    assertOfflineReference(input.paymentMode, input.chequeDdReference)
+
+    const idempotencyKey = input.clientIdempotencyKey?.trim() || null
+    if (idempotencyKey) {
+      const existing = await this.prisma.payment.findUnique({
+        where: { clientIdempotencyKey: idempotencyKey },
+        include: {
+          survey: { select: this.receiptSurveySelect },
+          ward: { select: { id: true, number: true, name: true, code: true } },
+          collectedBy: { select: { id: true, name: true } },
+        },
       })
+      if (existing) {
+        return this.toStaffReceipt(existing)
+      }
     }
 
     const survey = await this.prisma.survey.findUnique({
@@ -412,44 +473,135 @@ export class PaymentsService {
     )
 
     const wardId = input.wardId?.trim() || survey.wardId
-    const assessmentYearId =
-      await this.resolveLatestPublishedAssessmentYearId(wardId)
+    const demand = await this.findPublishedDemandForOffline(
+      survey.id,
+      input.assessmentYearId?.trim() || undefined,
+      wardId
+    )
+    assertPublishedDemandPresent(demand)
+    assertOfflineAmountAgainstOutstanding(
+      input.amount,
+      toMoney(demand.outstanding)
+    )
+
     const paymentReference = `OFF-${Date.now()}-${randomUUID().slice(0, 8)}`
     const receiptNumber = input.receiptNumber?.trim() || paymentReference
+    const collectionDate = input.collectionDate
+      ? new Date(input.collectionDate)
+      : new Date()
 
     let payment
     try {
-      payment = await this.prisma.payment.create({
-        data: {
-          paymentReference,
-          amount: input.amount,
-          paymentMode: input.paymentMode,
-          status: PaymentStatus.SUCCESS,
+      payment = await this.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`
+          SELECT id FROM "property_demand" WHERE id = ${demand.id} FOR UPDATE
+        `
+
+        const locked = await tx.propertyDemand.findUnique({
+          where: { id: demand.id },
+          include: {
+            assessmentYear: {
+              select: { id: true, code: true, name: true },
+            },
+          },
+        })
+        if (!locked || locked.status !== "PUBLISHED") {
+          throw new BadRequestException({
+            code: "DEMAND_UNPUBLISHED",
+            message:
+              "No published property demand for this survey and assessment year. Publish the demand before recording offline payment.",
+          })
+        }
+
+        assertOfflineAmountAgainstOutstanding(
+          input.amount,
+          toMoney(locked.outstanding)
+        )
+
+        const balance = computeOutstandingAfterPayment(
+          toMoney(locked.totalPayable),
+          toMoney(locked.amountPaid),
+          input.amount
+        )
+
+        const snapshot = buildReceiptSnapshot({
+          propertyTax: toMoney(locked.propertyTax),
+          waterTax: toMoney(locked.waterTax),
+          drainageTax: toMoney(locked.drainageTax),
+          penalty: toMoney(locked.penalty),
+          rebate: toMoney(locked.rebate),
+          arrears: toMoney(locked.arrears),
+          currentDemand: toMoney(locked.currentDemand),
+          totalPayable: toMoney(locked.totalPayable),
+          amountReceived: input.amount,
+          outstandingAfter: balance.outstanding,
+          amountPaidAfter: balance.amountPaid,
+          assessmentYear: locked.assessmentYear,
           surveyId: survey.id,
-          wardId,
-          assessmentYearId,
-          payerName: input.payerName?.trim() || survey.ownerName,
-          payerMobile: input.payerMobile?.trim() || survey.mobile,
+          municipalSurveyId: survey.surveyId,
+          paymentMode: input.paymentMode,
           receiptNumber,
-          collectionDate: input.collectionDate
-            ? new Date(input.collectionDate)
-            : new Date(),
-          chequeDdReference: input.chequeDdReference?.trim() || null,
-          remarks: input.remarks?.trim() || null,
-          collectedById: user.id,
-          refundableAmount: input.amount,
-        },
-        include: {
-          survey: { select: this.receiptSurveySelect },
-          ward: { select: { id: true, number: true, name: true, code: true } },
-          collectedBy: { select: { id: true, name: true } },
-        },
+          paidAt: collectionDate,
+        })
+
+        const created = await tx.payment.create({
+          data: {
+            paymentReference,
+            amount: input.amount,
+            paymentMode: input.paymentMode,
+            status: PaymentStatus.SUCCESS,
+            surveyId: survey.id,
+            wardId,
+            assessmentYearId: locked.assessmentYearId,
+            propertyDemandId: locked.id,
+            payerName: input.payerName?.trim() || survey.ownerName,
+            payerMobile: input.payerMobile?.trim() || survey.mobile,
+            receiptNumber,
+            receiptSnapshot: receiptSnapshotToJson(snapshot),
+            collectionDate,
+            chequeDdReference: input.chequeDdReference?.trim() || null,
+            remarks: input.remarks?.trim() || null,
+            collectedById: user.id,
+            refundableAmount: input.amount,
+            clientIdempotencyKey: idempotencyKey,
+          },
+          include: {
+            survey: { select: this.receiptSurveySelect },
+            ward: {
+              select: { id: true, number: true, name: true, code: true },
+            },
+            collectedBy: { select: { id: true, name: true } },
+          },
+        })
+
+        await tx.propertyDemand.update({
+          where: { id: locked.id },
+          data: {
+            amountPaid: balance.amountPaid,
+            outstanding: balance.outstanding,
+          },
+        })
+
+        return created
       })
     } catch (err) {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === "P2002"
       ) {
+        if (idempotencyKey) {
+          const raced = await this.prisma.payment.findUnique({
+            where: { clientIdempotencyKey: idempotencyKey },
+            include: {
+              survey: { select: this.receiptSurveySelect },
+              ward: {
+                select: { id: true, number: true, name: true, code: true },
+              },
+              collectedBy: { select: { id: true, name: true } },
+            },
+          })
+          if (raced) return this.toStaffReceipt(raced)
+        }
         throw new BadRequestException({
           code: "RECEIPT_NUMBER_EXISTS",
           message:
@@ -469,10 +621,148 @@ export class PaymentsService {
         amount: input.amount,
         surveyId: survey.id,
         receiptNumber,
+        propertyDemandId: demand.id,
       },
     })
 
     return this.toStaffReceipt(payment)
+  }
+
+  private async findPublishedDemandForOffline(
+    surveyId: string,
+    assessmentYearId: string | undefined,
+    wardId: string
+  ) {
+    if (assessmentYearId) {
+      return this.prisma.propertyDemand.findUnique({
+        where: {
+          surveyId_assessmentYearId: { surveyId, assessmentYearId },
+        },
+        include: {
+          assessmentYear: { select: { id: true, code: true, name: true } },
+        },
+      })
+    }
+
+    const latestYearId =
+      await this.resolveLatestPublishedAssessmentYearId(wardId)
+    if (latestYearId) {
+      const forYear = await this.prisma.propertyDemand.findUnique({
+        where: {
+          surveyId_assessmentYearId: {
+            surveyId,
+            assessmentYearId: latestYearId,
+          },
+        },
+        include: {
+          assessmentYear: { select: { id: true, code: true, name: true } },
+        },
+      })
+      if (forYear?.status === "PUBLISHED") return forYear
+    }
+
+    return this.prisma.propertyDemand.findFirst({
+      where: { surveyId, status: "PUBLISHED" },
+      orderBy: { publishedAt: "desc" },
+      include: {
+        assessmentYear: { select: { id: true, code: true, name: true } },
+      },
+    })
+  }
+
+  /**
+   * On first SUCCESS: lock published demand, increment amountPaid, store receiptSnapshot.
+   * No-op when no demand exists (legacy Atom full-demand path).
+   */
+  private async applyOnlineSuccessToDemand(
+    tx: Prisma.TransactionClient,
+    input: {
+      payment: {
+        id: string
+        amount: Prisma.Decimal | number
+        surveyId: string | null
+        assessmentYearId: string | null
+        propertyDemandId: string | null
+        paymentMode: PaymentMode
+        survey?: { surveyId?: string } | null
+      }
+      receiptNumber: string
+      paidAt: Date
+    }
+  ): Promise<{
+    propertyDemandId?: string
+    receiptSnapshot?: Prisma.InputJsonValue
+  }> {
+    let demandId = input.payment.propertyDemandId
+    if (
+      !demandId &&
+      input.payment.surveyId &&
+      input.payment.assessmentYearId
+    ) {
+      const found = await tx.propertyDemand.findFirst({
+        where: {
+          surveyId: input.payment.surveyId,
+          assessmentYearId: input.payment.assessmentYearId,
+          status: "PUBLISHED",
+        },
+        select: { id: true },
+      })
+      demandId = found?.id ?? null
+    }
+    if (!demandId) return {}
+
+    await tx.$executeRaw`
+      SELECT id FROM "property_demand" WHERE id = ${demandId} FOR UPDATE
+    `
+
+    const locked = await tx.propertyDemand.findUnique({
+      where: { id: demandId },
+      include: {
+        assessmentYear: { select: { id: true, code: true, name: true } },
+        survey: { select: { surveyId: true } },
+      },
+    })
+    if (!locked || locked.status !== "PUBLISHED") return {}
+
+    const paymentAmount = toMoney(input.payment.amount)
+    const balance = computeOutstandingAfterPayment(
+      toMoney(locked.totalPayable),
+      toMoney(locked.amountPaid),
+      paymentAmount
+    )
+
+    const snapshot = buildReceiptSnapshot({
+      propertyTax: toMoney(locked.propertyTax),
+      waterTax: toMoney(locked.waterTax),
+      drainageTax: toMoney(locked.drainageTax),
+      penalty: toMoney(locked.penalty),
+      rebate: toMoney(locked.rebate),
+      arrears: toMoney(locked.arrears),
+      currentDemand: toMoney(locked.currentDemand),
+      totalPayable: toMoney(locked.totalPayable),
+      amountReceived: paymentAmount,
+      outstandingAfter: balance.outstanding,
+      amountPaidAfter: balance.amountPaid,
+      assessmentYear: locked.assessmentYear,
+      surveyId: input.payment.surveyId,
+      municipalSurveyId: locked.survey.surveyId,
+      paymentMode: input.payment.paymentMode,
+      receiptNumber: input.receiptNumber,
+      paidAt: input.paidAt,
+    })
+
+    await tx.propertyDemand.update({
+      where: { id: locked.id },
+      data: {
+        amountPaid: balance.amountPaid,
+        outstanding: balance.outstanding,
+      },
+    })
+
+    return {
+      propertyDemandId: locked.id,
+      receiptSnapshot: receiptSnapshotToJson(snapshot),
+    }
   }
 
   async getStaffReceipt(paymentId: string, user: AuthUser) {
@@ -514,6 +804,7 @@ export class PaymentsService {
     remarks: string | null
     collectionDate: Date | null
     createdAt: Date
+    receiptSnapshot?: Prisma.JsonValue | null
     survey: {
       id: string
       surveyId: string
@@ -553,6 +844,9 @@ export class PaymentsService {
         ].filter(Boolean)
       : []
 
+    const snapshot = parseReceiptSnapshot(payment.receiptSnapshot)
+    const taxBreakdown = taxBreakdownFromReceiptSnapshot(payment.receiptSnapshot)
+
     return {
       paymentId: payment.id,
       paymentReference: payment.paymentReference,
@@ -571,6 +865,9 @@ export class PaymentsService {
       collectedBy: payment.collectedBy
         ? { id: payment.collectedBy.id, name: payment.collectedBy.name }
         : null,
+      assessmentYear: assessmentYearNameFromSnapshot(payment.receiptSnapshot),
+      taxBreakdown,
+      receiptSnapshot: snapshot,
       survey: survey
         ? {
             id: survey.id,
@@ -781,9 +1078,14 @@ export class PaymentsService {
       })
     }
 
-    const existing = await this.prisma.paymentCallback.findUnique({
-      where: { idempotencyKey },
-    })
+    const existing =
+      (await this.prisma.paymentCallback.findUnique({
+        where: { idempotencyKey },
+      })) ??
+      (await this.prisma.paymentCallback.findFirst({
+        where: { merchTxnId },
+        orderBy: { createdAt: "asc" },
+      }))
     if (
       existing?.processed &&
       !shouldReprocessProcessedCallback({
@@ -792,14 +1094,27 @@ export class PaymentsService {
         paymentStatus: payment.status,
       })
     ) {
+      // Later callback may still attach atomTxnId onto the same row.
+      if (atomTxnId && existing.atomTxnId !== atomTxnId) {
+        const updated = await this.prisma.paymentCallback.update({
+          where: { id: existing.id },
+          data: {
+            atomTxnId,
+            statusCode,
+            rawPayload: storedPayload as Prisma.InputJsonValue,
+            idempotencyKey,
+          },
+        })
+        return { duplicate: true, callback: updated, merchTxnId }
+      }
       return { duplicate: true, callback: existing, merchTxnId }
     }
 
-    if (
-      this.provider.name === "atom-ndps" &&
-      (gatewayAmount === undefined ||
-        !amountsMatchWithinTolerance(Number(payment.amount), gatewayAmount))
-    ) {
+    const amountMismatch =
+      gatewayAmount === undefined
+        ? this.provider.name === "atom-ndps"
+        : !amountsMatchWithinTolerance(Number(payment.amount), gatewayAmount)
+    if (amountMismatch) {
       return this.rejectWebhook(
         "Gateway amount does not match payment amount",
         {
@@ -825,24 +1140,50 @@ export class PaymentsService {
         : nextStatus
 
     const statusChanged = effectiveStatus !== payment.status
+    const firstSuccess =
+      success &&
+      payment.status !== PaymentStatus.SUCCESS &&
+      !payment.receiptSnapshot
     const result = await this.prisma.$transaction(async (tx) => {
-      const callback = await tx.paymentCallback.upsert({
-        where: { idempotencyKey },
-        update: {
-          statusCode,
-          atomTxnId,
-          rawPayload: storedPayload as Prisma.InputJsonValue,
-        },
-        create: {
-          paymentId: payment.id,
-          merchTxnId,
-          atomTxnId,
-          statusCode,
-          rawPayload: storedPayload as Prisma.InputJsonValue,
-          idempotencyKey,
-          processed: false,
-        },
-      })
+      const callback = existing
+        ? await tx.paymentCallback.update({
+            where: { id: existing.id },
+            data: {
+              statusCode,
+              atomTxnId: atomTxnId ?? existing.atomTxnId,
+              rawPayload: storedPayload as Prisma.InputJsonValue,
+              idempotencyKey,
+              processed: false,
+            },
+          })
+        : await tx.paymentCallback.create({
+            data: {
+              paymentId: payment.id,
+              merchTxnId,
+              atomTxnId,
+              statusCode,
+              rawPayload: storedPayload as Prisma.InputJsonValue,
+              idempotencyKey,
+              processed: false,
+            },
+          })
+
+      const receiptNumber =
+        payment.receiptNumber ??
+        `RCP-${payment.merchTxnId ?? payment.paymentReference}`
+      const collectionDate = payment.collectionDate ?? new Date()
+
+      let demandExtras: {
+        propertyDemandId?: string
+        receiptSnapshot?: Prisma.InputJsonValue
+      } = {}
+      if (firstSuccess) {
+        demandExtras = await this.applyOnlineSuccessToDemand(tx, {
+          payment,
+          receiptNumber,
+          paidAt: collectionDate,
+        })
+      }
 
       const updatedPayment = await tx.payment.update({
         where: { id: payment.id },
@@ -852,10 +1193,11 @@ export class PaymentsService {
           gatewayReference: atomTxnId ?? payment.gatewayReference,
           ...(success && !payment.receiptNumber
             ? {
-                receiptNumber: `RCP-${payment.merchTxnId ?? payment.paymentReference}`,
-                collectionDate: new Date(),
+                receiptNumber,
+                collectionDate,
               }
             : {}),
+          ...demandExtras,
         },
       })
 
@@ -952,18 +1294,9 @@ export class PaymentsService {
       },
     })
 
-    const updated = await this.prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: result.success ? PaymentStatus.SUCCESS : payment.status,
-        atomTxnId: result.atomTxnId ?? payment.atomTxnId,
-        ...(result.success && !payment.receiptNumber
-          ? {
-              receiptNumber: `RCP-${payment.merchTxnId}`,
-              collectionDate: payment.collectionDate ?? new Date(),
-            }
-          : {}),
-      },
+    const updated = await this.finalizeRequerySuccess(payment, {
+      success: result.success,
+      atomTxnId: result.atomTxnId,
     })
 
     await this.audit.log({
@@ -1011,22 +1344,76 @@ export class PaymentsService {
       },
     })
 
-    return this.prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: result.success
-          ? PaymentStatus.SUCCESS
-          : payment.status === PaymentStatus.PENDING
-            ? PaymentStatus.PENDING
-            : payment.status,
-        atomTxnId: result.atomTxnId ?? payment.atomTxnId,
-        ...(result.success && !payment.receiptNumber
-          ? {
-              receiptNumber: `RCP-${payment.merchTxnId}`,
-              collectionDate: payment.collectionDate ?? new Date(),
-            }
-          : {}),
-      },
+    return this.finalizeRequerySuccess(payment, {
+      success: result.success,
+      atomTxnId: result.atomTxnId,
+      keepPendingWhenUnsuccessful: true,
+    })
+  }
+
+  private async finalizeRequerySuccess(
+    payment: {
+      id: string
+      amount: Prisma.Decimal | number
+      status: PaymentStatus
+      atomTxnId: string | null
+      merchTxnId: string | null
+      paymentReference: string
+      receiptNumber: string | null
+      receiptSnapshot: Prisma.JsonValue | null
+      collectionDate: Date | null
+      surveyId: string | null
+      assessmentYearId: string | null
+      propertyDemandId: string | null
+      paymentMode: PaymentMode
+    },
+    opts: {
+      success: boolean
+      atomTxnId?: string
+      keepPendingWhenUnsuccessful?: boolean
+    }
+  ) {
+    if (!opts.success) {
+      const nextStatus = opts.keepPendingWhenUnsuccessful
+        ? payment.status === PaymentStatus.PENDING
+          ? PaymentStatus.PENDING
+          : payment.status
+        : payment.status
+      return this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: nextStatus,
+          atomTxnId: opts.atomTxnId ?? payment.atomTxnId,
+        },
+      })
+    }
+
+    const firstSuccess =
+      payment.status !== PaymentStatus.SUCCESS && !payment.receiptSnapshot
+    const receiptNumber =
+      payment.receiptNumber ?? `RCP-${payment.merchTxnId ?? payment.paymentReference}`
+    const collectionDate = payment.collectionDate ?? new Date()
+
+    return this.prisma.$transaction(async (tx) => {
+      const demandExtras = firstSuccess
+        ? await this.applyOnlineSuccessToDemand(tx, {
+            payment,
+            receiptNumber,
+            paidAt: collectionDate,
+          })
+        : {}
+
+      return tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: PaymentStatus.SUCCESS,
+          atomTxnId: opts.atomTxnId ?? payment.atomTxnId,
+          ...(payment.receiptNumber
+            ? {}
+            : { receiptNumber, collectionDate }),
+          ...demandExtras,
+        },
+      })
     })
   }
 

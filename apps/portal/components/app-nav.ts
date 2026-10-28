@@ -1,6 +1,7 @@
 import {
   Banknote,
   BarChart3,
+  Calculator,
   ClipboardList,
   FileUp,
   History,
@@ -53,21 +54,58 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { title: "Report Builder", href: "/reports", permission: "report:read" },
       {
-        title: "Tax Rates",
-        href: "/reports/tax-rates",
+        title: "Demand Notice",
+        href: "/reports/notice",
         permission: "report:read",
       },
       {
-        title: "Demand Notice",
-        href: "/reports/notice",
+        title: "Demand Ledger",
+        href: "/reports/demand-ledger",
         permission: "report:read",
       },
     ],
   },
   {
-    title: "Payments",
+    title: "Tax Administration",
+    icon: Calculator,
+    permission: ["report:read", "settings:update"],
+    children: [
+      {
+        title: "Assessment Years",
+        href: "/tax-admin/assessment-years",
+        permission: "report:read",
+      },
+      {
+        title: "Tax Rates",
+        href: "/tax-admin/tax-rates",
+        permission: "report:read",
+      },
+      {
+        title: "Property Tax Rebates",
+        href: "/tax-admin/property-tax-rebates",
+        permission: "report:read",
+      },
+      {
+        title: "Water Tax Rebates",
+        href: "/tax-admin/water-tax-rebates",
+        permission: "report:read",
+      },
+      {
+        title: "Property Tax Penalties",
+        href: "/tax-admin/property-tax-penalties",
+        permission: "report:read",
+      },
+      {
+        title: "Water Tax Penalties",
+        href: "/tax-admin/water-tax-penalties",
+        permission: "report:read",
+      },
+    ],
+  },
+  {
+    title: "Tax Collection",
     icon: Wallet,
-    permission: "payment:read",
+    permission: ["payment:read", "payment:offline:create"],
     children: [
       { title: "All Payments", href: "/payments", permission: "payment:read" },
       {
@@ -85,6 +123,21 @@ export const NAV_ITEMS: NavItem[] = [
         title: "Failed Payments",
         href: "/payments/failed",
         permission: "payment:read",
+      },
+      {
+        title: "Customer Ledger",
+        href: "/payments/ledger",
+        permission: "payment:read",
+      },
+      {
+        title: "Outstanding Dues",
+        href: "/payments/outstanding",
+        permission: "payment:read",
+      },
+      {
+        title: "Year-End Closing",
+        href: "/payments/year-end",
+        permission: ["payment:read", "settings:update"],
       },
       {
         title: "Refunds",
@@ -180,7 +233,8 @@ export function getBreadcrumbLabel(pathname: string): string {
   if (pathname.startsWith("/dashboard")) return "Dashboard"
   if (isSurveyNavActive(pathname)) return "Survey"
   if (pathname.startsWith("/reports")) return "Reports"
-  if (pathname.startsWith("/payments")) return "Payments"
+  if (pathname.startsWith("/tax-admin")) return "Tax Administration"
+  if (pathname.startsWith("/payments")) return "Tax Collection"
   if (pathname.startsWith("/settings") || pathname.startsWith("/audit-logs")) {
     return "Settings"
   }

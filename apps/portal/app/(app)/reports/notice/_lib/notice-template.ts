@@ -23,17 +23,33 @@ export type NoticeFloorCalc = {
   tax: number
 }
 
+export type NoticeYearArrear = {
+  yearLabel: string
+  amount: number
+}
+
 export type NoticeTaxSummary = {
-  propertyTaxPct: number
-  waterTaxPct: number
-  drainageTaxPct: number
+  propertyTaxPct?: number | null
+  waterTaxPct?: number | null
+  drainageTaxPct?: number | null
+  penaltyPct?: number | null
   propertyTax: number
   waterTax: number
   drainageTax: number
+  penalty?: number
+  rebate?: number
+  arrears?: number
+  currentDemand?: number
+  totalPayable?: number
+  amountPaid?: number
+  outstanding?: number
   totalDemand: number
   annualBaseRate: number | null
   configFound: boolean
   assessmentYear?: string
+  published?: boolean
+  verified?: boolean
+  yearWiseArrears?: NoticeYearArrear[]
 }
 
 type SurveyData = Record<string, unknown> & {
@@ -142,15 +158,25 @@ export function generateDemandNoticeHtml(
       : defaultFloorCalcs(rawFloors)
 
   const tax: NoticeTaxSummary = options?.tax ?? {
-    propertyTaxPct: 10,
-    waterTaxPct: 7.5,
-    drainageTaxPct: 2.5,
+    propertyTaxPct: null,
+    waterTaxPct: null,
+    drainageTaxPct: null,
     propertyTax: 0,
     waterTax: 0,
     drainageTax: 0,
+    penalty: 0,
+    rebate: 0,
+    arrears: 0,
+    currentDemand: 0,
+    totalPayable: 0,
+    amountPaid: 0,
+    outstanding: 0,
     totalDemand: 0,
     annualBaseRate: null,
     configFound: false,
+    published: false,
+    verified: true,
+    yearWiseArrears: [],
   }
 
   const assessmentYearLabel =
@@ -158,9 +184,40 @@ export function generateDemandNoticeHtml(
     tax.assessmentYear?.trim() ||
     currentAssessmentYear()
 
+  const showWarning = tax.published === false || tax.verified === false
+  const warningText =
+    tax.published === false
+      ? "WARNING: Demand is not published. Figures below are not a final payable notice."
+      : "WARNING: Historical balance is unverified (payments without matching demand snapshots). Do not treat outstanding as final."
+
   const totalArea = floors.reduce((s, f) => s + f.areaSqFt, 0)
   const totalAlv = floors.reduce((s, f) => s + f.alv, 0)
   const totalTax = floors.reduce((s, f) => s + f.tax, 0)
+
+  const pctLabel = (n: number | null | undefined) =>
+    n == null || !Number.isFinite(n) ? "—" : String(n)
+
+  const penalty = tax.penalty ?? 0
+  const rebate = tax.rebate ?? 0
+  const arrears = tax.arrears ?? 0
+  const amountPaid = tax.amountPaid ?? 0
+  const outstanding =
+    tax.outstanding ??
+    Math.max(0, (tax.totalPayable ?? tax.totalDemand) - amountPaid)
+  const totalPayable = tax.totalPayable ?? tax.totalDemand
+  const yearArrears = tax.yearWiseArrears ?? []
+  const yearArrearRows =
+    yearArrears.length > 0
+      ? yearArrears
+          .map(
+            (a) => `
+        <tr>
+          <td>${esc(a.yearLabel)}</td>
+          <td class="r">₹${money(a.amount)}</td>
+        </tr>`
+          )
+          .join("")
+      : `<tr><td colspan="2" class="c muted">No year-wise arrears</td></tr>`
 
   const floorRows =
     floors.length > 0
@@ -204,7 +261,7 @@ html {
   background: #e2e8f0;
 }
 body {
-  font-family: "Segoe UI", "Noto Sans Devanagari", Lato, Tahoma, sans-serif;
+  font-family: "Noto Sans Devanagari", "Mangal", "Kokila", "Segoe UI", Lato, Tahoma, sans-serif;
   font-size: 10.5px;
   line-height: 1.4;
   color: #020617;
@@ -461,12 +518,42 @@ table.alv tr.total td {
 
 /* —— Tax summary —— */
 .tax-wrap { flex-shrink: 0; }
+.warn-banner {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1.5px solid #b45309;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-align: center;
+  flex-shrink: 0;
+}
 .tax-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1.25fr;
+  grid-template-columns: repeat(4, 1fr);
   border: 1.5px solid #94a3b8;
   border-top: none;
   overflow: hidden;
+}
+.tax-grid.extended {
+  grid-template-columns: repeat(4, 1fr);
+}
+.arrears-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1.5px solid #94a3b8;
+  border-top: none;
+}
+.arrears-table th, .arrears-table td {
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 10px;
+}
+.arrears-table th {
+  background: #0f172a;
+  color: #fff;
+  text-align: left;
 }
 .tax-box {
   text-align: center;
@@ -643,6 +730,12 @@ table.alv tr.total td {
     </div>
   </div>
 
+  ${
+    showWarning
+      ? `<div class="warn-banner">${esc(warningText)}</div>`
+      : ""
+  }
+
   <div class="cols">
     <div class="col">
       <div class="col-head">Property Specifications / संपत्ति विनिर्देश</div>
@@ -706,7 +799,7 @@ table.alv tr.total td {
           <th style="width:12%">Area (Sqft) / क्षेत्रफल</th>
           <th style="width:10%">Rate (₹) / दर</th>
           <th style="width:13%">ALV (₹) / वार्षिक मूल्यांकन</th>
-          <th style="width:12%">Tax (${esc(tax.propertyTaxPct)}) / कर</th>
+          <th style="width:12%">Tax (${esc(pctLabel(tax.propertyTaxPct))}) / कर</th>
         </tr>
       </thead>
       <tbody>
@@ -725,24 +818,60 @@ table.alv tr.total td {
 
   <div class="tax-wrap">
     <div class="sec sec-flush">Tax Demand Summary / कर मांग सारांश</div>
-    <div class="tax-grid">
+    <div class="tax-grid extended">
       <div class="tax-box">
-        <div class="tax-lbl">Property Tax (${esc(tax.propertyTaxPct)}%)</div>
+        <div class="tax-lbl">Property Tax (${esc(pctLabel(tax.propertyTaxPct))}%)</div>
         <div class="tax-amt">₹ ${money(tax.propertyTax)}</div>
       </div>
       <div class="tax-box">
-        <div class="tax-lbl">Water Tax (${esc(tax.waterTaxPct)}%)</div>
+        <div class="tax-lbl">Water Tax (${esc(pctLabel(tax.waterTaxPct))}%)</div>
         <div class="tax-amt">₹ ${money(tax.waterTax)}</div>
       </div>
       <div class="tax-box">
-        <div class="tax-lbl">Drainage Tax (${esc(tax.drainageTaxPct)}%)</div>
+        <div class="tax-lbl">Drainage Tax (${esc(pctLabel(tax.drainageTaxPct))}%)</div>
         <div class="tax-amt">₹ ${money(tax.drainageTax)}</div>
       </div>
       <div class="tax-box">
-        <div class="tax-lbl">Total Demand / कुल मांग</div>
+        <div class="tax-lbl">Penalty / शास्ति</div>
+        <div class="tax-amt">₹ ${money(penalty)}</div>
+      </div>
+      <div class="tax-box">
+        <div class="tax-lbl">Rebate / छूट</div>
+        <div class="tax-amt">₹ ${money(rebate)}</div>
+      </div>
+      <div class="tax-box">
+        <div class="tax-lbl">Arrears / बकाया</div>
+        <div class="tax-amt">₹ ${money(arrears)}</div>
+      </div>
+      <div class="tax-box">
+        <div class="tax-lbl">Amount Paid / भुगतान</div>
+        <div class="tax-amt">₹ ${money(amountPaid)}</div>
+      </div>
+      <div class="tax-box">
+        <div class="tax-lbl">Outstanding / शेष</div>
+        <div class="tax-amt">₹ ${money(outstanding)}</div>
+      </div>
+      <div class="tax-box">
+        <div class="tax-lbl">Total Payable / कुल देय</div>
+        <div class="tax-amt">₹ ${money(totalPayable)}</div>
+      </div>
+      <div class="tax-box">
+        <div class="tax-lbl">Gross Demand / कुल मांग</div>
         <div class="tax-amt">₹ ${money(tax.totalDemand)}</div>
       </div>
     </div>
+    <div class="sec">Year-wise Arrears / वर्षवार बकाया</div>
+    <table class="arrears-table">
+      <thead>
+        <tr>
+          <th>Assessment year / मूल्यांकन वर्ष</th>
+          <th style="text-align:right">Amount / राशि</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${yearArrearRows}
+      </tbody>
+    </table>
   </div>
 
   <div class="notice">

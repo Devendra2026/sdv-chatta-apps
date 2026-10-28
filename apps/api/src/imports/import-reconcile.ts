@@ -4,15 +4,19 @@ import type { DuplicateStrategy } from "@prisma/client"
  * After a successful single-ward UPDATE import, soft-delete surveys in that
  * ward that were not inserted/updated by the job so DB count matches the file.
  *
- * Never reconcile for SKIP/CREATE, multi-ward files, failed imports, or empty
- * touch sets — those paths must not disturb other wards or partial uploads.
+ * Prune is opt-in (`pruneMissing === true`). Never reconcile for SKIP/CREATE,
+ * multi-ward files, failed imports, or empty touch sets — those paths must not
+ * disturb other wards or partial uploads.
  */
 export function shouldReconcileWardAfterImport(input: {
   duplicateStrategy: DuplicateStrategy | string
   failedRows: number
   wardIdsSeen: ReadonlySet<string>
   touchedSurveyIds: ReadonlySet<string>
+  /** Soft-delete orphans only when the operator explicitly opts in. */
+  pruneMissing?: boolean
 }): string | null {
+  if (input.pruneMissing !== true) return null
   if (input.duplicateStrategy !== "UPDATE") return null
   if (input.failedRows !== 0) return null
   if (input.touchedSurveyIds.size === 0) return null

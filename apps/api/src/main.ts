@@ -1,18 +1,19 @@
 import { Logger, ValidationPipe } from "@nestjs/common"
 import { NestFactory } from "@nestjs/core"
 import { ExpressAdapter } from "@nestjs/platform-express"
-import helmet from "helmet"
 import "dotenv/config"
 import express, {
   type NextFunction,
   type Request,
   type Response,
 } from "express"
+import helmet from "helmet"
 
 import { AppModule, ObserveInstrument } from "./app.module"
 import { AllExceptionsFilter } from "./common/all-exceptions.filter"
 import { OriginValidationMiddleware } from "./common/origin-validation.middleware"
 import { RateLimitMiddleware } from "./common/rate-limit.middleware"
+import { pingRedis, redisUnreachableMessage } from "./common/redis.client"
 import { RequestLoggingInterceptor } from "./common/request-logging.interceptor"
 import { assertRequiredEnv } from "./config/validate-env"
 import {
@@ -22,7 +23,6 @@ import {
 } from "./health/api-runtime-info"
 import { markRoutesVerified } from "./health/route-verification-state"
 import { verifyCriticalRoutes } from "./health/verify-critical-routes"
-import { pingRedis } from "./common/redis.client"
 
 async function bootstrap() {
   assertRequiredEnv()
@@ -53,7 +53,9 @@ async function bootstrap() {
   })
 
   app.use(new RateLimitMiddleware().use.bind(new RateLimitMiddleware()))
-  app.use(new OriginValidationMiddleware().use.bind(new OriginValidationMiddleware()))
+  app.use(
+    new OriginValidationMiddleware().use.bind(new OriginValidationMiddleware())
+  )
 
   const publicAppUrl = process.env.PUBLIC_APP_URL?.trim() ?? ""
   app.use(
@@ -61,7 +63,8 @@ async function bootstrap() {
       contentSecurityPolicy: false,
       crossOriginEmbedderPolicy: false,
       hsts:
-        process.env.NODE_ENV === "production" && publicAppUrl.startsWith("https://")
+        process.env.NODE_ENV === "production" &&
+        publicAppUrl.startsWith("https://")
           ? { maxAge: 31536000, includeSubDomains: true }
           : false,
     })
@@ -100,7 +103,7 @@ async function bootstrap() {
 
   const redisOk = await pingRedis()
   if (!redisOk) {
-    throw new Error("Redis is required and is not reachable (REDIS_URL)")
+    throw new Error(redisUnreachableMessage())
   }
 
   const verifiedRoutes = await verifyCriticalRoutes(app)

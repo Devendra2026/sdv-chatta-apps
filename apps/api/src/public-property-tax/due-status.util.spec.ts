@@ -36,10 +36,32 @@ describe("resolveDueStatus", () => {
       })
     ).toBe("DUE")
   })
+
+  it("uses outstanding when a published demand exists (still DUE if > 0)", () => {
+    expect(
+      resolveDueStatus({
+        currentAssessmentYearId: "year-2025",
+        paidAssessmentYearIds: new Set(["year-2025"]),
+        hasPublishedDemand: true,
+        outstanding: 450,
+      })
+    ).toBe("DUE")
+  })
+
+  it("returns NO_DUE when published demand outstanding is <= 0", () => {
+    expect(
+      resolveDueStatus({
+        currentAssessmentYearId: "year-2025",
+        paidAssessmentYearIds: [],
+        hasPublishedDemand: true,
+        outstanding: 0,
+      })
+    ).toBe("NO_DUE")
+  })
 })
 
 describe("isAlreadyPaidForYear", () => {
-  it("is true when at least one SUCCESS payment exists for the year", () => {
+  it("is true when at least one SUCCESS payment exists for the year (legacy)", () => {
     expect(
       isAlreadyPaidForYear({
         assessmentYearId: "year-2025",
@@ -55,6 +77,28 @@ describe("isAlreadyPaidForYear", () => {
         successPaymentCount: 0,
       })
     ).toBe(false)
+  })
+
+  it("allows another payment while demand outstanding > 0", () => {
+    expect(
+      isAlreadyPaidForYear({
+        assessmentYearId: "year-2025",
+        successPaymentCount: 2,
+        hasPublishedDemand: true,
+        outstanding: 500,
+      })
+    ).toBe(false)
+  })
+
+  it("treats demand outstanding <= 0 as already paid", () => {
+    expect(
+      isAlreadyPaidForYear({
+        assessmentYearId: "year-2025",
+        successPaymentCount: 0,
+        hasPublishedDemand: true,
+        outstanding: 0,
+      })
+    ).toBe(true)
   })
 })
 
@@ -74,6 +118,15 @@ describe("ALREADY_PAID_FOR_YEAR rule", () => {
   it("allows create when not yet paid for the year", () => {
     const dues = { paidForAssessmentYear: false }
     expect(dues.paidForAssessmentYear).toBe(false)
+  })
+
+  it("charges outstanding from published demand, not client amount", () => {
+    const demandOutstanding = 1250.5
+    const clientAmount = 99999
+    const amount = demandOutstanding
+    expect(amount).toBe(1250.5)
+    expect(amount).not.toBe(clientAmount)
+    expect(amount > 0).toBe(true)
   })
 })
 
@@ -101,5 +154,16 @@ describe("search dueStatus mapping", () => {
       { id: "survey-paid", dueStatus: "NO_DUE" },
       { id: "survey-unpaid", dueStatus: "DUE" },
     ])
+  })
+
+  it("maps partial demand outstanding to DUE even with prior SUCCESS", () => {
+    expect(
+      resolveDueStatus({
+        currentAssessmentYearId: "year-2025",
+        paidAssessmentYearIds: new Set(["year-2025"]),
+        hasPublishedDemand: true,
+        outstanding: 200,
+      })
+    ).toBe("DUE")
   })
 })

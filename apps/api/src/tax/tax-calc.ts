@@ -446,6 +446,11 @@ export function computeSurveyExportTax(input: {
 
   let plotRate: number | string = "-"
   let plotTax: number | string = 0
+  let finalWaterTax = waterTax
+  let finalDrainageTax = drainageTax
+  let finalPenalty = penalty
+  let totalDemand = totalAnnualDemand
+
   if (openLand) {
     const plotArea = toTaxNumber(input.plotAreaSqFt)
     const openCode = "OPEN_LAND"
@@ -466,20 +471,140 @@ export function computeSurveyExportTax(input: {
       plotTax = pt
       propertyTax = pt
     }
+    // Open land: water/drainage stay zero; recompute penalty on replaced property tax.
+    finalWaterTax = 0
+    finalDrainageTax = 0
+    finalPenalty =
+      penaltyPct > 0 ? roundMoney(propertyTax * (penaltyPct / 100)) : 0
+    totalDemand = roundMoney(propertyTax + finalPenalty)
   }
-
-  const totalDemand = openLand ? toTaxNumber(plotTax) : totalAnnualDemand
 
   return {
     propertyTax,
-    waterTax,
-    drainageTax,
-    penalty,
+    waterTax: finalWaterTax,
+    drainageTax: finalDrainageTax,
+    penalty: finalPenalty,
     totalDemand,
     floorAreaBySlot,
     residentialTaxCells,
     nonResidentialTaxCells,
     plotRate,
     plotTax,
+  }
+}
+
+/** Published rebate / penalty rule applied after base survey export tax. */
+export type TaxAdjustmentRuleInput = {
+  kind: "REBATE" | "PENALTY"
+  head: "PROPERTY" | "WATER"
+  method: "PERCENT_OF_HEAD" | "FLAT_AMOUNT"
+  value: number
+  cap?: number | null
+}
+
+export type PropertyAssessmentInput = {
+  base: {
+    propertyTax: number
+    waterTax: number
+    drainageTax: number
+    /** Legacy TaxConfig.penaltyPct result from computeSurveyExportTax. */
+    penalty: number
+    totalDemand: number
+  }
+  rules?: TaxAdjustmentRuleInput[]
+  arrears?: number
+  amountPaid?: number
+}
+
+export type PropertyAssessmentResult = {
+  propertyTax: number
+  waterTax: number
+  drainageTax: number
+  penalty: number
+  rebate: number
+  currentDemand: number
+  arrears: number
+  totalPayable: number
+  amountPaid: number
+  outstanding: number
+}
+
+function applyHeadAdjustment(
+  headAmount: number,
+  rule: TaxAdjustmentRuleInput
+): number {
+  if (headAmount <= 0) return 0
+  const raw =
+    rule.method === "FLAT_AMOUNT"
+      ? Math.max(0, rule.value)
+      : roundMoney(headAmount * (rule.value / 100))
+  const capped =
+    rule.cap != null && Number.isFinite(rule.cap)
+      ? Math.min(raw, Math.max(0, rule.cap))
+      : raw
+  return roundMoney(Math.min(capped, headAmount))
+}
+
+/**
+ * Authoritative assessment on top of computeSurveyExportTax.
+ * - Rebate rules apply once per rule, capped at the head, never below zero.
+ * - Until a PROPERTY PENALTY rule is published, legacy base.penalty is kept.
+ * - A published PROPERTY PENALTY replaces the legacy penalty for new assessments.
+ * - WATER PENALTY applies only to water tax.
+ * - No interest.
+ */
+export function computePropertyAssessment(
+  input: PropertyAssessmentInput
+): PropertyAssessmentResult {
+  const propertyTax = roundMoney(input.base.propertyTax)
+  const waterTax = roundMoney(input.base.waterTax)
+  const drainageTax = roundMoney(input.base.drainageTax)
+  const rules = input.rules ?? []
+
+  let rebate = 0
+  for (const rule of rules) {
+    if (rule.kind !== "REBATE") continue
+    const head = rule.head === "WATER" ? waterTax : propertyTax
+    rebate = roundMoney(rebate + applyHeadAdjustment(head, rule))
+  }
+
+  const propertyPenaltyRules = rules.filter(
+    (r) => r.kind === "PENALTY" && r.head === "PROPERTY"
+  )
+  const waterPenaltyRules = rules.filter(
+    (r) => r.kind === "PENALTY" && r.head === "WATER"
+  )
+
+  let penalty = 0
+  if (propertyPenaltyRules.length > 0) {
+    for (const rule of propertyPenaltyRules) {
+      penalty = roundMoney(penalty + applyHeadAdjustment(propertyTax, rule))
+    }
+  } else {
+    penalty = roundMoney(input.base.penalty)
+  }
+  for (const rule of waterPenaltyRules) {
+    penalty = roundMoney(penalty + applyHeadAdjustment(waterTax, rule))
+  }
+
+  const currentDemand = roundMoney(
+    Math.max(0, propertyTax + waterTax + drainageTax + penalty - rebate)
+  )
+  const arrears = roundMoney(Math.max(0, input.arrears ?? 0))
+  const totalPayable = roundMoney(currentDemand + arrears)
+  const amountPaid = roundMoney(Math.max(0, input.amountPaid ?? 0))
+  const outstanding = roundMoney(Math.max(0, totalPayable - amountPaid))
+
+  return {
+    propertyTax,
+    waterTax,
+    drainageTax,
+    penalty,
+    rebate,
+    currentDemand,
+    arrears,
+    totalPayable,
+    amountPaid,
+    outstanding,
   }
 }

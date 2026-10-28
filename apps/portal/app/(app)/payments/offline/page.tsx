@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { StaffPaymentReceipt } from "@workspace/types"
 import { Loader2, Printer, Search } from "lucide-react"
+import Link from "next/link"
 import * as React from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
@@ -30,12 +31,23 @@ import {
   buildStringSelectItems,
 } from "@workspace/ui/lib/select-items"
 
+import { usePermission } from "@/hooks/use-permission"
 import { api } from "@/lib/api"
 
-import { printOfflinePaymentReceipt } from "./_lib/receipt-template"
+import {
+  printOfflinePaymentReceipt,
+  type ReceiptCopyType,
+} from "./_lib/receipt-template"
 
 const PAYMENT_MODES = ["CASH", "CHEQUE", "DD", "UPI_MANUAL", "OTHER"] as const
 const MODES_NEEDING_REF = new Set(["CHEQUE", "DD", "UPI_MANUAL"])
+const STEPS = [
+  "Find property",
+  "Confirm dues",
+  "Enter payment",
+  "Review",
+  "Receipt",
+] as const
 
 const paymentModeItems = buildStringSelectItems(PAYMENT_MODES)
 
@@ -74,6 +86,28 @@ type SurveyListMeta = {
   totalPages: number
 }
 
+type PublishedDemand = {
+  id: string
+  status: string
+  verified: boolean
+  propertyTax: number
+  waterTax: number
+  drainageTax: number
+  penalty: number
+  rebate: number
+  arrears: number
+  currentDemand: number
+  totalPayable: number
+  amountPaid: number
+  outstanding: number
+  assessmentYearId: string
+  assessmentYear?: { id: string; code: string; name: string } | null
+  demandArrears?: Array<{
+    amount: number
+    sourceAssessmentYear?: { name: string } | null
+  }>
+}
+
 type FormValues = {
   amount: string
   paymentMode: (typeof PAYMENT_MODES)[number]
@@ -105,7 +139,18 @@ function buildAddress(s: SurveyDetail): string {
   return parts.length > 0 ? parts.join(", ") : "—"
 }
 
+function money(n: number): string {
+  return n.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
 export default function OfflinePaymentPage() {
+  const { can } = usePermission()
+  const canPublishRates = can("settings:update")
+
+  const [step, setStep] = React.useState(0)
   const [wardId, setWardId] = React.useState("")
   const [search, setSearch] = React.useState("")
   const [debouncedSearch, setDebouncedSearch] = React.useState("")
@@ -113,6 +158,7 @@ export default function OfflinePaymentPage() {
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
   const [lastReceipt, setLastReceipt] =
     React.useState<StaffPaymentReceipt | null>(null)
+  const idempotencyKeyRef = React.useRef<string | null>(null)
 
   React.useEffect(() => {
     const t = window.setTimeout(() => {
@@ -136,6 +182,7 @@ export default function OfflinePaymentPage() {
   })
 
   const paymentMode = form.watch("paymentMode")
+  const amountValue = form.watch("amount")
 
   const wardsQuery = useQuery({
     queryKey: ["wards"],
@@ -182,16 +229,39 @@ export default function OfflinePaymentPage() {
 
   const survey = surveyDetailQuery.data
 
+  const demandQuery = useQuery({
+    queryKey: ["offline-demand", selectedId],
+    enabled: Boolean(selectedId) && step >= 1,
+    queryFn: async () => {
+      const res = await api.get<PublishedDemand | null>(
+        `/api/v1/demands/published?surveyId=${encodeURIComponent(selectedId!)}`
+      )
+      return res.data
+    },
+  })
+
+  const demand = demandQuery.data
+  const demandPublished = demand?.status === "PUBLISHED"
+  const outstanding = demandPublished ? Number(demand.outstanding) : 0
+
   React.useEffect(() => {
     if (!survey) return
     form.setValue("payerName", survey.ownerName ?? "")
     form.setValue("payerMobile", survey.mobile ?? "")
   }, [survey, form])
 
+  React.useEffect(() => {
+    if (!demandPublished) return
+    form.setValue("amount", outstanding > 0 ? String(outstanding) : "")
+  }, [demandPublished, outstanding, form])
+
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
       if (!survey) {
         throw new Error("Select a property before recording payment")
+      }
+      if (!demandPublished || !demand) {
+        throw new Error("Published demand is required before collection")
       }
       if (
         MODES_NEEDING_REF.has(values.paymentMode) &&
@@ -199,45 +269,105 @@ export default function OfflinePaymentPage() {
       ) {
         throw new Error("Enter cheque / DD / UPI reference for this mode")
       }
+      const amount = Number(values.amount)
+      if (!(amount > 0) || amount > outstanding) {
+        throw new Error(
+          `Amount must be greater than 0 and at most ₹${money(outstanding)}`
+        )
+      }
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = crypto.randomUUID()
+      }
       const collectionDateIso = values.collectionDate
         ? new Date(`${values.collectionDate}T12:00:00`).toISOString()
         : undefined
       const res = await api.post<StaffPaymentReceipt>(
         "/api/v1/payments/offline",
         {
-          amount: Number(values.amount),
+          amount,
           paymentMode: values.paymentMode,
           surveyId: survey.id,
           wardId: survey.wardId || survey.ward?.id,
+          assessmentYearId: demand.assessmentYearId,
           payerName: values.payerName.trim() || undefined,
           payerMobile: values.payerMobile.trim() || undefined,
           receiptNumber: values.receiptNumber.trim() || undefined,
           chequeDdReference: values.chequeDdReference.trim() || undefined,
           collectionDate: collectionDateIso,
           remarks: values.remarks.trim() || undefined,
+          clientIdempotencyKey: idempotencyKeyRef.current,
         }
       )
       return res.data
     },
-    onSuccess: async (receipt) => {
+    onSuccess: (receipt) => {
       setLastReceipt(receipt)
+      setStep(4)
       toast.success("Payment received")
-      form.setValue("amount", "")
-      form.setValue("receiptNumber", "")
-      form.setValue("chequeDdReference", "")
-      form.setValue("remarks", "")
-      const ok = await printOfflinePaymentReceipt(receipt)
-      if (!ok) {
-        toast.error("Popup blocked. Use Print again after allowing popups.")
-      }
+      idempotencyKeyRef.current = null
     },
     onError: (e: Error) => toast.error(e.message),
   })
 
-  const handleReprint = async () => {
+  const handlePrint = async (copyType: ReceiptCopyType) => {
     if (!lastReceipt) return
-    const ok = await printOfflinePaymentReceipt(lastReceipt)
+    const ok = await printOfflinePaymentReceipt(lastReceipt, copyType)
     if (!ok) toast.error("Popup blocked. Please allow popups for this site.")
+  }
+
+  const taxRatesHref = canPublishRates
+    ? "/tax-admin/tax-rates"
+    : "/reports/tax-rates"
+
+  const goNextFromFind = () => {
+    if (!selectedId || !survey) {
+      toast.error("Select a property first")
+      return
+    }
+    setStep(1)
+  }
+
+  const goNextFromDues = () => {
+    if (!demandPublished) {
+      toast.error("Publish the property demand before collecting payment")
+      return
+    }
+    setStep(2)
+  }
+
+  const goNextFromPayment = form.handleSubmit(() => {
+    const amount = Number(form.getValues("amount"))
+    if (!(amount > 0) || amount > outstanding) {
+      toast.error(
+        `Amount must be greater than 0 and at most ₹${money(outstanding)}`
+      )
+      return
+    }
+    if (
+      MODES_NEEDING_REF.has(form.getValues("paymentMode")) &&
+      !form.getValues("chequeDdReference").trim()
+    ) {
+      toast.error("Enter cheque / DD / UPI reference for this mode")
+      return
+    }
+    setStep(3)
+  })
+
+  const startNew = () => {
+    setStep(0)
+    setSelectedId(null)
+    setLastReceipt(null)
+    idempotencyKeyRef.current = null
+    form.reset({
+      paymentMode: "CASH",
+      amount: "",
+      payerName: "",
+      payerMobile: "",
+      receiptNumber: "",
+      chequeDdReference: "",
+      collectionDate: todayInputValue(),
+      remarks: "",
+    })
   }
 
   return (
@@ -248,28 +378,30 @@ export default function OfflinePaymentPage() {
             Offline Collection
           </h1>
           <p className="text-sm text-muted-foreground">
-            Counter collection — find property, receive amount, print receipt
+            Five-step counter collection against a published demand
           </p>
         </div>
-        {lastReceipt ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="cursor-pointer"
-            onClick={() => void handleReprint()}
-          >
-            <Printer className="size-4" />
-            Print again
-          </Button>
-        ) : null}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <ol className="flex flex-wrap gap-2">
+        {STEPS.map((label, i) => (
+          <li key={label}>
+            <Badge
+              variant={i === step ? "default" : i < step ? "secondary" : "outline"}
+            >
+              {i + 1}. {label}
+            </Badge>
+          </li>
+        ))}
+      </ol>
+
+      {step === 0 ? (
         <Card className="rounded-xl border shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Find property</CardTitle>
+            <CardTitle className="text-base">1. Find property</CardTitle>
             <CardDescription>
-              Search by survey ID, owner, mobile, property or parcel number
+              Search by survey ID, owner, mobile, property, parcel, house, or
+              ward
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -315,7 +447,7 @@ export default function OfflinePaymentPage() {
                   <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     className="pl-8"
-                    placeholder="Owner, survey ID, property no..."
+                    placeholder="Owner, survey ID, property no, parcel, house…"
                     value={search}
                     onChange={(e) => {
                       setSearch(e.target.value)
@@ -334,13 +466,14 @@ export default function OfflinePaymentPage() {
                     <th className="px-3 py-2 font-medium">Owner</th>
                     <th className="px-3 py-2 font-medium">Ward</th>
                     <th className="px-3 py-2 font-medium">Property</th>
+                    <th className="px-3 py-2 font-medium">House</th>
                   </tr>
                 </thead>
                 <tbody>
                   {surveysQuery.isLoading ? (
                     <tr>
                       <td
-                        colSpan={4}
+                        colSpan={5}
                         className="px-3 py-8 text-center text-muted-foreground"
                       >
                         <Loader2 className="mx-auto size-5 animate-spin" />
@@ -349,7 +482,7 @@ export default function OfflinePaymentPage() {
                   ) : surveyRows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={4}
+                        colSpan={5}
                         className="px-3 py-8 text-center text-muted-foreground"
                       >
                         No properties found
@@ -376,6 +509,7 @@ export default function OfflinePaymentPage() {
                               : "—"}
                           </td>
                           <td className="px-3 py-2">{row.propertyNo ?? "—"}</td>
+                          <td className="px-3 py-2">{row.houseNo ?? "—"}</td>
                         </tr>
                       )
                     })
@@ -415,175 +549,299 @@ export default function OfflinePaymentPage() {
                   </Button>
                 </div>
               </div>
-            ) : surveyMeta && surveyMeta.total > 0 ? (
-              <p className="text-xs text-muted-foreground">
-                {surveyMeta.total}{" "}
-                {surveyMeta.total === 1 ? "property" : "properties"}
-              </p>
-            ) : null}
-
-            {surveyDetailQuery.isFetching ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                Loading property details…
-              </div>
             ) : null}
 
             {survey ? (
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-semibold">
-                    Selected property
-                  </span>
-                  <Badge variant="secondary">{survey.surveyId}</Badge>
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                <div className="mb-2 font-semibold">
+                  Selected · {survey.surveyId}
                 </div>
-                <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Owner</dt>
-                    <dd className="font-medium">{survey.ownerName ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">
-                      Father / Husband
-                    </dt>
-                    <dd className="font-medium">
-                      {survey.ownerFatherName ?? "—"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Mobile</dt>
-                    <dd className="font-medium">{survey.mobile ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Ward</dt>
-                    <dd className="font-medium">
-                      {survey.ward
-                        ? `${String(survey.ward.number).padStart(2, "0")} · ${survey.ward.name}`
-                        : "—"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">
-                      Property / Parcel
-                    </dt>
-                    <dd className="font-medium">
-                      {[survey.propertyNo, survey.parcelNo, survey.houseNo]
-                        .filter(Boolean)
-                        .join(" · ") || "—"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Use</dt>
-                    <dd className="font-medium">{survey.propertyUse ?? "—"}</dd>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <dt className="text-xs text-muted-foreground">Address</dt>
-                    <dd className="font-medium">{buildAddress(survey)}</dd>
-                  </div>
+                <p>
+                  {survey.ownerName ?? "—"} · {buildAddress(survey)}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                className="cursor-pointer"
+                disabled={!survey}
+                onClick={goNextFromFind}
+              >
+                Continue to dues
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {step === 1 ? (
+        <Card className="rounded-xl border shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">2. Confirm dues</CardTitle>
+            <CardDescription>
+              Published demand breakdown for {survey?.surveyId}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {demandQuery.isLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Loading demand…
+              </div>
+            ) : demandPublished && demand ? (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <Badge>{demand.assessmentYear?.name ?? "Year"}</Badge>
+                  <Badge variant="secondary">Published</Badge>
+                  {!demand.verified ? (
+                    <Badge variant="destructive">Unverified history</Badge>
+                  ) : null}
+                </div>
+                <dl className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                  {(
+                    [
+                      ["Property tax", demand.propertyTax],
+                      ["Water tax", demand.waterTax],
+                      ["Drainage tax", demand.drainageTax],
+                      ["Penalty", demand.penalty],
+                      ["Rebate", demand.rebate],
+                      ["Arrears", demand.arrears],
+                      ["Current demand", demand.currentDemand],
+                      ["Total payable", demand.totalPayable],
+                      ["Amount paid", demand.amountPaid],
+                      ["Outstanding", demand.outstanding],
+                    ] as const
+                  ).map(([label, value]) => (
+                    <div key={label} className="rounded-md border p-2">
+                      <dt className="text-xs text-muted-foreground">{label}</dt>
+                      <dd className="font-semibold">₹{money(Number(value))}</dd>
+                    </div>
+                  ))}
                 </dl>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Select a property from the list to continue.
-              </p>
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                <p className="font-semibold">Demand not published</p>
+                <p className="mt-1">
+                  Offline collection cannot post a SUCCESS payment until a
+                  published PropertyDemand exists for this survey.
+                </p>
+                <p className="mt-2">
+                  <Link
+                    href={taxRatesHref}
+                    className="font-medium underline underline-offset-2"
+                  >
+                    Open tax rates / publish demand
+                  </Link>
+                </p>
+              </div>
             )}
+
+            <div className="flex justify-between gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="cursor-pointer"
+                onClick={() => setStep(0)}
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                className="cursor-pointer"
+                disabled={!demandPublished || outstanding <= 0}
+                onClick={goNextFromDues}
+              >
+                Continue to payment
+              </Button>
+            </div>
+            {demandPublished && outstanding <= 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Outstanding is zero — nothing to collect.
+              </p>
+            ) : null}
           </CardContent>
         </Card>
+      ) : null}
 
+      {step === 2 ? (
         <Card className="rounded-xl border shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Receive payment</CardTitle>
+            <CardTitle className="text-base">3. Enter payment</CardTitle>
             <CardDescription>
-              Record cash / cheque / DD / UPI and print the municipal receipt
+              Amount defaults to outstanding (max ₹{money(outstanding)})
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form
-              className="space-y-3"
-              onSubmit={form.handleSubmit((v) => mutation.mutate(v))}
-            >
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Amount (₹)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="1"
-                    {...form.register("amount", { required: true })}
-                  />
+            {!demandPublished ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Payment entry is disabled until a published demand is loaded.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="cursor-pointer"
+                  onClick={() => setStep(1)}
+                >
+                  Back to dues
+                </Button>
+              </div>
+            ) : (
+              <form className="space-y-3" onSubmit={goNextFromPayment}>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Amount (₹)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max={outstanding}
+                      {...form.register("amount", { required: true })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Mode</Label>
+                    <Select
+                      value={paymentMode}
+                      items={paymentModeItems}
+                      onValueChange={(v) =>
+                        form.setValue(
+                          "paymentMode",
+                          (v as FormValues["paymentMode"]) ?? "CASH"
+                        )
+                      }
+                    >
+                      <SelectTrigger className="cursor-pointer">
+                        <SelectValue placeholder="Payment mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAYMENT_MODES.map((m) => (
+                          <SelectItem key={m} value={m} label={m}>
+                            {m}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
+
+                {MODES_NEEDING_REF.has(paymentMode) ? (
+                  <div className="space-y-1.5">
+                    <Label>Cheque / DD / UPI reference</Label>
+                    <Input
+                      {...form.register("chequeDdReference")}
+                      placeholder="Instrument or UPI reference"
+                    />
+                  </div>
+                ) : null}
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Receipt book number</Label>
+                    <Input
+                      {...form.register("receiptNumber")}
+                      placeholder="Optional — auto if blank"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Collection date</Label>
+                    <Input type="date" {...form.register("collectionDate")} />
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Payer name</Label>
+                    <Input {...form.register("payerName")} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Mobile</Label>
+                    <Input {...form.register("payerMobile")} />
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
-                  <Label>Mode</Label>
-                  <Select
-                    value={paymentMode}
-                    items={paymentModeItems}
-                    onValueChange={(v) =>
-                      form.setValue(
-                        "paymentMode",
-                        (v as FormValues["paymentMode"]) ?? "CASH"
-                      )
-                    }
+                  <Label>Remarks</Label>
+                  <Input {...form.register("remarks")} />
+                </div>
+
+                <div className="flex justify-between gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="cursor-pointer"
+                    onClick={() => setStep(1)}
                   >
-                    <SelectTrigger className="cursor-pointer">
-                      <SelectValue placeholder="Payment mode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PAYMENT_MODES.map((m) => (
-                        <SelectItem key={m} value={m} label={m}>
-                          {m}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    Back
+                  </Button>
+                  <Button type="submit" className="cursor-pointer">
+                    Review payment
+                  </Button>
                 </div>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {step === 3 ? (
+        <Card className="rounded-xl border shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">4. Review</CardTitle>
+            <CardDescription>
+              Confirm before posting a SUCCESS payment
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <dl className="grid gap-2 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-xs text-muted-foreground">Property</dt>
+                <dd className="font-medium">{survey?.surveyId}</dd>
               </div>
-
-              {MODES_NEEDING_REF.has(paymentMode) ? (
-                <div className="space-y-1.5">
-                  <Label>Cheque / DD / UPI reference</Label>
-                  <Input
-                    {...form.register("chequeDdReference", {
-                      required: MODES_NEEDING_REF.has(paymentMode),
-                    })}
-                    placeholder="Instrument or UPI reference"
-                  />
-                </div>
-              ) : null}
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Receipt book number</Label>
-                  <Input
-                    {...form.register("receiptNumber")}
-                    placeholder="Optional — auto if blank"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Collection date</Label>
-                  <Input type="date" {...form.register("collectionDate")} />
-                </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Owner</dt>
+                <dd className="font-medium">{survey?.ownerName ?? "—"}</dd>
               </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Payer name</Label>
-                  <Input {...form.register("payerName")} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Mobile</Label>
-                  <Input {...form.register("payerMobile")} />
-                </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Amount</dt>
+                <dd className="font-medium">
+                  ₹{money(Number(amountValue) || 0)}
+                </dd>
               </div>
-
-              <div className="space-y-1.5">
-                <Label>Remarks</Label>
-                <Input {...form.register("remarks")} />
+              <div>
+                <dt className="text-xs text-muted-foreground">Mode</dt>
+                <dd className="font-medium">{paymentMode}</dd>
               </div>
-
+              <div>
+                <dt className="text-xs text-muted-foreground">Outstanding now</dt>
+                <dd className="font-medium">₹{money(outstanding)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  Outstanding after
+                </dt>
+                <dd className="font-medium">
+                  ₹{money(Math.max(0, outstanding - (Number(amountValue) || 0)))}
+                </dd>
+              </div>
+            </dl>
+            <div className="flex justify-between gap-2">
               <Button
-                type="submit"
-                className="w-full cursor-pointer"
-                disabled={mutation.isPending || !survey}
+                type="button"
+                variant="outline"
+                className="cursor-pointer"
+                onClick={() => setStep(2)}
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                className="cursor-pointer"
+                disabled={mutation.isPending}
+                onClick={() => mutation.mutate(form.getValues())}
               >
                 {mutation.isPending ? (
                   <>
@@ -591,21 +849,68 @@ export default function OfflinePaymentPage() {
                     Saving…
                   </>
                 ) : (
-                  <>
-                    <Printer className="size-4" />
-                    Receive &amp; Print Receipt
-                  </>
+                  "Confirm & receive"
                 )}
               </Button>
-              {!survey ? (
-                <p className="text-xs text-muted-foreground">
-                  Select a property to enable collection.
-                </p>
-              ) : null}
-            </form>
+            </div>
           </CardContent>
         </Card>
-      </div>
+      ) : null}
+
+      {step === 4 && lastReceipt ? (
+        <Card className="rounded-xl border shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">5. Receipt</CardTitle>
+            <CardDescription>
+              One payment · two print copies (consumer and office)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+              <p className="font-semibold">
+                Receipt {lastReceipt.receiptNumber}
+              </p>
+              <p className="text-muted-foreground">
+                ₹{money(lastReceipt.amount)} · {lastReceipt.paymentMode} ·{" "}
+                {lastReceipt.paymentReference}
+              </p>
+              {lastReceipt.receiptSnapshot ? (
+                <p className="mt-1 text-muted-foreground">
+                  Outstanding after: ₹
+                  {money(lastReceipt.receiptSnapshot.outstandingAfter)}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                className="cursor-pointer"
+                onClick={() => void handlePrint("consumer")}
+              >
+                <Printer className="size-4" />
+                Print consumer copy
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="cursor-pointer"
+                onClick={() => void handlePrint("office")}
+              >
+                <Printer className="size-4" />
+                Print office copy
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="cursor-pointer"
+                onClick={startNew}
+              >
+                New collection
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   )
 }

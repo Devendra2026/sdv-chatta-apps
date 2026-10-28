@@ -11,9 +11,12 @@ import {
   extractWardNumber,
   getMapping,
   normalizeParcelNo,
+  normalizePropertyNo,
   parseBool,
   parseNumber,
   parseSurveyedAt,
+  refineMappingFromHeaders,
+  tryDetectPresetFromHeaders,
 } from "./column-maps"
 
 const FIXTURES = path.join(__dirname, "../../../../fixtures/survey")
@@ -32,6 +35,32 @@ describe("column-maps", () => {
       "chhata-v2-55"
     )
     expect(detectPresetFromHeaders(["S.No", "Actions"])).toBe("chhata-v2-55")
+  })
+
+  it("rejects unknown header presets via tryDetect", () => {
+    expect(tryDetectPresetFromHeaders(["Random", "Columns"])).toBeNull()
+    expect(tryDetectPresetFromHeaders([])).toBeNull()
+  })
+
+  it("maps duplicate Is Muncipal Water Supply headers to alternate water fields", () => {
+    const headers = Array.from({ length: 38 }, (_, i) => `Col${i}`)
+    headers[0] = "Survey Id"
+    headers[31] = "Is Muncipal Water Supply"
+    headers[36] = "Is Muncipal Water Supply"
+    headers[37] = "Is Muncipal Water Supply"
+    const refined = refineMappingFromHeaders(CHHATA_V1_38, headers)
+    expect(refined.hasMunicipalWaterSupply).toBe(31)
+    expect(refined.hasAlternateWater).toBe(36)
+    expect(refined.waterSourceType).toBe(37)
+  })
+
+  it("preserves leading zeros on parcel and property from Excel", () => {
+    expect(normalizeParcelNo("000008", "249044-001-000001-001-R")).toBe(
+      "000008"
+    )
+    expect(normalizeParcelNo("8", "249044-001-000001-001-R")).toBe("000008")
+    expect(normalizePropertyNo("001", "249044-001-000008-002-R")).toBe("001")
+    expect(normalizePropertyNo("1", "249044-001-000008-002-R")).toBe("001")
   })
 
   it("extracts ward numbers from Hindi names and GIS ids", () => {

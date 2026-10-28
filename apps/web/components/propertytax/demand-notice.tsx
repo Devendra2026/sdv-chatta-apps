@@ -212,9 +212,22 @@ export function DemandNoticeView({ dues }: { dues: PublicPropertyTaxDues }) {
           </div>
         </div>
 
+        {"published" in tax && tax.published === false ? (
+          <div className="warn-banner">
+            WARNING: Demand is not published. Figures below are not a final
+            payable notice.
+          </div>
+        ) : null}
+        {"verified" in tax && tax.verified === false ? (
+          <div className="warn-banner">
+            WARNING: Historical balance is unverified. Do not treat outstanding
+            as final.
+          </div>
+        ) : null}
+
         <div className="sec sec-flush">Tax Demand Summary / कर मांग सारांश</div>
         <div className="tax-wrap">
-          <div className="tax-grid">
+          <div className="tax-grid extended">
             <div className="tax-box">
               <div className="tax-lbl">
                 Property Tax ({tax.propertyTaxPct}%)
@@ -230,6 +243,42 @@ export function DemandNoticeView({ dues }: { dues: PublicPropertyTaxDues }) {
                 Drainage Tax ({tax.drainageTaxPct}%)
               </div>
               <div className="tax-amt">₹{money(tax.drainageTax)}</div>
+            </div>
+            <div className="tax-box">
+              <div className="tax-lbl">Penalty / शास्ति</div>
+              <div className="tax-amt">₹{money(tax.penalty ?? 0)}</div>
+            </div>
+            <div className="tax-box">
+              <div className="tax-lbl">Rebate / छूट</div>
+              <div className="tax-amt">
+                ₹{money("rebate" in tax ? Number(tax.rebate ?? 0) : 0)}
+              </div>
+            </div>
+            <div className="tax-box">
+              <div className="tax-lbl">Arrears / बकाया</div>
+              <div className="tax-amt">
+                ₹{money("arrears" in tax ? Number(tax.arrears ?? 0) : 0)}
+              </div>
+            </div>
+            <div className="tax-box">
+              <div className="tax-lbl">Amount Paid / भुगतान</div>
+              <div className="tax-amt">
+                ₹
+                {money(
+                  "amountPaid" in tax ? Number(tax.amountPaid ?? 0) : 0
+                )}
+              </div>
+            </div>
+            <div className="tax-box">
+              <div className="tax-lbl">Outstanding / शेष</div>
+              <div className="tax-amt">
+                ₹
+                {money(
+                  "outstanding" in tax
+                    ? Number(tax.outstanding ?? 0)
+                    : tax.totalDemand
+                )}
+              </div>
             </div>
             <div className="tax-box">
               <div className="tax-lbl">Total Demand / कुल मांग</div>
@@ -248,9 +297,10 @@ export function DemandNoticeView({ dues }: { dues: PublicPropertyTaxDues }) {
             above. Please verify particulars with Nagar Panchayat Chhata before
             making payment. To pay online, use the Pay Online button on this
             page and complete payment through the secure gateway.
-            {tax.penalty > 0 ? (
+            {(tax.penalty ?? 0) > 0 ? (
               <div className="note">
-                Penalty included: ₹{money(tax.penalty)} ({tax.penaltyPct}%).
+                Penalty included: ₹{money(tax.penalty ?? 0)}
+                {tax.penaltyPct != null ? ` (${tax.penaltyPct}%).` : "."}
               </div>
             ) : null}
             <div className="payment-point">
@@ -292,7 +342,7 @@ const NOTICE_CSS = `
   box-shadow: 0 4px 24px rgba(15, 23, 42, 0.18);
   display: flex;
   flex-direction: column;
-  font-family: "Segoe UI", "Noto Sans Devanagari", Lato, Tahoma, sans-serif;
+  font-family: "Noto Sans Devanagari", "Mangal", "Kokila", "Segoe UI", Lato, Tahoma, sans-serif;
   font-size: 10.5px;
   line-height: 1.4;
   color: #020617;
@@ -355,6 +405,16 @@ const NOTICE_CSS = `
   color: #0f172a;
   margin-top: 6px;
   line-height: 1.45;
+}
+.demand-notice-root .warn-banner {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1.5px solid #b45309;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-align: center;
 }
 .demand-notice-root .meta {
   display: grid;
@@ -482,6 +542,9 @@ const NOTICE_CSS = `
 }
 .demand-notice-root .muted { color: #64748b; font-style: italic; }
 .demand-notice-root .tax-wrap { flex-shrink: 0; }
+.demand-notice-root .tax-grid.extended {
+  grid-template-columns: repeat(3, 1fr);
+}
 .demand-notice-root .tax-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1.25fr;

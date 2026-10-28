@@ -1,6 +1,15 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common"
 import { PaymentMode, PaymentStatus } from "@prisma/client"
 
+import {
+  assertOfflineAmountAgainstOutstanding,
+  assertOfflinePaymentMode,
+  assertOfflineReference,
+  assertPublishedDemandPresent,
+  computeOutstandingAfterPayment,
+} from "./offline-rules"
+import { buildReceiptSnapshot } from "./receipt-snapshot"
+
 /**
  * Mirrors offline counter rules without a DB (same pattern as public payment specs).
  */
@@ -10,33 +19,32 @@ function assertOfflineCreateInput(input: {
   surveyId?: string
   chequeDdReference?: string
   surveyExists?: boolean
+  demandPublished?: boolean
+  outstanding?: number
 }) {
-  if (input.paymentMode === PaymentMode.ONLINE) {
-    throw new BadRequestException("Use online endpoint for gateway payments")
-  }
+  assertOfflinePaymentMode(input.paymentMode)
   if (!input.surveyId?.trim()) {
     throw new BadRequestException({
       code: "SURVEY_REQUIRED",
       message: "Select a property/survey before recording offline payment",
     })
   }
-  const needsRef = new Set([
-    PaymentMode.CHEQUE,
-    PaymentMode.DD,
-    PaymentMode.UPI_MANUAL,
-  ])
-  if (needsRef.has(input.paymentMode) && !input.chequeDdReference?.trim()) {
-    throw new BadRequestException({
-      code: "REFERENCE_REQUIRED",
-      message: "Cheque / DD / UPI reference is required for this payment mode",
-    })
-  }
+  assertOfflineReference(input.paymentMode, input.chequeDdReference)
   if (input.surveyExists === false) {
     throw new NotFoundException({
       code: "SURVEY_NOT_FOUND",
       message: "Property/survey was not found",
     })
   }
+  assertPublishedDemandPresent(
+    input.demandPublished === false
+      ? null
+      : { status: "PUBLISHED" }
+  )
+  assertOfflineAmountAgainstOutstanding(
+    input.amount,
+    input.outstanding ?? input.amount
+  )
 }
 
 function toStaffReceiptShape(payment: {
@@ -53,6 +61,7 @@ function toStaffReceiptShape(payment: {
   remarks: string | null
   collectionDate: Date
   collectedBy: { id: string; name: string } | null
+  receiptSnapshot?: ReturnType<typeof buildReceiptSnapshot> | null
   survey: {
     id: string
     surveyId: string
@@ -100,6 +109,7 @@ function toStaffReceiptShape(payment: {
     remarks: payment.remarks,
     collectionDate: payment.collectionDate.toISOString(),
     collectedBy: payment.collectedBy,
+    receiptSnapshot: payment.receiptSnapshot ?? null,
     survey: survey
       ? {
           id: survey.id,
@@ -120,6 +130,8 @@ describe("offline collection rules", () => {
       assertOfflineCreateInput({
         amount: 500,
         paymentMode: PaymentMode.CASH,
+        demandPublished: true,
+        outstanding: 500,
       })
     ).toThrow(BadRequestException)
   })
@@ -130,17 +142,21 @@ describe("offline collection rules", () => {
         amount: 500,
         paymentMode: PaymentMode.CHEQUE,
         surveyId: "clsurvey",
+        demandPublished: true,
+        outstanding: 500,
       })
     ).toThrow(BadRequestException)
   })
 
-  it("accepts cash with survey", () => {
+  it("accepts cash with survey and published demand", () => {
     expect(() =>
       assertOfflineCreateInput({
         amount: 500,
         paymentMode: PaymentMode.CASH,
         surveyId: "clsurvey",
         surveyExists: true,
+        demandPublished: true,
+        outstanding: 500,
       })
     ).not.toThrow()
   })
@@ -152,8 +168,44 @@ describe("offline collection rules", () => {
         paymentMode: PaymentMode.CASH,
         surveyId: "missing",
         surveyExists: false,
+        demandPublished: true,
+        outstanding: 500,
       })
     ).toThrow(NotFoundException)
+  })
+
+  it("rejects when demand is unpublished", () => {
+    expect(() =>
+      assertOfflineCreateInput({
+        amount: 500,
+        paymentMode: PaymentMode.CASH,
+        surveyId: "clsurvey",
+        surveyExists: true,
+        demandPublished: false,
+        outstanding: 500,
+      })
+    ).toThrow(BadRequestException)
+  })
+
+  it("rejects amount exceeding outstanding", () => {
+    expect(() =>
+      assertOfflineAmountAgainstOutstanding(3001, 3000)
+    ).toThrow(BadRequestException)
+  })
+
+  it("rejects zero or negative amount", () => {
+    expect(() => assertOfflineAmountAgainstOutstanding(0, 5000)).toThrow(
+      BadRequestException
+    )
+    expect(() => assertOfflineAmountAgainstOutstanding(-10, 5000)).toThrow(
+      BadRequestException
+    )
+  })
+
+  it("partial payment leaves remaining outstanding (5000 / 3000 / 2000)", () => {
+    const after = computeOutstandingAfterPayment(5000, 0, 3000)
+    expect(after.amountPaid).toBe(3000)
+    expect(after.outstanding).toBe(2000)
   })
 })
 
@@ -194,6 +246,53 @@ describe("staff receipt payload", () => {
     expect(receipt.survey?.address).toContain("Main Road")
     expect(receipt.collectedBy?.name).toBe("Clerk")
     expect(receipt.amount).toBe(1250.5)
+  })
+
+  it("shares one receiptSnapshot for consumer and office copies", () => {
+    const snapshot = buildReceiptSnapshot({
+      propertyTax: 4000,
+      waterTax: 500,
+      drainageTax: 200,
+      penalty: 300,
+      rebate: 0,
+      arrears: 0,
+      currentDemand: 5000,
+      totalPayable: 5000,
+      amountReceived: 3000,
+      outstandingAfter: 2000,
+      amountPaidAfter: 3000,
+      assessmentYear: { id: "y1", code: "2025-26", name: "2025-26" },
+      surveyId: "s1",
+      municipalSurveyId: "CHH-001",
+      paymentMode: PaymentMode.CASH,
+      receiptNumber: "RCP-1",
+      paidAt: new Date("2026-08-26T10:00:00.000Z"),
+    })
+
+    const receipt = toStaffReceiptShape({
+      id: "pay-snap",
+      paymentReference: "OFF-SNAP",
+      receiptNumber: "RCP-1",
+      amount: 3000,
+      currency: "INR",
+      paymentMode: PaymentMode.CASH,
+      status: PaymentStatus.SUCCESS,
+      payerName: "Ram",
+      payerMobile: null,
+      chequeDdReference: null,
+      remarks: null,
+      collectionDate: new Date("2026-08-26T10:00:00.000Z"),
+      collectedBy: null,
+      receiptSnapshot: snapshot,
+      survey: null,
+      ward: null,
+    })
+
+    expect(receipt.receiptSnapshot?.amountReceived).toBe(3000)
+    expect(receipt.receiptSnapshot?.outstandingAfter).toBe(2000)
+    expect(receipt.receiptSnapshot?.totalPayable).toBe(5000)
+    // Same snapshot object is used for both print copies
+    expect(receipt.receiptSnapshot).toEqual(snapshot)
   })
 
   it("rejects non-success payments for receipt", () => {

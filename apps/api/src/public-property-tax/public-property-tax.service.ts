@@ -11,6 +11,11 @@ import { PrismaService } from "../prisma/prisma.service"
 import type { CreatePublicPropertyTaxPaymentDto } from "./dto/create-public-payment.dto"
 import type { PublicPropertyTaxSearchQueryDto } from "./dto/public-property-tax.dto"
 import {
+  assessmentYearNameFromSnapshot,
+  taxBreakdownFromReceiptSnapshot,
+} from "../payments/receipt-snapshot"
+import {
+  isAlreadyPaidForYear,
   resolveDueStatus,
   type PublicPropertyTaxDueStatus,
 } from "./due-status.util"
@@ -146,20 +151,56 @@ export class PublicPropertyTaxService {
       })
     }
 
-    const paidForAssessmentYear = await this.hasSuccessfulPaymentForYear(
-      survey.id,
-      config.assessmentYear.id
-    )
+    const demand = await this.prisma.propertyDemand.findUnique({
+      where: {
+        surveyId_assessmentYearId: {
+          surveyId: survey.id,
+          assessmentYearId: config.assessmentYear.id,
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+        outstanding: true,
+        totalPayable: true,
+      },
+    })
+
+    const hasPublishedDemand = demand?.status === "PUBLISHED"
+    const outstanding = hasPublishedDemand
+      ? Number(demand.outstanding)
+      : null
+    const successCount = hasPublishedDemand
+      ? 0
+      : await this.countSuccessfulPaymentsForYear(
+          survey.id,
+          config.assessmentYear.id
+        )
+    const paidForAssessmentYear = isAlreadyPaidForYear({
+      assessmentYearId: config.assessmentYear.id,
+      successPaymentCount: successCount,
+      hasPublishedDemand,
+      outstanding,
+    })
+
+    const payload = computePublicDuesPayload(survey, config)
 
     return {
-      ...computePublicDuesPayload(survey, config),
+      ...payload,
       paidForAssessmentYear,
+      propertyDemandId: hasPublishedDemand ? demand.id : null,
+      outstanding: hasPublishedDemand ? outstanding : null,
+      payableAmount: hasPublishedDemand
+        ? outstanding
+        : payload.tax.totalDemand,
     }
   }
 
   async createPayment(dto: CreatePublicPropertyTaxPaymentDto) {
     const dues = await this.getDues(dto.surveyId)
-    const amount = Number(dues.tax.totalDemand)
+    const amount = Number(
+      dues.payableAmount ?? dues.outstanding ?? dues.tax.totalDemand
+    )
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new BadRequestException({
         code: "DUES_NOT_PAYABLE",
@@ -215,6 +256,7 @@ export class PublicPropertyTaxService {
       payerMobile: dto.payerMobile,
       payerEmail: dto.payerEmail?.trim() || undefined,
       assessmentYearId: dues.assessmentYear.id,
+      propertyDemandId: dues.propertyDemandId ?? undefined,
     })
 
     const gatewayReturnUrl =
@@ -359,26 +401,23 @@ export class PublicPropertyTaxService {
       })
     }
 
-    let assessmentYear: string | null = null
-    let taxBreakdown: {
-      propertyTax: number
-      waterTax: number
-      drainageTax: number
-      penalty: number
-      totalDemand: number
-    } | null = null
-    try {
-      const dues = await this.getDues(payment.surveyId)
-      assessmentYear = dues.assessmentYear.name
-      taxBreakdown = {
-        propertyTax: dues.tax.propertyTax,
-        waterTax: dues.tax.waterTax,
-        drainageTax: dues.tax.drainageTax,
-        penalty: dues.tax.penalty,
-        totalDemand: dues.tax.totalDemand,
+    let assessmentYear = assessmentYearNameFromSnapshot(payment.receiptSnapshot)
+    let taxBreakdown = taxBreakdownFromReceiptSnapshot(payment.receiptSnapshot)
+
+    if (!taxBreakdown || !assessmentYear) {
+      try {
+        const dues = await this.getDues(payment.surveyId)
+        assessmentYear = assessmentYear ?? dues.assessmentYear.name
+        taxBreakdown = taxBreakdown ?? {
+          propertyTax: dues.tax.propertyTax,
+          waterTax: dues.tax.waterTax,
+          drainageTax: dues.tax.drainageTax,
+          penalty: dues.tax.penalty,
+          totalDemand: dues.tax.totalDemand,
+        }
+      } catch {
+        // Receipt still valid without live dues recomputation
       }
-    } catch {
-      // Receipt still valid without live dues recomputation
     }
 
     return {
@@ -447,18 +486,17 @@ export class PublicPropertyTaxService {
     return { items, page, pageSize, total }
   }
 
-  private async hasSuccessfulPaymentForYear(
+  private async countSuccessfulPaymentsForYear(
     surveyId: string,
     assessmentYearId: string
-  ): Promise<boolean> {
-    const count = await this.prisma.payment.count({
+  ): Promise<number> {
+    return this.prisma.payment.count({
       where: {
         surveyId,
         assessmentYearId,
         status: PaymentStatus.SUCCESS,
       },
     })
-    return count > 0
   }
 
   private async resolveSearchDueStatuses(
@@ -495,6 +533,34 @@ export class PublicPropertyTaxService {
 
     const surveyIds = rows.map((r) => r.id)
     const yearIds = [...new Set(yearByWardId.values())]
+
+    const demands =
+      yearIds.length === 0
+        ? []
+        : await this.prisma.propertyDemand.findMany({
+            where: {
+              surveyId: { in: surveyIds },
+              assessmentYearId: { in: yearIds },
+              status: "PUBLISHED",
+            },
+            select: {
+              surveyId: true,
+              assessmentYearId: true,
+              outstanding: true,
+            },
+          })
+
+    const demandBySurveyYear = new Map<
+      string,
+      { outstanding: number; assessmentYearId: string }
+    >()
+    for (const d of demands) {
+      demandBySurveyYear.set(`${d.surveyId}:${d.assessmentYearId}`, {
+        outstanding: Number(d.outstanding),
+        assessmentYearId: d.assessmentYearId,
+      })
+    }
+
     const successPayments =
       yearIds.length === 0
         ? []
@@ -519,11 +585,17 @@ export class PublicPropertyTaxService {
     }
 
     for (const row of rows) {
+      const yearId = yearByWardId.get(row.wardId)
+      const demand = yearId
+        ? demandBySurveyYear.get(`${row.id}:${yearId}`)
+        : undefined
       result.set(
         row.id,
         resolveDueStatus({
-          currentAssessmentYearId: yearByWardId.get(row.wardId),
+          currentAssessmentYearId: yearId,
           paidAssessmentYearIds: paidYearsBySurvey.get(row.id) ?? new Set(),
+          hasPublishedDemand: Boolean(demand),
+          outstanding: demand?.outstanding,
         })
       )
     }

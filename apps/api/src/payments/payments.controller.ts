@@ -58,7 +58,7 @@ class CreateOnlineDto {
 class CreateOfflineDto {
   @Type(() => Number)
   @IsNumber()
-  @Min(1)
+  @Min(0.01)
   amount!: number
 
   @IsEnum(PaymentMode)
@@ -71,6 +71,10 @@ class CreateOfflineDto {
   @IsOptional()
   @IsString()
   wardId?: string
+
+  @IsOptional()
+  @IsString()
+  assessmentYearId?: string
 
   @IsOptional()
   @IsString()
@@ -95,6 +99,10 @@ class CreateOfflineDto {
   @IsOptional()
   @IsString()
   remarks?: string
+
+  @IsOptional()
+  @IsString()
+  clientIdempotencyKey?: string
 }
 
 @Controller("api/v1/payments")

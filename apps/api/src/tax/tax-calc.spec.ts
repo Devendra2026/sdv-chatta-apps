@@ -2,6 +2,7 @@ import {
   computeDemandTotals,
   computeFloorAlv,
   computeGisPreviewDemand,
+  computePropertyAssessment,
   computeSurveyExportTax,
   resolveAssessablePct,
   resolveEffectiveMonthlyRate,
@@ -521,5 +522,107 @@ describe("tax-calc", () => {
     expect(mixed.gisClass).toBe("mixed")
     expect(mixed.effectiveMonthlyRate).toBe(0.36)
     expect(mixed.demand).toBe(69.12)
+  })
+
+  it("open land with penaltyPct recomputes penalty after plot tax replacement", () => {
+    const rates = {
+      assessablePct: 80,
+      commercialAssessablePct: 80,
+      propertyTaxPct: 10,
+      waterTaxPct: 7.5,
+      drainageTaxPct: 2.5,
+      penaltyPct: 10,
+      rateByZoneAndConstruction: new Map([
+        [taxRateKey("BELOW_9M", "OPEN_LAND"), 0.36],
+      ]),
+      anyRateByZone: new Map([["BELOW_9M", 0.36]]),
+    }
+    const r = computeSurveyExportTax({
+      taxRateZoneCode: "BELOW_9M",
+      propertyUse: "Open Land",
+      plotAreaSqFt: 100,
+      floors: [],
+      rates,
+    })
+    // plot ALV: 100*0.36*12=432, assessable 100%=432, house 43.2, penalty 4.32
+    expect(r.propertyTax).toBe(43.2)
+    expect(r.waterTax).toBe(0)
+    expect(r.drainageTax).toBe(0)
+    expect(r.penalty).toBe(4.32)
+    expect(r.totalDemand).toBe(47.52)
+  })
+
+  it("computePropertyAssessment applies rebate once per head and keeps legacy penalty", () => {
+    const a = computePropertyAssessment({
+      base: {
+        propertyTax: 1000,
+        waterTax: 500,
+        drainageTax: 100,
+        penalty: 50,
+        totalDemand: 1650,
+      },
+      rules: [
+        {
+          kind: "REBATE",
+          head: "PROPERTY",
+          method: "PERCENT_OF_HEAD",
+          value: 10,
+        },
+        {
+          kind: "REBATE",
+          head: "WATER",
+          method: "FLAT_AMOUNT",
+          value: 100,
+        },
+      ],
+      arrears: 2000,
+      amountPaid: 3000,
+    })
+    // rebate = 100 (property) + 100 (water) = 200
+    expect(a.rebate).toBe(200)
+    expect(a.penalty).toBe(50)
+    expect(a.currentDemand).toBe(1450)
+    expect(a.arrears).toBe(2000)
+    expect(a.totalPayable).toBe(3450)
+    expect(a.amountPaid).toBe(3000)
+    expect(a.outstanding).toBe(450)
+  })
+
+  it("published property penalty replaces legacy TaxConfig penalty", () => {
+    const a = computePropertyAssessment({
+      base: {
+        propertyTax: 1000,
+        waterTax: 0,
+        drainageTax: 0,
+        penalty: 50,
+        totalDemand: 1050,
+      },
+      rules: [
+        {
+          kind: "PENALTY",
+          head: "PROPERTY",
+          method: "PERCENT_OF_HEAD",
+          value: 5,
+        },
+      ],
+    })
+    expect(a.penalty).toBe(50)
+    expect(a.currentDemand).toBe(1050)
+  })
+
+  it("partial payment example 5000 payable / 3000 paid / 2000 outstanding", () => {
+    const a = computePropertyAssessment({
+      base: {
+        propertyTax: 4000,
+        waterTax: 750,
+        drainageTax: 250,
+        penalty: 0,
+        totalDemand: 5000,
+      },
+      arrears: 0,
+      amountPaid: 3000,
+    })
+    expect(a.totalPayable).toBe(5000)
+    expect(a.outstanding).toBe(2000)
   })
 })
