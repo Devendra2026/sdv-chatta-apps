@@ -1,8 +1,7 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import type { StaffPaymentReceipt } from "@workspace/types"
-import { Loader2, Printer } from "lucide-react"
+import { Download, Loader2, Printer } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
@@ -13,7 +12,10 @@ import { Button } from "@workspace/ui/components/button"
 import { useCan } from "@/hooks/use-permission"
 import { api } from "@/lib/api"
 
-import { printOfflinePaymentReceipt } from "./offline/_lib/receipt-template"
+import {
+  downloadStaffReceiptPdf,
+  printStaffReceiptPdf,
+} from "./offline/_lib/receipt-template"
 
 type Payment = {
   id: string
@@ -43,9 +45,10 @@ type PaymentsMeta = {
 
 export default function PaymentsPage() {
   const [page, setPage] = React.useState(1)
-  const [printingId, setPrintingId] = React.useState<string | null>(null)
+  const [busyId, setBusyId] = React.useState<string | null>(null)
   const pageSize = 20
   const { allowed: canCollectOffline } = useCan("payment:offline:create")
+  const fetchReceiptBlob = (path: string) => api.getBlob(path)
 
   const query = useQuery({
     queryKey: ["payments", page, pageSize],
@@ -64,26 +67,34 @@ export default function PaymentsPage() {
   const rows = query.data?.items ?? []
   const meta = query.data?.meta
 
+  const handleDownload = async (payment: Payment) => {
+    if (payment.status !== "SUCCESS") {
+      toast.error("Receipt is only available for successful payments")
+      return
+    }
+    setBusyId(payment.id)
+    try {
+      const result = await downloadStaffReceiptPdf(
+        payment.id,
+        fetchReceiptBlob
+      )
+      if (!result.ok) toast.error(result.error)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const handlePrint = async (payment: Payment) => {
     if (payment.status !== "SUCCESS") {
       toast.error("Receipt is only available for successful payments")
       return
     }
-    setPrintingId(payment.id)
+    setBusyId(payment.id)
     try {
-      const receipt = (
-        await api.get<StaffPaymentReceipt>(
-          `/api/v1/payments/${payment.id}/receipt`
-        )
-      ).data
-      const ok = await printOfflinePaymentReceipt(receipt)
-      if (!ok) {
-        toast.error("Popup blocked. Please allow popups for this site.")
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load receipt")
+      const result = await printStaffReceiptPdf(payment.id, fetchReceiptBlob)
+      if (!result.ok) toast.error(result.error)
     } finally {
-      setPrintingId(null)
+      setBusyId(null)
     }
   }
 
@@ -164,22 +175,35 @@ export default function PaymentsPage() {
                     {new Date(p.createdAt).toLocaleString()}
                   </td>
                   <td className="p-2">
-                    {p.status === "SUCCESS" && p.paymentMode !== "ONLINE" ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="cursor-pointer"
-                        disabled={printingId === p.id}
-                        onClick={() => void handlePrint(p)}
-                      >
-                        {printingId === p.id ? (
-                          <Loader2 className="size-3.5 animate-spin" />
-                        ) : (
+                    {p.status === "SUCCESS" ? (
+                      <div className="flex flex-wrap gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="cursor-pointer"
+                          disabled={busyId === p.id}
+                          onClick={() => void handleDownload(p)}
+                        >
+                          {busyId === p.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Download className="size-3.5" />
+                          )}
+                          PDF
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="cursor-pointer"
+                          disabled={busyId === p.id}
+                          onClick={() => void handlePrint(p)}
+                        >
                           <Printer className="size-3.5" />
-                        )}
-                        Print
-                      </Button>
+                          Print
+                        </Button>
+                      </div>
                     ) : (
                       "—"
                     )}

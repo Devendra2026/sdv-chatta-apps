@@ -31,6 +31,11 @@ import {
   toClientGatewayResult,
 } from "./payments.safety"
 import {
+  buildPropertyTaxReceiptPdf,
+  safeReceiptFilename,
+  staffReceiptToPdfModel,
+} from "./receipt-pdf"
+import {
   assessmentYearNameFromSnapshot,
   buildReceiptSnapshot,
   parseReceiptSnapshot,
@@ -766,6 +771,26 @@ export class PaymentsService {
   }
 
   async getStaffReceipt(paymentId: string, user: AuthUser) {
+    const payment = await this.loadStaffReceiptPayment(paymentId, user)
+    return this.toStaffReceipt(payment)
+  }
+
+  /**
+   * Read-only PDF of an existing SUCCESS payment. Does not create a payment
+   * or change receiptNumber / receiptSnapshot.
+   */
+  async getStaffReceiptPdf(paymentId: string, user: AuthUser) {
+    const payment = await this.loadStaffReceiptPayment(paymentId, user)
+    const receipt = this.toStaffReceipt(payment)
+    const model = staffReceiptToPdfModel(receipt, payment.propertyDemandId)
+    const buffer = await buildPropertyTaxReceiptPdf(model)
+    return {
+      buffer,
+      filename: safeReceiptFilename(receipt.receiptNumber),
+    }
+  }
+
+  private async loadStaffReceiptPayment(paymentId: string, user: AuthUser) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
       include: {
@@ -787,7 +812,7 @@ export class PaymentsService {
         message: "Receipt is only available for successful payments",
       })
     }
-    return this.toStaffReceipt(payment)
+    return payment
   }
 
   private toStaffReceipt(payment: {

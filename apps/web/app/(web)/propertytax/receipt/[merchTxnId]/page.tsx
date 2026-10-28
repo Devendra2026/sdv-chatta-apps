@@ -4,10 +4,14 @@ import { useQuery } from "@tanstack/react-query"
 import { ArrowLeft, Download, Loader2, Printer } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
+import * as React from "react"
 
 import { PaymentProcessSteps } from "@/components/propertytax/payment-process-steps"
 import { PaymentReceiptView } from "@/components/propertytax/payment-receipt"
-import { fetchPublicPaymentReceipt } from "@/lib/property-tax-api"
+import {
+  fetchPublicPaymentReceipt,
+  fetchPublicPaymentReceiptPdf,
+} from "@/lib/property-tax-api"
 import { PublicApiError } from "@/lib/public-api"
 
 export default function PropertyTaxReceiptPage() {
@@ -16,6 +20,8 @@ export default function PropertyTaxReceiptPage() {
     typeof params.merchTxnId === "string"
       ? decodeURIComponent(params.merchTxnId)
       : ""
+  const [pdfBusy, setPdfBusy] = React.useState(false)
+  const [pdfError, setPdfError] = React.useState<string | null>(null)
 
   const receiptQuery = useQuery({
     queryKey: ["public-property-tax-receipt", merchTxnId],
@@ -34,8 +40,91 @@ export default function PropertyTaxReceiptPage() {
   const receipt = receiptQuery.data
   const isSuccess = receipt?.status === "SUCCESS"
 
-  function handlePrint() {
-    window.print()
+  async function loadPdfBlob() {
+    return fetchPublicPaymentReceiptPdf(merchTxnId)
+  }
+
+  async function handleDownload() {
+    if (!isSuccess || !merchTxnId) return
+    setPdfBusy(true)
+    setPdfError(null)
+    try {
+      const { blob, filename } = await loadPdfBlob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download =
+        filename ||
+        `Property-Tax-Receipt-${receipt?.receiptNumber ?? merchTxnId}.pdf`
+      a.rel = "noopener"
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setPdfError(
+        e instanceof PublicApiError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : "Failed to download receipt PDF"
+      )
+    } finally {
+      setPdfBusy(false)
+    }
+  }
+
+  async function handlePrint() {
+    if (!isSuccess || !merchTxnId) return
+    setPdfBusy(true)
+    setPdfError(null)
+    try {
+      const { blob } = await loadPdfBlob()
+      const url = URL.createObjectURL(blob)
+      const w = window.open(url, "_blank")
+      if (!w) {
+        URL.revokeObjectURL(url)
+        setPdfError("Popup blocked. Please allow popups for this site.")
+        return
+      }
+      const revoke = () => {
+        try {
+          URL.revokeObjectURL(url)
+        } catch {
+          // ignore
+        }
+      }
+      w.addEventListener("load", () => {
+        try {
+          w.focus()
+          w.print()
+        } catch {
+          // ignore
+        }
+        window.setTimeout(revoke, 60_000)
+      })
+      window.setTimeout(() => {
+        try {
+          if (!w.closed) {
+            w.focus()
+            w.print()
+          }
+        } catch {
+          // ignore
+        }
+      }, 750)
+      window.setTimeout(revoke, 120_000)
+    } catch (e) {
+      setPdfError(
+        e instanceof PublicApiError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : "Failed to print receipt PDF"
+      )
+    } finally {
+      setPdfBusy(false)
+    }
   }
 
   return (
@@ -53,7 +142,7 @@ export default function PropertyTaxReceiptPage() {
             </h1>
             <p className="mt-1 text-sm text-slate-600">
               Official online house tax payment receipt for Nagar Panchayat
-              Chhata.
+              Chhata. Download or print the A4 PDF (office and consumer copies).
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -66,18 +155,22 @@ export default function PropertyTaxReceiptPage() {
             </Link>
             <button
               type="button"
-              onClick={handlePrint}
-              disabled={!isSuccess}
-              aria-label="Download receipt — use Save as PDF in the print dialog"
+              onClick={() => void handleDownload()}
+              disabled={!isSuccess || pdfBusy}
+              aria-label="Download property tax receipt PDF"
               className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors duration-200 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Download className="h-4 w-4" aria-hidden />
+              {pdfBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <Download className="h-4 w-4" aria-hidden />
+              )}
               Download Receipt
             </button>
             <button
               type="button"
-              onClick={handlePrint}
-              disabled={!isSuccess}
+              onClick={() => void handlePrint()}
+              disabled={!isSuccess || pdfBusy}
               className="bg-gov-saffron hover:bg-gov-saffron-dark focus-visible:ring-gov-saffron inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Printer className="h-4 w-4" aria-hidden />
@@ -85,11 +178,16 @@ export default function PropertyTaxReceiptPage() {
             </button>
           </div>
         </div>
+        {pdfError ? (
+          <p role="alert" className="mt-3 text-sm font-medium text-red-700">
+            {pdfError}
+          </p>
+        ) : null}
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+      <div className="no-print mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
         {receiptQuery.isLoading ? (
-          <div className="no-print flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-20 text-slate-600 shadow-sm">
+          <div className="flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-20 text-slate-600 shadow-sm">
             <Loader2 className="text-gov-saffron h-5 w-5 animate-spin" />
             <span className="text-sm font-medium">Loading receipt…</span>
           </div>
@@ -98,7 +196,7 @@ export default function PropertyTaxReceiptPage() {
         {errorMessage ? (
           <div
             role="alert"
-            className="no-print rounded-xl border border-red-200 bg-red-50 px-6 py-10 text-center shadow-sm"
+            className="rounded-xl border border-red-200 bg-red-50 px-6 py-10 text-center shadow-sm"
           >
             <p className="text-sm font-semibold text-red-900">{errorMessage}</p>
             {merchTxnId ? (
@@ -115,7 +213,7 @@ export default function PropertyTaxReceiptPage() {
         {receipt && !isSuccess ? (
           <div
             role="alert"
-            className="no-print rounded-xl border border-amber-200 bg-amber-50 px-6 py-10 text-center shadow-sm"
+            className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-10 text-center shadow-sm"
           >
             <p className="text-sm font-semibold text-amber-950">
               This receipt is only available after a successful payment.

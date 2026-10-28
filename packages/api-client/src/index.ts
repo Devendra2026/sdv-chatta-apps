@@ -104,8 +104,67 @@ export function createApiClient(options: ApiClientOptions) {
     }
   }
 
+  async function getBlob(
+    path: string
+  ): Promise<{ blob: Blob; filename: string | null }> {
+    const headers = new Headers()
+    headers.set("Accept", "application/pdf, application/json")
+    const extra = options.getHeaders ? await options.getHeaders() : undefined
+    if (extra) {
+      new Headers(extra).forEach((value, key) => headers.set(key, value))
+    }
+
+    const response = await fetch(`${resolveRequestBaseUrl(options)}${path}`, {
+      method: "GET",
+      headers,
+      credentials,
+      cache: "no-store",
+    })
+
+    const contentType = response.headers.get("content-type") ?? ""
+    if (!response.ok || contentType.includes("application/json")) {
+      const json = (await response.json().catch(() => null)) as {
+        success?: boolean
+        error?: { code?: string; message?: string; requestId?: string }
+      } | null
+      throw new ApiError(
+        json?.error?.code ??
+          (response.status === 404 ? "NOT_FOUND" : "REQUEST_FAILED"),
+        formatErrorMessage(
+          response.status,
+          json,
+          response.statusText,
+          path,
+          "GET"
+        ),
+        response.status,
+        json?.error?.requestId,
+        path
+      )
+    }
+
+    const disposition = response.headers.get("content-disposition")
+    let filename: string | null = null
+    if (disposition) {
+      const utf = /filename\*=UTF-8''([^;]+)/i.exec(disposition)
+      const plain = /filename="?([^";]+)"?/i.exec(disposition)
+      if (utf?.[1]) {
+        try {
+          filename = decodeURIComponent(utf[1].trim())
+        } catch {
+          filename = utf[1].trim()
+        }
+      } else if (plain?.[1]) {
+        filename = plain[1].trim()
+      }
+    }
+
+    return { blob: await response.blob(), filename }
+  }
+
   return {
     get: <T>(path: string) => request<T>(path),
+    getBlob,
     post: <T>(path: string, body?: unknown) =>
       request<T>(path, {
         method: "POST",

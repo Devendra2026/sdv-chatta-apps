@@ -1304,6 +1304,483 @@
       "lastAccessed": "2026-10-28T10:26:12.698Z",
       "accessCount": 0,
       "expiresAt": "2026-11-27T10:26:12.698Z"
+    },
+    "cmd-1793184670661": {
+      "key": "cmd-1793184670661",
+      "value": "{\"command\":\"python -c \\\"import sys; print(sys.version)\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:51:10.661Z",
+      "lastAccessed": "2026-10-28T10:51:10.661Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:51:10.661Z"
+    },
+    "cmd-1793184677530": {
+      "key": "cmd-1793184677530",
+      "value": "{\"command\":\"python -c \\\"import importlib.util; print('pypdf', bool(importlib.util.find_spec('pypdf'))); print('pdfplumber', bool(importlib.util.find_spec('pdfplumber'))); print('fitz', bool(importlib.util.find_spec('fitz')))\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:51:17.530Z",
+      "lastAccessed": "2026-10-28T10:51:17.530Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:51:17.530Z"
+    },
+    "cmd-1793184702268": {
+      "key": "cmd-1793184702268",
+      "value": "{\"command\":\"$env:PYTHONIOENCODING='utf-8'; python -c @\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:51:42.268Z",
+      "lastAccessed": "2026-10-28T10:51:42.268Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:51:42.268Z"
+    },
+    "cmd-1793184713064": {
+      "key": "cmd-1793184713064",
+      "value": "{\"command\":\"$env:PYTHONIOENCODING='utf-8'; python -c @\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:51:53.064Z",
+      "lastAccessed": "2026-10-28T10:51:53.064Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:51:53.064Z"
+    },
+    "cmd-1793184723042": {
+      "key": "cmd-1793184723042",
+      "value": "{\"command\":\"$env:PYTHONIOENCODING='utf-8'; python -c @\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:52:03.042Z",
+      "lastAccessed": "2026-10-28T10:52:03.042Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:52:03.042Z"
+    },
+    "cmd-1793184735397": {
+      "key": "cmd-1793184735397",
+      "value": "{\"command\":\"$env:PYTHONIOENCODING='utf-8'; python -c @\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:52:15.397Z",
+      "lastAccessed": "2026-10-28T10:52:15.397Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:52:15.397Z"
+    },
+    "cmd-1793184748907": {
+      "key": "cmd-1793184748907",
+      "value": "{\"command\":\"$env:PYTHONIOENCODING='utf-8'; python -c @\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:52:28.907Z",
+      "lastAccessed": "2026-10-28T10:52:28.907Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:52:28.907Z"
+    },
+    "cmd-1793184759834": {
+      "key": "cmd-1793184759834",
+      "value": "{\"command\":\"$env:PYTHONIOENCODING='utf-8'; python -c @\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:52:39.834Z",
+      "lastAccessed": "2026-10-28T10:52:39.834Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:52:39.834Z"
+    },
+    "cmd-1793184768016": {
+      "key": "cmd-1793184768016",
+      "value": "{\"command\":\"$env:PYTHONIOENCODING='utf-8'; python -c @\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:52:48.016Z",
+      "lastAccessed": "2026-10-28T10:52:48.016Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:52:48.016Z"
+    },
+    "cmd-1793184806104": {
+      "key": "cmd-1793184806104",
+      "value": "{\"command\":\"$env:PYTHONIOENCODING='utf-8'; python -c @\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:53:26.104Z",
+      "lastAccessed": "2026-10-28T10:53:26.104Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:53:26.104Z"
+    },
+    "cmd-1793184821194": {
+      "key": "cmd-1793184821194",
+      "value": "{\"command\":\"$env:PYTHONIOENCODING='utf-8'; python -c @\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:53:41.194Z",
+      "lastAccessed": "2026-10-28T10:53:41.194Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:53:41.194Z"
+    },
+    "cmd-1793184851785": {
+      "key": "cmd-1793184851785",
+      "value": "{\"command\":\"$env:PYTHONIOENCODING='utf-8'; python -c @\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T10:54:11.785Z",
+      "lastAccessed": "2026-10-28T10:54:11.785Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T10:54:11.785Z"
+    },
+    "cmd-1793185207699": {
+      "key": "cmd-1793185207699",
+      "value": "{\"command\":\"pnpm --filter api test -- inr-words.spec.ts receipt-allocation.spec.ts\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:00:07.699Z",
+      "lastAccessed": "2026-10-28T11:00:07.699Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:00:07.699Z"
+    },
+    "cmd-1793185218609": {
+      "key": "cmd-1793185218609",
+      "value": "{\"command\":\"New-Item -ItemType Directory -Force -Path \\\"apps\\\\api\\\\src\\\\assets\\\\fonts\\\",\\\"apps\\\\api\\\\src\\\\assets\\\\branding\\\" | Out-Null; Copy-Item \\\"apps\\\\portal\\\\public\\\\branding\\\\up-government-logo.png\\\" \\\"apps\\\\api\\\\src\\\\assets\\\\branding\\\\up-government-logo.png\\\" -Force; Write-Host \\\"logo copied\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:00:18.609Z",
+      "lastAccessed": "2026-10-28T11:00:18.609Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:00:18.609Z"
+    },
+    "cmd-1793185236236": {
+      "key": "cmd-1793185236236",
+      "value": "{\"command\":\"$fonts = @(\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:00:36.236Z",
+      "lastAccessed": "2026-10-28T11:00:36.236Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:00:36.236Z"
+    },
+    "cmd-1793185259075": {
+      "key": "cmd-1793185259075",
+      "value": "{\"command\":\"pnpm --filter api add pdfmake; pnpm --filter api add -D pdfjs-dist @types/pdfmake\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:00:59.075Z",
+      "lastAccessed": "2026-10-28T11:00:59.075Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:00:59.075Z"
+    },
+    "cmd-1793185305549": {
+      "key": "cmd-1793185305549",
+      "value": "{\"command\":\"$urls = @(\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:01:45.549Z",
+      "lastAccessed": "2026-10-28T11:01:45.549Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:01:45.549Z"
+    },
+    "cmd-1793185381620": {
+      "key": "cmd-1793185381620",
+      "value": "{\"command\":\"Get-ChildItem node_modules\\\\pdfmake -Name | Select-Object -First 30; if (Test-Path node_modules\\\\pdfmake\\\\package.json) { Get-Content node_modules\\\\pdfmake\\\\package.json | Select-Object -First 40 }\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:03:01.620Z",
+      "lastAccessed": "2026-10-28T11:03:01.620Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:03:01.620Z"
+    },
+    "cmd-1793185536586": {
+      "key": "cmd-1793185536586",
+      "value": "{\"command\":\"node -e \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:05:36.586Z",
+      "lastAccessed": "2026-10-28T11:05:36.586Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:05:36.586Z"
+    },
+    "cmd-1793185551421": {
+      "key": "cmd-1793185551421",
+      "value": "{\"command\":\"node -e \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:05:51.421Z",
+      "lastAccessed": "2026-10-28T11:05:51.421Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:05:51.421Z"
+    },
+    "cmd-1793185562165": {
+      "key": "cmd-1793185562165",
+      "value": "{\"command\":\"node -e \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:06:02.165Z",
+      "lastAccessed": "2026-10-28T11:06:02.165Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:06:02.165Z"
+    },
+    "cmd-1793185573352": {
+      "key": "cmd-1793185573352",
+      "value": "{\"command\":\"npx tsx -e \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:06:13.352Z",
+      "lastAccessed": "2026-10-28T11:06:13.352Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:06:13.352Z"
+    },
+    "cmd-1793185580693": {
+      "key": "cmd-1793185580693",
+      "value": "{\"command\":\"npx tsx ./src/payments/_tmp-pdf-smoke.ts 2>&1; echo EXIT:$LASTEXITCODE\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:06:20.693Z",
+      "lastAccessed": "2026-10-28T11:06:20.693Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:06:20.693Z"
+    },
+    "cmd-1793185606365": {
+      "key": "cmd-1793185606365",
+      "value": "{\"command\":\"node -e \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:06:46.365Z",
+      "lastAccessed": "2026-10-28T11:06:46.365Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:06:46.365Z"
+    },
+    "cmd-1793185631039": {
+      "key": "cmd-1793185631039",
+      "value": "{\"command\":\"node -e \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:07:11.039Z",
+      "lastAccessed": "2026-10-28T11:07:11.039Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:07:11.039Z"
+    },
+    "cmd-1793185646331": {
+      "key": "cmd-1793185646331",
+      "value": "{\"command\":\"pnpm exec tsx -e \\\"import pdfmake from 'pdfmake'; console.log(typeof pdfmake, Object.keys(pdfmake), typeof pdfmake.createPdf, typeof pdfmake.setFonts)\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:07:26.331Z",
+      "lastAccessed": "2026-10-28T11:07:26.331Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:07:26.331Z"
+    },
+    "cmd-1793185664476": {
+      "key": "cmd-1793185664476",
+      "value": "{\"command\":\"node -e \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:07:44.476Z",
+      "lastAccessed": "2026-10-28T11:07:44.476Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:07:44.476Z"
+    },
+    "cmd-1793185696767": {
+      "key": "cmd-1793185696767",
+      "value": "{\"command\":\"pnpm exec tsx src/payments/_tmp-pdf-smoke.ts\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:08:16.767Z",
+      "lastAccessed": "2026-10-28T11:08:16.767Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:08:16.767Z"
+    },
+    "cmd-1793185707008": {
+      "key": "cmd-1793185707008",
+      "value": "{\"command\":\"pnpm exec tsx src/payments/_tmp-pdf-smoke.ts\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:08:27.008Z",
+      "lastAccessed": "2026-10-28T11:08:27.008Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:08:27.008Z"
+    },
+    "cmd-1793185728202": {
+      "key": "cmd-1793185728202",
+      "value": "{\"command\":\"node -e \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:08:48.202Z",
+      "lastAccessed": "2026-10-28T11:08:48.202Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:08:48.202Z"
+    },
+    "cmd-1793185739199": {
+      "key": "cmd-1793185739199",
+      "value": "{\"command\":\"node -e \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:08:59.199Z",
+      "lastAccessed": "2026-10-28T11:08:59.199Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:08:59.199Z"
+    },
+    "cmd-1793185761879": {
+      "key": "cmd-1793185761879",
+      "value": "{\"command\":\"$urls = @{\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:09:21.879Z",
+      "lastAccessed": "2026-10-28T11:09:21.879Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:09:21.879Z"
+    },
+    "cmd-1793185768615": {
+      "key": "cmd-1793185768615",
+      "value": "{\"command\":\"node -e \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:09:28.615Z",
+      "lastAccessed": "2026-10-28T11:09:28.615Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:09:28.615Z"
+    },
+    "cmd-1793185831254": {
+      "key": "cmd-1793185831254",
+      "value": "{\"command\":\"Get-Content apps\\\\api\\\\package.json | Select-String pdfjs; Test-Path apps\\\\api\\\\node_modules\\\\pdfjs-dist\\\\package.json; if (Test-Path apps\\\\api\\\\node_modules\\\\pdfjs-dist\\\\package.json) { Get-Content apps\\\\api\\\\node_modules\\\\pdfjs-dist\\\\package.json | Select-Object -First 20 }\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:10:31.254Z",
+      "lastAccessed": "2026-10-28T11:10:31.254Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:10:31.254Z"
+    },
+    "cmd-1793185981218": {
+      "key": "cmd-1793185981218",
+      "value": "{\"command\":\"npx jest receipt-pdf.spec.ts --no-cache 2>&1 | Select-Object -Last 15\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:13:01.218Z",
+      "lastAccessed": "2026-10-28T11:13:01.218Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:13:01.218Z"
+    },
+    "cmd-1793186167594": {
+      "key": "cmd-1793186167594",
+      "value": "{\"command\":\"npx tsc --noEmit -p tsconfig.build.json 2>&1 | Select-Object -Last 50\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:16:07.594Z",
+      "lastAccessed": "2026-10-28T11:16:07.594Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:16:07.594Z"
+    },
+    "cmd-1793186177490": {
+      "key": "cmd-1793186177490",
+      "value": "{\"command\":\"npx tsc -p packages/api-client; npx jest inr-words.spec.ts receipt-allocation.spec.ts receipt-pdf.spec.ts offline-collection.spec.ts payment-demand-balance.spec.ts --no-cache 2>&1 | Select-Object -Last 30\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:16:17.490Z",
+      "lastAccessed": "2026-10-28T11:16:17.490Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:16:17.490Z"
+    },
+    "cmd-1793186202507": {
+      "key": "cmd-1793186202507",
+      "value": "{\"command\":\"npx eslint src/payments/inr-words.ts src/payments/receipt-allocation.ts src/payments/receipt-pdf.ts src/payments/payments.service.ts src/payments/payments.controller.ts src/public-property-tax/public-property-tax.service.ts src/public-property-tax/public-property-tax.controller.ts --max-warnings 0 2>&1 | Select-Object -Last 40\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:16:42.507Z",
+      "lastAccessed": "2026-10-28T11:16:42.507Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:16:42.507Z"
+    },
+    "cmd-1793186206310": {
+      "key": "cmd-1793186206310",
+      "value": "{\"command\":\"npx tsc\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:16:46.310Z",
+      "lastAccessed": "2026-10-28T11:16:46.310Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:16:46.310Z"
+    },
+    "cmd-1793186217951": {
+      "key": "cmd-1793186217951",
+      "value": "{\"command\":\"Stop-Process -Id 24392 -Force -ErrorAction SilentlyContinue; Write-Host killed\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:16:57.951Z",
+      "lastAccessed": "2026-10-28T11:16:57.951Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:16:57.951Z"
+    },
+    "cmd-1793186234853": {
+      "key": "cmd-1793186234853",
+      "value": "{\"command\":\"pnpm exec tsx src/payments/_render-preview.ts; npx eslint \\\"src/payments/receipt-pdf.ts\\\" \\\"src/payments/inr-words.ts\\\" \\\"src/payments/receipt-allocation.ts\\\" --max-warnings 0\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:17:14.853Z",
+      "lastAccessed": "2026-10-28T11:17:14.853Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:17:14.853Z"
+    },
+    "cmd-1793186243103": {
+      "key": "cmd-1793186243103",
+      "value": "{\"command\":\"node ../../node_modules/tsx/dist/cli.mjs src/payments/_render-preview.ts; node ../../node_modules/eslint/bin/eslint.js src/payments/receipt-pdf.ts src/payments/inr-words.ts src/payments/receipt-allocation.ts src/payments/payments.controller.ts src/public-property-tax/public-property-tax.controller.ts --max-warnings 0; if (Test-Path src/payments/_preview-receipt.pdf) { Write-Host \\\"PDF size=$((Get-Item src/payments/_preview-receipt.pdf).Length)\\\" }\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:17:23.103Z",
+      "lastAccessed": "2026-10-28T11:17:23.103Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:17:23.103Z"
+    },
+    "cmd-1793186256453": {
+      "key": "cmd-1793186256453",
+      "value": "{\"command\":\"node .\\\\node_modules\\\\tsx\\\\dist\\\\cli.mjs src/payments/_render-preview.ts; node .\\\\node_modules\\\\eslint\\\\bin\\\\eslint.js src/payments/receipt-pdf.ts src/payments/inr-words.ts src/payments/receipt-allocation.ts --max-warnings 0; Write-Host \\\"PDF=$((Get-Item src/payments/_preview-receipt.pdf).Length)\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:17:36.453Z",
+      "lastAccessed": "2026-10-28T11:17:36.453Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:17:36.453Z"
+    },
+    "cmd-1793186279087": {
+      "key": "cmd-1793186279087",
+      "value": "{\"command\":\"pnpm --filter api test -- inr-words.spec.ts receipt-allocation.spec.ts receipt-pdf.spec.ts 2>&1 | Select-Object -Last 25; where.exe pdftoppm 2>$null; where.exe magick 2>$null; python -c \\\"import importlib.util; print('pypdfium2', bool(importlib.util.find_spec('pypdfium2'))); print('PIL', bool(importlib.util.find_spec('PIL')))\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:17:59.087Z",
+      "lastAccessed": "2026-10-28T11:17:59.087Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:17:59.087Z"
+    },
+    "cmd-1793186297118": {
+      "key": "cmd-1793186297118",
+      "value": "{\"command\":\"pnpm approve-builds --help 2>&1 | Select-Object -First 40\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:18:17.118Z",
+      "lastAccessed": "2026-10-28T11:18:17.118Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:18:17.118Z"
+    },
+    "cmd-1793186308412": {
+      "key": "cmd-1793186308412",
+      "value": "{\"command\":\"pnpm install 2>&1 | Select-Object -Last 15; pnpm --filter api test -- inr-words.spec.ts receipt-allocation.spec.ts receipt-pdf.spec.ts 2>&1 | Select-Object -Last 20\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:18:28.412Z",
+      "lastAccessed": "2026-10-28T11:18:28.412Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:18:28.412Z"
+    },
+    "cmd-1793186326695": {
+      "key": "cmd-1793186326695",
+      "value": "{\"command\":\"pip install pypdfium2 pillow -q; python -c \\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:18:46.695Z",
+      "lastAccessed": "2026-10-28T11:18:46.695Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:18:46.695Z"
+    },
+    "cmd-1793186347415": {
+      "key": "cmd-1793186347415",
+      "value": "{\"command\":\"pnpm --filter api typecheck; pnpm --filter api lint 2>&1 | Select-Object -Last 25\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:19:07.415Z",
+      "lastAccessed": "2026-10-28T11:19:07.415Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:19:07.415Z"
+    },
+    "cmd-1793186371820": {
+      "key": "cmd-1793186371820",
+      "value": "{\"command\":\"pnpm --filter portal exec tsc --noEmit -p tsconfig.json 2>&1 | Select-Object -Last 30; pnpm --filter web exec tsc --noEmit -p tsconfig.json 2>&1 | Select-Object -Last 30\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:19:31.820Z",
+      "lastAccessed": "2026-10-28T11:19:31.820Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:19:31.820Z"
+    },
+    "cmd-1793186387179": {
+      "key": "cmd-1793186387179",
+      "value": "{\"command\":\"Remove-Item apps\\\\api\\\\src\\\\payments\\\\_render-preview.ts, apps\\\\api\\\\src\\\\payments\\\\_preview-receipt.pdf -ErrorAction SilentlyContinue; Copy-Item apps\\\\api\\\\src\\\\payments\\\\_preview-receipt.png \\\"C:\\\\Users\\\\sikar\\\\.cursor\\\\projects\\\\c-sdv-books-client-project-sdv-chatta-apps\\\\attachments\\\\8c8f67b9-7d7d-484e-8333-08c2daab3c99\\\\chhata-receipt-preview.png\\\" -Force; Remove-Item apps\\\\api\\\\src\\\\payments\\\\_preview-receipt.png -ErrorAction SilentlyContinue; Get-ChildItem packages\\\\api-client\\\\dist\\\\index.js | Select-Object Length; Select-String -Path packages\\\\api-client\\\\dist\\\\index.js -Pattern \\\"getBlob\\\" | Select-Object -First 2; Get-ChildItem apps\\\\api\\\\src\\\\assets\\\\fonts | Select-Object Name, Length\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:19:47.179Z",
+      "lastAccessed": "2026-10-28T11:19:47.179Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:19:47.179Z"
+    },
+    "cmd-1793186424322": {
+      "key": "cmd-1793186424322",
+      "value": "{\"command\":\"Get-ChildItem apps\\\\api\\\\src\\\\assets -Recurse | Select-Object FullName, Length; pnpm --filter api build 2>&1 | Select-Object -Last 25\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:20:24.322Z",
+      "lastAccessed": "2026-10-28T11:20:24.322Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:20:24.322Z"
+    },
+    "cmd-1793186441883": {
+      "key": "cmd-1793186441883",
+      "value": "{\"command\":\"Get-ChildItem apps\\\\api\\\\dist -ErrorAction SilentlyContinue | Select-Object Name; Get-ChildItem apps\\\\api\\\\dist\\\\assets -Recurse -ErrorAction SilentlyContinue | Select-Object FullName; Get-Content apps\\\\api\\\\nest-cli.json\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:20:41.883Z",
+      "lastAccessed": "2026-10-28T11:20:41.883Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:20:41.883Z"
+    },
+    "cmd-1793186448284": {
+      "key": "cmd-1793186448284",
+      "value": "{\"command\":\"Get-ChildItem apps\\\\api\\\\dist\\\\assets -Recurse | Format-Table Name, Length -AutoSize\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-28T11:20:48.284Z",
+      "lastAccessed": "2026-10-28T11:20:48.284Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-27T11:20:48.284Z"
     }
   },
   "version": "3.0.0"

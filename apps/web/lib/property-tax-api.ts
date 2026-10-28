@@ -8,7 +8,7 @@ import type {
   PublicPropertyTaxWard,
 } from "@workspace/types"
 
-import { publicApiGet, publicApiPost } from "./public-api"
+import { publicApiGet, publicApiGetBlob, publicApiPost } from "./public-api"
 
 export type PropertyTaxSearchParams = {
   mode: PublicPropertyTaxSearchMode
@@ -70,5 +70,11 @@ export function fetchPublicPaymentStatus(merchTxnId: string, sync = true) {
 export function fetchPublicPaymentReceipt(merchTxnId: string) {
   return publicApiGet<PublicPropertyTaxReceipt>(
     `/api/v1/public/property-tax/receipts/${encodeURIComponent(merchTxnId)}`
+  )
+}
+
+export function fetchPublicPaymentReceiptPdf(merchTxnId: string) {
+  return publicApiGetBlob(
+    `/api/v1/public/property-tax/receipts/${encodeURIComponent(merchTxnId)}/pdf`
   )
 }

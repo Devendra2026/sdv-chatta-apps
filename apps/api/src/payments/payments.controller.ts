@@ -231,6 +231,26 @@ export class PaymentsController {
     return { success: true, data }
   }
 
+  @Get(":id/receipt.pdf")
+  @RequirePermission("payment:read")
+  async staffReceiptPdf(
+    @Param("id") id: string,
+    @CurrentUser() user: AuthUser,
+    @Res() res: Response
+  ) {
+    const { buffer, filename } = await this.paymentsService.getStaffReceiptPdf(
+      id,
+      user
+    )
+    res.setHeader("Content-Type", "application/pdf")
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${filename}"`
+    )
+    res.setHeader("Content-Length", String(buffer.length))
+    res.send(buffer)
+  }
+
   @Post("settlements/ingest")
   @RequirePermission("settlement:read")
   async ingestSettlement(@Body() body: Record<string, unknown>) {

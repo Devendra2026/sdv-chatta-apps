@@ -25,6 +25,12 @@ export async function publicApiGet<T>(path: string): Promise<T> {
   return data
 }
 
+export async function publicApiGetBlob(
+  path: string
+): Promise<{ blob: Blob; filename: string | null }> {
+  return publicClient.getBlob(path)
+}
+
 export async function publicApiPost<T>(path: string, body: unknown): Promise<T> {
   const { data } = await publicClient.post<T>(path, body)
   return data

@@ -7,13 +7,19 @@ import {
 import { PaymentStatus, Prisma } from "@prisma/client"
 
 import { PaymentsService } from "../payments/payments.service"
+import {
+  buildPropertyTaxReceiptPdf,
+  safeReceiptFilename,
+  staffReceiptToPdfModel,
+} from "../payments/receipt-pdf"
+import {
+  assessmentYearNameFromSnapshot,
+  parseReceiptSnapshot,
+  taxBreakdownFromReceiptSnapshot,
+} from "../payments/receipt-snapshot"
 import { PrismaService } from "../prisma/prisma.service"
 import type { CreatePublicPropertyTaxPaymentDto } from "./dto/create-public-payment.dto"
 import type { PublicPropertyTaxSearchQueryDto } from "./dto/public-property-tax.dto"
-import {
-  assessmentYearNameFromSnapshot,
-  taxBreakdownFromReceiptSnapshot,
-} from "../payments/receipt-snapshot"
 import {
   isAlreadyPaidForYear,
   resolveDueStatus,
@@ -433,6 +439,94 @@ export class PublicPropertyTaxService {
       taxBreakdown,
       gateway: payment.gateway,
       atomTxnId: payment.atomTxnId,
+    }
+  }
+
+  /**
+   * Read-only citizen PDF. Does not create a payment or change receipt fields.
+   * Omits collector user id (publicCopy).
+   */
+  async getReceiptPdf(merchTxnId: string) {
+    const status = await this.getPaymentByMerchTxnId(merchTxnId, true)
+    if (status.status !== PaymentStatus.SUCCESS) {
+      throw new NotFoundException({
+        code: "RECEIPT_NOT_AVAILABLE",
+        message: "Receipt is available only after a successful payment",
+      })
+    }
+
+    const payment = await this.prisma.payment.findFirst({
+      where: { merchTxnId: merchTxnId.trim() },
+      include: {
+        survey: {
+          select: {
+            surveyId: true,
+            ownerName: true,
+            ownerFatherName: true,
+            mobile: true,
+            houseNo: true,
+            streetName: true,
+            locality: true,
+            colony: true,
+          },
+        },
+        ward: { select: { number: true, name: true } },
+        collectedBy: { select: { id: true, name: true } },
+      },
+    })
+    if (!payment) {
+      throw new NotFoundException({
+        code: "RECEIPT_NOT_AVAILABLE",
+        message: "Receipt is available only after a successful payment",
+      })
+    }
+
+    const snapshot = parseReceiptSnapshot(payment.receiptSnapshot)
+    const receiptNumber =
+      payment.receiptNumber ??
+      status.receiptNumber ??
+      `RCP-${status.merchTxnId ?? merchTxnId}`
+    const collectionDate = (
+      payment.collectionDate ?? payment.updatedAt
+    ).toISOString()
+
+    const model = staffReceiptToPdfModel(
+      {
+        paymentId: payment.id,
+        receiptNumber,
+        amount: Number(payment.amount),
+        paymentMode: payment.paymentMode,
+        status: payment.status,
+        collectionDate,
+        chequeDdReference: payment.chequeDdReference,
+        collectedBy: payment.collectedBy
+          ? { id: payment.collectedBy.id, name: payment.collectedBy.name }
+          : null,
+        survey: payment.survey
+          ? {
+              surveyId: payment.survey.surveyId,
+              ownerName: payment.survey.ownerName,
+              ownerFatherName: payment.survey.ownerFatherName,
+              mobile: payment.survey.mobile,
+              houseNo: payment.survey.houseNo,
+              streetName: payment.survey.streetName,
+              locality: payment.survey.locality,
+              colony: payment.survey.colony,
+            }
+          : null,
+        ward: payment.ward
+          ? { number: payment.ward.number, name: payment.ward.name }
+          : null,
+        receiptSnapshot: snapshot,
+      },
+      payment.propertyDemandId,
+      { publicCopy: true }
+    )
+
+    const buffer = await buildPropertyTaxReceiptPdf(model)
+    return {
+      buffer,
+      filename: safeReceiptFilename(receiptNumber),
     }
   }
 

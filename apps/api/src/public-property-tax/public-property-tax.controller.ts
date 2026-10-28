@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common"
+import { Body, Controller, Get, Param, Post, Query, Res } from "@nestjs/common"
+import type { Response } from "express"
 
 import { Public } from "../auth/auth.decorators"
 import { CreatePublicPropertyTaxPaymentDto } from "./dto/create-public-payment.dto"
@@ -50,5 +51,20 @@ export class PublicPropertyTaxController {
   async getReceipt(@Param("merchTxnId") merchTxnId: string) {
     const data = await this.service.getReceipt(merchTxnId)
     return { success: true, data }
+  }
+
+  @Get("receipts/:merchTxnId/pdf")
+  async getReceiptPdf(
+    @Param("merchTxnId") merchTxnId: string,
+    @Res() res: Response
+  ) {
+    const { buffer, filename } = await this.service.getReceiptPdf(merchTxnId)
+    res.setHeader("Content-Type", "application/pdf")
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${filename}"`
+    )
+    res.setHeader("Content-Length", String(buffer.length))
+    res.send(buffer)
   }
 }

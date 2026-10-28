@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { StaffPaymentReceipt } from "@workspace/types"
-import { Loader2, Printer, Search } from "lucide-react"
+import { Download, Loader2, Printer, Search } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { useForm } from "react-hook-form"
@@ -35,8 +35,8 @@ import { usePermission } from "@/hooks/use-permission"
 import { api } from "@/lib/api"
 
 import {
-  printOfflinePaymentReceipt,
-  type ReceiptCopyType,
+  downloadStaffReceiptPdf,
+  printStaffReceiptPdf,
 } from "./_lib/receipt-template"
 
 const PAYMENT_MODES = ["CASH", "CHEQUE", "DD", "UPI_MANUAL", "OTHER"] as const
@@ -309,10 +309,24 @@ export default function OfflinePaymentPage() {
     onError: (e: Error) => toast.error(e.message),
   })
 
-  const handlePrint = async (copyType: ReceiptCopyType) => {
+  const fetchReceiptBlob = (path: string) => api.getBlob(path)
+
+  const handleDownloadPdf = async () => {
     if (!lastReceipt) return
-    const ok = await printOfflinePaymentReceipt(lastReceipt, copyType)
-    if (!ok) toast.error("Popup blocked. Please allow popups for this site.")
+    const result = await downloadStaffReceiptPdf(
+      lastReceipt.paymentId,
+      fetchReceiptBlob
+    )
+    if (!result.ok) toast.error(result.error)
+  }
+
+  const handlePrintPdf = async () => {
+    if (!lastReceipt) return
+    const result = await printStaffReceiptPdf(
+      lastReceipt.paymentId,
+      fetchReceiptBlob
+    )
+    if (!result.ok) toast.error(result.error)
   }
 
   const taxRatesHref = canPublishRates
@@ -862,7 +876,8 @@ export default function OfflinePaymentPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base">5. Receipt</CardTitle>
             <CardDescription>
-              One payment · two print copies (consumer and office)
+              One A4 PDF with office and consumer copies. Reprint does not create
+              a new payment.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -885,19 +900,19 @@ export default function OfflinePaymentPage() {
               <Button
                 type="button"
                 className="cursor-pointer"
-                onClick={() => void handlePrint("consumer")}
+                onClick={() => void handleDownloadPdf()}
               >
-                <Printer className="size-4" />
-                Print consumer copy
+                <Download className="size-4" />
+                Download PDF
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 className="cursor-pointer"
-                onClick={() => void handlePrint("office")}
+                onClick={() => void handlePrintPdf()}
               >
                 <Printer className="size-4" />
-                Print office copy
+                Print PDF
               </Button>
               <Button
                 type="button"
