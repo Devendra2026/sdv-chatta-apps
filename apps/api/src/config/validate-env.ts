@@ -3,6 +3,7 @@ import {
   atomAesMaterialErrors,
   PROD_ATOM_REFUND_URL,
   PROD_ATOM_SUB_CHANNEL,
+  resolveAtomCustAccNo,
   resolveAtomProduct,
   resolveAtomRefundUrl,
   resolveAtomSubChannel,
@@ -178,6 +179,14 @@ function collectProductionErrors(env: NodeJS.ProcessEnv): string[] {
       )
     } else if (product.length > 50) {
       errors.push("ATOM_PRODUCT must be at most 50 characters")
+    }
+    const custAccNo = resolveAtomCustAccNo(env)
+    if (!custAccNo) {
+      errors.push(
+        "ATOM_CUST_ACC_NO is required in production when using Atom AIPay"
+      )
+    } else if (custAccNo.length > 45) {
+      errors.push("ATOM_CUST_ACC_NO must be at most 45 characters")
     }
 
     const requestAes = atomAesMaterialErrors(

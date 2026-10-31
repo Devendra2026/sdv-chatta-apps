@@ -23,6 +23,7 @@ describe("assertRequiredEnv", () => {
     ATOM_REQ_HASH_KEY: "req-hash",
     ATOM_RESP_HASH_KEY: "resp-hash",
     ATOM_PRODUCT: "NAGAR",
+    ATOM_CUST_ACC_NO: "213232323",
     ATOM_SUB_CHANNEL: "UP",
     ATOM_CHECKOUT_ENV: "prod",
     ATOM_BASE_URL: "https://payment1.atomtech.in",
@@ -248,8 +249,7 @@ describe("assertRequiredEnv", () => {
     const env = {
       ...baseProdEnv,
       PUBLIC_WEB_URL: "https://www.example.com/",
-      ATOM_RETURN_URL:
-        "https://www.example.com//propertytax/payment/return",
+      ATOM_RETURN_URL: "https://www.example.com//propertytax/payment/return",
       ATOM_CALLBACK_URL:
         "https://www.example.com//api/v1/payments/gateway/callback",
     }

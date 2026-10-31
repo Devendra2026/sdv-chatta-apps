@@ -29,6 +29,7 @@ const validConfig = {
   merchId: "317157",
   password: "txn-pass",
   product: "NAGAR",
+  custAccNo: "213232323",
   subChannel: "UP",
 }
 
@@ -49,14 +50,14 @@ describe("newCitizenMerchTxnId", () => {
 })
 
 describe("buildAipayAuthPayload", () => {
-  it("sends product NAGAR, UPI subchannel UP, empty UDFs, and a numeric amount", () => {
+  it("matches the merchant AUTH sample shape (string amount, custAccNo, empty UDFs)", () => {
     const body = buildAipayAuthPayload(paymentInput, validConfig, NOW)
     const pay = body.payInstrument.payDetails
-    expect(pay.amount).toBe(1500.5)
-    expect(typeof pay.amount).toBe("number")
+    expect(pay.amount).toBe("1500.50")
+    expect(typeof pay.amount).toBe("string")
     expect(pay.product).toBe("NAGAR")
+    expect(pay.custAccNo).toBe("213232323")
     expect(pay.txnCurrency).toBe("INR")
-    expect(pay).not.toHaveProperty("custAccNo")
     expect(body.payInstrument.headDetails).toEqual({
       version: "OTSv1.1",
       api: "AUTH",
@@ -84,14 +85,28 @@ describe("buildAipayAuthPayload", () => {
     expect(body.payInstrument.payModeSpecificData).toEqual({ subChannel: "UP" })
   })
 
-  it("rounds amount to two decimal places as a number", () => {
+  it("formats amount as a two-decimal string", () => {
     const body = buildAipayAuthPayload(
       { ...paymentInput, amount: 10.156 },
       validConfig,
       NOW
     )
-    expect(body.payInstrument.payDetails.amount).toBe(10.16)
-    expect(typeof body.payInstrument.payDetails.amount).toBe("number")
+    expect(body.payInstrument.payDetails.amount).toBe("10.16")
+    expect(typeof body.payInstrument.payDetails.amount).toBe("string")
+  })
+
+  it("rejects object-shaped subChannel like the invalid sample { NB }", () => {
+    const body = buildAipayAuthPayload(paymentInput, validConfig, NOW)
+    const broken = {
+      ...body,
+      payInstrument: {
+        ...body.payInstrument,
+        payModeSpecificData: { subChannel: { NB: true } },
+      },
+    }
+    expect(() => assertAipayAuthPayload(broken)).toThrow(
+      AtomAuthValidationError
+    )
   })
 
   it("omits payModeSpecificData when subChannel is blank", () => {
@@ -118,7 +133,10 @@ describe("buildAipayAuthPayload", () => {
     }
     expect(() =>
       buildAipayAuthPayload(paymentInput, { ...validConfig, product: "" })
-    ).toThrow(/merchant credentials or product/i)
+    ).toThrow(/merchant credentials, product, or custAccNo/i)
+    expect(() =>
+      buildAipayAuthPayload(paymentInput, { ...validConfig, custAccNo: "" })
+    ).toThrow(AtomAuthValidationError)
   })
 
   it("rejects missing or invalid customer email without synthesizing one", () => {
@@ -175,23 +193,28 @@ describe("buildAipayAuthPayload", () => {
 })
 
 describe("assertAipayAuthPayload", () => {
-  it("rejects object-shaped subChannel", () => {
-    const body = buildAipayAuthPayload(paymentInput, validConfig, NOW)
-    const broken = {
-      ...body,
-      payInstrument: {
-        ...body.payInstrument,
-        payModeSpecificData: { subChannel: { NB: true } },
+  it("accepts the merchant sample field set with string subChannel NB", () => {
+    const body = buildAipayAuthPayload(
+      { ...paymentInput, amount: 5 },
+      {
+        merchId: "8952",
+        password: "Test@123",
+        product: "NSE",
+        custAccNo: "213232323",
+        subChannel: "NB",
       },
-    }
-    expect(() => assertAipayAuthPayload(broken)).toThrow(
-      AtomAuthValidationError
+      NOW
     )
-    try {
-      assertAipayAuthPayload(broken)
-    } catch (error) {
-      expect((error as AtomAuthValidationError).code).toBe("INVALID_PAYLOAD")
-    }
+    expect(body.payInstrument.payDetails).toEqual({
+      amount: "5.00",
+      product: "NSE",
+      custAccNo: "213232323",
+      txnCurrency: "INR",
+    })
+    expect(body.payInstrument.payModeSpecificData).toEqual({
+      subChannel: "NB",
+    })
+    expect(() => assertAipayAuthPayload(body)).not.toThrow()
   })
 })
 
@@ -222,6 +245,7 @@ describe("AtomNdpsProvider auth config", () => {
     "ATOM_MERCH_ID",
     "ATOM_PASSWORD",
     "ATOM_PRODUCT",
+    "ATOM_CUST_ACC_NO",
     "ATOM_SUB_CHANNEL",
     "ATOM_AES_REQUEST_KEY",
     "ATOM_AES_REQUEST_IV",
@@ -242,6 +266,7 @@ describe("AtomNdpsProvider auth config", () => {
     process.env.ATOM_MERCH_ID = "317157"
     process.env.ATOM_PASSWORD = "txn-pass"
     process.env.ATOM_PRODUCT = "NAGAR"
+    process.env.ATOM_CUST_ACC_NO = "213232323"
     process.env.ATOM_SUB_CHANNEL = "UP"
     delete process.env.ATOM_AES_REQUEST_KEY
     delete process.env.ATOM_AES_REQUEST_IV
@@ -258,13 +283,18 @@ describe("AtomNdpsProvider auth config", () => {
     }
   })
 
-  it("rejects auth when product is missing instead of defaulting to NSE", () => {
+  it("rejects auth when product or custAccNo is missing instead of defaulting to NSE", () => {
     delete process.env.ATOM_PRODUCT
     delete process.env.ProductID
     const provider = new AtomNdpsProvider()
     expect(() => provider.authRequestBody(paymentInput, NOW)).toThrow(
       AtomAuthValidationError
     )
+    process.env.ATOM_PRODUCT = "NAGAR"
+    delete process.env.ATOM_CUST_ACC_NO
+    expect(() =>
+      new AtomNdpsProvider().authRequestBody(paymentInput, NOW)
+    ).toThrow(AtomAuthValidationError)
   })
 
   it("sends ProductID when it is set, including when ATOM_PRODUCT is NSE", () => {

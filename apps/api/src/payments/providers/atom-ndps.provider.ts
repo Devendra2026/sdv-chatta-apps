@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 
 import {
   resolveAtomAesPair,
+  resolveAtomCustAccNo,
   resolveAtomProduct,
   resolveAtomRefundUrl,
   resolveAtomSubChannel,
@@ -196,6 +197,7 @@ export type AipayAuthConfig = {
   merchId: string
   password: string
   product: string
+  custAccNo: string
   subChannel: string
 }
 
@@ -222,15 +224,16 @@ const PLAIN_EMAIL =
 function assertAuthCustomerAndMerchant(
   input: CreatePaymentInput,
   config: AipayAuthConfig
-): { email: string; mobile: string; amount: number } {
+): { email: string; mobile: string; amount: string } {
   if (
     !config.merchId.trim() ||
     !config.password.trim() ||
-    !config.product.trim()
+    !config.product.trim() ||
+    !config.custAccNo.trim()
   ) {
     throw new AtomAuthValidationError(
       "MISSING_MERCHANT",
-      "Atom merchant credentials or product are not configured"
+      "Atom merchant credentials, product, or custAccNo are not configured"
     )
   }
 
@@ -261,14 +264,14 @@ function assertAuthCustomerAndMerchant(
       "Payment amount must be a finite number"
     )
   }
-  const amount = Number(input.amount.toFixed(2))
-  if (!(amount > 0)) {
+  const rounded = Number(input.amount.toFixed(2))
+  if (!(rounded > 0)) {
     throw new AtomAuthValidationError(
       "INVALID_AMOUNT",
       "Payment amount must be greater than zero"
     )
   }
-  const wholeDigits = String(Math.trunc(amount))
+  const wholeDigits = String(Math.trunc(rounded))
   if (wholeDigits.length > 10) {
     throw new AtomAuthValidationError(
       "INVALID_AMOUNT",
@@ -276,7 +279,8 @@ function assertAuthCustomerAndMerchant(
     )
   }
 
-  return { email, mobile, amount }
+  // Merchant AUTH sample uses a two-decimal string, e.g. "5.00".
+  return { email, mobile, amount: rounded.toFixed(2) }
 }
 
 export type AipayAuthPayload = {
@@ -294,8 +298,9 @@ export type AipayAuthPayload = {
       merchTxnDate: string
     }
     payDetails: {
-      amount: number
+      amount: string
       product: string
+      custAccNo: string
       txnCurrency: "INR"
     }
     custDetails: {
@@ -369,13 +374,14 @@ export function assertAipayAuthPayload(
 
   if (
     !pay ||
-    typeof pay.amount !== "number" ||
-    !Number.isFinite(pay.amount) ||
-    !(pay.amount > 0) ||
+    typeof pay.amount !== "string" ||
+    !/^\d+\.\d{2}$/.test(pay.amount) ||
+    !(Number(pay.amount) > 0) ||
     typeof pay.product !== "string" ||
     !pay.product.trim() ||
-    pay.txnCurrency !== "INR" ||
-    Object.prototype.hasOwnProperty.call(pay, "custAccNo")
+    typeof pay.custAccNo !== "string" ||
+    !pay.custAccNo.trim() ||
+    pay.txnCurrency !== "INR"
   ) {
     throw new AtomAuthValidationError(
       "INVALID_PAYLOAD",
@@ -422,7 +428,12 @@ export function assertAipayAuthPayload(
   }
 }
 
-/** AIPay auth body. Amount is a number. custAccNo is omitted (TPV only). */
+/**
+ * AIPay auth body matching the merchant AUTH sample shape:
+ * amount is a two-decimal string; custAccNo is always present.
+ * subChannel is a string (e.g. "NB" / "UP"), never an object `{ "NB" }`
+ * which is invalid JSON.
+ */
 export function buildAipayAuthPayload(
   input: CreatePaymentInput,
   config: AipayAuthConfig,
@@ -448,6 +459,7 @@ export function buildAipayAuthPayload(
       payDetails: {
         amount,
         product: config.product.trim(),
+        custAccNo: config.custAccNo.trim(),
         txnCurrency: "INR",
       },
       custDetails: {
@@ -560,6 +572,7 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
     process.env.ATOM_AES_RESPONSE_IV
   )
   private product = resolveAtomProduct(process.env)
+  private custAccNo = resolveAtomCustAccNo(process.env)
   private subChannel = resolveAtomSubChannel(process.env)
 
   private encryptRequest(plain: string) {
@@ -637,6 +650,7 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
         merchId: this.merchId,
         password: this.password,
         product: this.product,
+        custAccNo: this.custAccNo,
         subChannel: this.subChannel,
       },
       now

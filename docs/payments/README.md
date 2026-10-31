@@ -55,7 +55,8 @@ The AES-CBC IV is the fixed byte sequence 0..15. NTT's kit uses one 32-hex strin
 | Merch ID                | `ATOM_MERCH_ID`                                                                         |
 | Transaction Password    | `ATOM_PASSWORD`                                                                         |
 | Product ID              | `ProductID` (wins) or `ATOM_PRODUCT` (live settlement product `NAGAR`)                  |
-| UPI-only checkout       | `ATOM_SUB_CHANNEL=UP` (production default when unset)                                   |
+| Customer account (AUTH) | `ATOM_CUST_ACC_NO` (required; merchant-issued account string on AUTH)                   |
+| UPI-only checkout       | `ATOM_SUB_CHANNEL=UP` (string; production default when unset). Not `{ "NB" }`.          |
 | Request encryption      | `ATOM_AES_REQUEST_IV` (32 hex, self-salted). Optional distinct `ATOM_AES_REQUEST_KEY`   |
 | Response encryption     | `ATOM_AES_RESPONSE_IV` (32 hex, self-salted). Optional distinct `ATOM_AES_RESPONSE_KEY` |
 | Request / response HMAC | `ATOM_REQ_HASH_KEY` / `ATOM_RESP_HASH_KEY`                                              |
@@ -74,7 +75,7 @@ Citizen checkout runs on the **website** (`PUBLIC_WEB_URL`); the portal is staff
 Copy [`.env.production.example`](../../.env.production.example) into Dokploy → Compose → Environment, then:
 
 1. Set real `PUBLIC_WEB_URL` and `PUBLIC_PORTAL_URL` (HTTPS, no trailing slash).
-2. Set `PAYMENT_PROVIDER=atom` and fill live NTT credentials in Dokploy only: `ATOM_MERCH_ID`, `ATOM_PASSWORD`, `ATOM_AES_REQUEST_IV`, `ATOM_AES_RESPONSE_IV`, `ATOM_REQ_HASH_KEY`, and `ATOM_RESP_HASH_KEY`. Set `ProductID=NAGAR` (or `ATOM_PRODUCT=NAGAR` if `ProductID` is empty). `ATOM_SUB_CHANNEL=UP` and `ATOM_REFUND_URL=https://payment.atomtech.in/ots/payment/refund` are applied in production when unset; a different explicit value still fails startup. Production API startup **fails** if a required secret is blank, if AES material is not 32 hex characters, or if `PAYMENT_PROVIDER` is unset/sandbox. Do not add `ATOM_API_SECRET_KEY` unless NTT gives you a separate secret this build does not require.
+2. Set `PAYMENT_PROVIDER=atom` and fill live NTT credentials in Dokploy only: `ATOM_MERCH_ID`, `ATOM_PASSWORD`, `ATOM_CUST_ACC_NO`, `ATOM_AES_REQUEST_IV`, `ATOM_AES_RESPONSE_IV`, `ATOM_REQ_HASH_KEY`, and `ATOM_RESP_HASH_KEY`. Set `ProductID=NAGAR` (or `ATOM_PRODUCT=NAGAR` if `ProductID` is empty). `ATOM_SUB_CHANNEL=UP` and `ATOM_REFUND_URL=https://payment.atomtech.in/ots/payment/refund` are applied in production when unset; a different explicit value still fails startup. Production API startup **fails** if a required secret is blank, if AES material is not 32 hex characters, or if `PAYMENT_PROVIDER` is unset/sandbox. Do not add `ATOM_API_SECRET_KEY` unless NTT gives you a separate secret this build does not require.
 3. Leave `ATOM_RETURN_URL` / `ATOM_CALLBACK_URL` unset in Dokploy — `docker-compose.prod.yml` derives them from `PUBLIC_WEB_URL` (`https://www.npchhata.com`, no trailing slash):
    - Return page: `{PUBLIC_WEB_URL}/propertytax/payment/return`
    - Server callback: `{PUBLIC_WEB_URL}/api/v1/payments/gateway/callback` (Next.js `/api/*` rewrite → Nest)

@@ -90,6 +90,15 @@ export function resolveAtomProduct(env: NodeJS.ProcessEnv): string {
   return env.ProductID?.trim() || env.ATOM_PRODUCT?.trim() || ""
 }
 
+/**
+ * payDetails.custAccNo on AUTH.
+ * Required by the merchant AUTH sample shape. Use the NTT-issued account
+ * string — never the kit sample 213232323 unless that is the live value.
+ */
+export function resolveAtomCustAccNo(env: NodeJS.ProcessEnv): string {
+  return env.ATOM_CUST_ACC_NO?.trim() || ""
+}
+
 /** UPI-only checkout in production. An explicit value is never overwritten. */
 export function resolveAtomSubChannel(env: NodeJS.ProcessEnv): string {
   const configured = env.ATOM_SUB_CHANNEL?.trim() ?? ""

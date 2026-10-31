@@ -1,0 +1,36 @@
+{
+  "payInstrument": {
+    "headDetails": {
+      "version": "OTSv1.1",
+      "api": "AUTH",
+      "platform": "FLASH"
+    },
+    "merchDetails": {
+      "merchId": "<ATOM_MERCH_ID>",
+      "userId": "",
+      "password": "<ATOM_PASSWORD>",
+      "merchTxnId": "CHH-1730360000000-a1b2c3d4",
+      "merchTxnDate": "2026-10-31 13:30:00"
+    },
+    "payDetails": {
+      "amount": "5.00",
+      "product": "<ProductID or ATOM_PRODUCT>",
+      "custAccNo": "<ATOM_CUST_ACC_NO>",
+      "txnCurrency": "INR"
+    },
+    "custDetails": {
+      "custEmail": "customer@example.com",
+      "custMobile": "8976286911"
+    },
+    "extras": {
+      "udf1": "",
+      "udf2": "",
+      "udf3": "",
+      "udf4": "",
+      "udf5": ""
+    },
+    "payModeSpecificData": {
+      "subChannel": "UP"
+    }
+  }
+}
