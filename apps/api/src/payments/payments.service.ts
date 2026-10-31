@@ -31,6 +31,14 @@ import {
   toClientGatewayResult,
 } from "./payments.safety"
 import {
+  AtomAuthValidationError,
+  AtomNdpsProvider,
+  extractAtomTxnFields,
+  parseAtomEncryptedCallback,
+} from "./providers/atom-ndps.provider"
+import type { PaymentGatewayProvider } from "./providers/payment-provider"
+import { SandboxPaymentProvider } from "./providers/sandbox.provider"
+import {
   buildPropertyTaxReceiptPdf,
   safeReceiptFilename,
   staffReceiptToPdfModel,
@@ -42,13 +50,6 @@ import {
   receiptSnapshotToJson,
   taxBreakdownFromReceiptSnapshot,
 } from "./receipt-snapshot"
-import {
-  AtomNdpsProvider,
-  extractAtomTxnFields,
-  parseAtomEncryptedCallback,
-} from "./providers/atom-ndps.provider"
-import type { PaymentGatewayProvider } from "./providers/payment-provider"
-import { SandboxPaymentProvider } from "./providers/sandbox.provider"
 
 function toMoney(value: { toString(): string } | number | string): number {
   return typeof value === "number" ? value : Number(value)
@@ -85,6 +86,52 @@ function isGatewaySuccess(statusCode: string) {
     statusCode === "SUCCESS" ||
     statusCode.toUpperCase() === "SUCCESS"
   )
+}
+
+/** Unique merchant transaction id for Atom AUTH (max 50 chars). */
+export function newCitizenMerchTxnId(
+  nowMs = Date.now(),
+  suffix = randomUUID().slice(0, 8)
+): string {
+  return `CHH-${nowMs}-${suffix}`
+}
+
+/** Safe citizen-facing message when Atom AUTH does not return a checkout token. */
+export function gatewayTokenFailureMessage(raw: unknown): string {
+  const root =
+    typeof raw === "object" && raw !== null
+      ? (raw as Record<string, unknown>)
+      : null
+  const responseDetails =
+    root &&
+    typeof root.responseDetails === "object" &&
+    root.responseDetails !== null
+      ? (root.responseDetails as Record<string, unknown>)
+      : null
+  const code = String(
+    responseDetails?.txnStatusCode ??
+      responseDetails?.statusCode ??
+      root?.txnStatusCode ??
+      ""
+  )
+    .trim()
+    .toUpperCase()
+  const description = String(
+    responseDetails?.txnDescription ??
+      responseDetails?.description ??
+      root?.txnDescription ??
+      ""
+  )
+    .trim()
+    .toUpperCase()
+
+  if (code === "OTS0451" || description.includes("INVALID MERCHANT")) {
+    return "Payment gateway merchant configuration is invalid. Please contact the municipal office."
+  }
+  if (description.includes("VALIDATION")) {
+    return "Payment could not be started because the gateway rejected the request. Please check your details and try again."
+  }
+  return "Payment gateway did not return a checkout token. Please try again in a few minutes."
 }
 
 function defaultCitizenReturnUrl() {
@@ -346,7 +393,7 @@ export class PaymentsService {
     },
     collectedById: string | null
   ) {
-    const merchTxnId = `CHH-${Date.now()}-${randomUUID().slice(0, 8)}`
+    const merchTxnId = newCitizenMerchTxnId()
     const payment = await this.prisma.payment.create({
       data: {
         paymentReference: merchTxnId,
@@ -369,24 +416,53 @@ export class PaymentsService {
 
     // Atom posts encData to API return endpoint; API redirects to citizen web.
     const returnUrl = defaultGatewayReturnUrl()
-    const result = await this.provider.createPayment({
-      merchTxnId,
-      amount: input.amount,
-      customerName: input.payerName,
-      customerEmail: input.payerEmail,
-      customerMobile: input.payerMobile,
-      returnUrl,
-      callbackUrl: defaultCallbackUrl(),
-    })
+    let result
+    try {
+      result = await this.provider.createPayment({
+        merchTxnId,
+        amount: input.amount,
+        customerName: input.payerName,
+        customerEmail: input.payerEmail,
+        customerMobile: input.payerMobile,
+        returnUrl,
+        callbackUrl: defaultCallbackUrl(),
+      })
+    } catch (error) {
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: PaymentStatus.FAILED },
+      })
+      if (error instanceof AtomAuthValidationError) {
+        throw new BadRequestException({
+          code: error.code,
+          message: error.message,
+        })
+      }
+      throw error
+    }
+
+    const safeRaw = redactSensitivePaymentPayload(result.raw) as
+      Prisma.InputJsonValue | undefined
 
     await this.prisma.paymentTransaction.create({
       data: {
         paymentId: payment.id,
         direction: "outbound",
-        requestPayload: result.raw as Prisma.InputJsonValue,
+        requestPayload: safeRaw,
         statusCode: "INIT",
       },
     })
+
+    if (!result.atomTokenId && !result.redirectUrl) {
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: PaymentStatus.FAILED },
+      })
+      throw new BadRequestException({
+        code: "GATEWAY_TOKEN_FAILED",
+        message: gatewayTokenFailureMessage(result.raw),
+      })
+    }
 
     const updated = await this.prisma.payment.update({
       where: { id: payment.id },
@@ -699,11 +775,7 @@ export class PaymentsService {
     receiptSnapshot?: Prisma.InputJsonValue
   }> {
     let demandId = input.payment.propertyDemandId
-    if (
-      !demandId &&
-      input.payment.surveyId &&
-      input.payment.assessmentYearId
-    ) {
+    if (!demandId && input.payment.surveyId && input.payment.assessmentYearId) {
       const found = await tx.propertyDemand.findFirst({
         where: {
           surveyId: input.payment.surveyId,
@@ -870,7 +942,9 @@ export class PaymentsService {
       : []
 
     const snapshot = parseReceiptSnapshot(payment.receiptSnapshot)
-    const taxBreakdown = taxBreakdownFromReceiptSnapshot(payment.receiptSnapshot)
+    const taxBreakdown = taxBreakdownFromReceiptSnapshot(
+      payment.receiptSnapshot
+    )
 
     return {
       paymentId: payment.id,
@@ -1416,7 +1490,8 @@ export class PaymentsService {
     const firstSuccess =
       payment.status !== PaymentStatus.SUCCESS && !payment.receiptSnapshot
     const receiptNumber =
-      payment.receiptNumber ?? `RCP-${payment.merchTxnId ?? payment.paymentReference}`
+      payment.receiptNumber ??
+      `RCP-${payment.merchTxnId ?? payment.paymentReference}`
     const collectionDate = payment.collectionDate ?? new Date()
 
     return this.prisma.$transaction(async (tx) => {
@@ -1433,9 +1508,7 @@ export class PaymentsService {
         data: {
           status: PaymentStatus.SUCCESS,
           atomTxnId: opts.atomTxnId ?? payment.atomTxnId,
-          ...(payment.receiptNumber
-            ? {}
-            : { receiptNumber, collectionDate }),
+          ...(payment.receiptNumber ? {} : { receiptNumber, collectionDate }),
           ...demandExtras,
         },
       })

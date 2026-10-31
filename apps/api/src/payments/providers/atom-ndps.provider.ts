@@ -199,21 +199,239 @@ export type AipayAuthConfig = {
   subChannel: string
 }
 
+export type AtomAuthValidationCode =
+  | "MISSING_MERCHANT"
+  | "MISSING_EMAIL"
+  | "MISSING_MOBILE"
+  | "INVALID_AMOUNT"
+  | "INVALID_PAYLOAD"
+
+export class AtomAuthValidationError extends Error {
+  readonly code: AtomAuthValidationCode
+
+  constructor(code: AtomAuthValidationCode, message: string) {
+    super(message)
+    this.name = "AtomAuthValidationError"
+    this.code = code
+  }
+}
+
+const PLAIN_EMAIL =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/
+
+function assertAuthCustomerAndMerchant(
+  input: CreatePaymentInput,
+  config: AipayAuthConfig
+): { email: string; mobile: string; amount: number } {
+  if (
+    !config.merchId.trim() ||
+    !config.password.trim() ||
+    !config.product.trim()
+  ) {
+    throw new AtomAuthValidationError(
+      "MISSING_MERCHANT",
+      "Atom merchant credentials or product are not configured"
+    )
+  }
+
+  const email = input.customerEmail?.trim() ?? ""
+  if (
+    !email ||
+    email.length > 100 ||
+    /\s/.test(email) ||
+    !PLAIN_EMAIL.test(email)
+  ) {
+    throw new AtomAuthValidationError(
+      "MISSING_EMAIL",
+      "A valid customer email is required for Atom payment"
+    )
+  }
+
+  const mobile = input.customerMobile?.trim() ?? ""
+  if (!/^\d{10}$/.test(mobile)) {
+    throw new AtomAuthValidationError(
+      "MISSING_MOBILE",
+      "A valid 10-digit customer mobile is required for Atom payment"
+    )
+  }
+
+  if (!Number.isFinite(input.amount)) {
+    throw new AtomAuthValidationError(
+      "INVALID_AMOUNT",
+      "Payment amount must be a finite number"
+    )
+  }
+  const amount = Number(input.amount.toFixed(2))
+  if (!(amount > 0)) {
+    throw new AtomAuthValidationError(
+      "INVALID_AMOUNT",
+      "Payment amount must be greater than zero"
+    )
+  }
+  const wholeDigits = String(Math.trunc(amount))
+  if (wholeDigits.length > 10) {
+    throw new AtomAuthValidationError(
+      "INVALID_AMOUNT",
+      "Payment amount exceeds Atom maximum digits before decimal"
+    )
+  }
+
+  return { email, mobile, amount }
+}
+
+export type AipayAuthPayload = {
+  payInstrument: {
+    headDetails: {
+      version: "OTSv1.1"
+      api: "AUTH"
+      platform: "FLASH"
+    }
+    merchDetails: {
+      merchId: string
+      userId: ""
+      password: string
+      merchTxnId: string
+      merchTxnDate: string
+    }
+    payDetails: {
+      amount: number
+      product: string
+      txnCurrency: "INR"
+    }
+    custDetails: {
+      custEmail: string
+      custMobile: string
+    }
+    extras: {
+      udf1: ""
+      udf2: ""
+      udf3: ""
+      udf4: ""
+      udf5: ""
+    }
+    payModeSpecificData?: {
+      subChannel: string
+    }
+  }
+}
+
+/**
+ * Structural check before encrypt. Rejects nested-object subChannel and
+ * missing required AUTH fields. Never logs the payload.
+ */
+export function assertAipayAuthPayload(
+  body: unknown
+): asserts body is AipayAuthPayload {
+  const root = asObject(body)
+  const instrument = asObject(root?.payInstrument)
+  if (!instrument) {
+    throw new AtomAuthValidationError(
+      "INVALID_PAYLOAD",
+      "AUTH payload must include payInstrument"
+    )
+  }
+
+  const head = asObject(instrument.headDetails)
+  const merch = asObject(instrument.merchDetails)
+  const pay = asObject(instrument.payDetails)
+  const cust = asObject(instrument.custDetails)
+  const extras = asObject(instrument.extras)
+
+  if (
+    !head ||
+    head.version !== "OTSv1.1" ||
+    head.api !== "AUTH" ||
+    head.platform !== "FLASH"
+  ) {
+    throw new AtomAuthValidationError(
+      "INVALID_PAYLOAD",
+      "AUTH headDetails must be OTSv1.1 / AUTH / FLASH"
+    )
+  }
+
+  if (
+    !merch ||
+    typeof merch.merchId !== "string" ||
+    !merch.merchId.trim() ||
+    typeof merch.password !== "string" ||
+    !merch.password.trim() ||
+    typeof merch.merchTxnId !== "string" ||
+    !merch.merchTxnId.trim() ||
+    typeof merch.merchTxnDate !== "string" ||
+    !merch.merchTxnDate.trim() ||
+    merch.userId !== ""
+  ) {
+    throw new AtomAuthValidationError(
+      "INVALID_PAYLOAD",
+      "AUTH merchDetails are incomplete"
+    )
+  }
+
+  if (
+    !pay ||
+    typeof pay.amount !== "number" ||
+    !Number.isFinite(pay.amount) ||
+    !(pay.amount > 0) ||
+    typeof pay.product !== "string" ||
+    !pay.product.trim() ||
+    pay.txnCurrency !== "INR" ||
+    Object.prototype.hasOwnProperty.call(pay, "custAccNo")
+  ) {
+    throw new AtomAuthValidationError(
+      "INVALID_PAYLOAD",
+      "AUTH payDetails are invalid"
+    )
+  }
+
+  if (
+    !cust ||
+    typeof cust.custEmail !== "string" ||
+    !PLAIN_EMAIL.test(cust.custEmail) ||
+    typeof cust.custMobile !== "string" ||
+    !/^\d{10}$/.test(cust.custMobile)
+  ) {
+    throw new AtomAuthValidationError(
+      "INVALID_PAYLOAD",
+      "AUTH custDetails are invalid"
+    )
+  }
+
+  if (
+    !extras ||
+    extras.udf1 !== "" ||
+    extras.udf2 !== "" ||
+    extras.udf3 !== "" ||
+    extras.udf4 !== "" ||
+    extras.udf5 !== ""
+  ) {
+    throw new AtomAuthValidationError(
+      "INVALID_PAYLOAD",
+      "AUTH extras.udf1–udf5 must be empty strings"
+    )
+  }
+
+  if (Object.prototype.hasOwnProperty.call(instrument, "payModeSpecificData")) {
+    const mode = asObject(instrument.payModeSpecificData)
+    const sub = mode?.subChannel
+    if (!mode || typeof sub !== "string" || !sub.trim()) {
+      throw new AtomAuthValidationError(
+        "INVALID_PAYLOAD",
+        "AUTH payModeSpecificData.subChannel must be a non-empty string"
+      )
+    }
+  }
+}
+
 /** AIPay auth body. Amount is a number. custAccNo is omitted (TPV only). */
 export function buildAipayAuthPayload(
   input: CreatePaymentInput,
   config: AipayAuthConfig,
   now = new Date()
-) {
-  const email =
-    input.customerEmail?.trim() ||
-    (input.customerMobile
-      ? `${input.customerMobile}@citizen.chhata.in`
-      : "citizen@nagar-panchayat-chhata.in")
-  const mobile = input.customerMobile?.trim() || ""
+): AipayAuthPayload {
+  const { email, mobile, amount } = assertAuthCustomerAndMerchant(input, config)
   const subChannel = config.subChannel.trim()
 
-  return {
+  const body: AipayAuthPayload = {
     payInstrument: {
       headDetails: {
         version: "OTSv1.1",
@@ -221,15 +439,15 @@ export function buildAipayAuthPayload(
         platform: "FLASH",
       },
       merchDetails: {
-        merchId: config.merchId,
+        merchId: config.merchId.trim(),
         userId: "",
         password: config.password,
         merchTxnId: input.merchTxnId,
         merchTxnDate: formatAtomMerchTxnDate(now),
       },
       payDetails: {
-        amount: Number(input.amount.toFixed(2)),
-        product: config.product,
+        amount,
+        product: config.product.trim(),
         txnCurrency: "INR",
       },
       custDetails: {
@@ -237,7 +455,7 @@ export function buildAipayAuthPayload(
         custMobile: mobile,
       },
       extras: {
-        udf1: input.customerName ?? "",
+        udf1: "",
         udf2: "",
         udf3: "",
         udf4: "",
@@ -246,6 +464,9 @@ export function buildAipayAuthPayload(
       ...(subChannel ? { payModeSpecificData: { subChannel } } : {}),
     },
   }
+
+  assertAipayAuthPayload(body)
+  return body
 }
 
 export function buildAtomStatusPayload(input: {
@@ -424,6 +645,7 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
 
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
     const body = this.authRequestBody(input)
+    assertAipayAuthPayload(body)
     const encData = this.encryptRequest(JSON.stringify(body))
 
     // AIPay auth — returns atomTokenId for atomcheckout.js (card / UPI / NB).

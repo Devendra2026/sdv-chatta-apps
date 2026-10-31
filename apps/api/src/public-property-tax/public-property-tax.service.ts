@@ -173,9 +173,7 @@ export class PublicPropertyTaxService {
     })
 
     const hasPublishedDemand = demand?.status === "PUBLISHED"
-    const outstanding = hasPublishedDemand
-      ? Number(demand.outstanding)
-      : null
+    const outstanding = hasPublishedDemand ? Number(demand.outstanding) : null
     const successCount = hasPublishedDemand
       ? 0
       : await this.countSuccessfulPaymentsForYear(
@@ -196,9 +194,7 @@ export class PublicPropertyTaxService {
       paidForAssessmentYear,
       propertyDemandId: hasPublishedDemand ? demand.id : null,
       outstanding: hasPublishedDemand ? outstanding : null,
-      payableAmount: hasPublishedDemand
-        ? outstanding
-        : payload.tax.totalDemand,
+      payableAmount: hasPublishedDemand ? outstanding : payload.tax.totalDemand,
     }
   }
 
@@ -254,13 +250,14 @@ export class PublicPropertyTaxService {
       })
     }
 
+    const payerEmail = dto.payerEmail.trim()
     const { payment, gateway } = await this.payments.createCitizenOnline({
       amount,
       surveyId: survey.id,
       wardId: survey.wardId,
       payerName: survey.ownerName ?? undefined,
       payerMobile: dto.payerMobile,
-      payerEmail: dto.payerEmail?.trim() || undefined,
+      payerEmail,
       assessmentYearId: dues.assessmentYear.id,
       propertyDemandId: dues.propertyDemandId ?? undefined,
     })
@@ -276,8 +273,7 @@ export class PublicPropertyTaxService {
           : "http://localhost:4000/api/v1/payments/gateway/return"
       })()
 
-    const custEmail =
-      dto.payerEmail?.trim() || `${dto.payerMobile}@citizen.chhata.in`
+    const custEmail = payerEmail
     const checkoutEnv = (
       process.env.ATOM_CHECKOUT_ENV?.trim().toLowerCase() === "prod"
         ? "prod"

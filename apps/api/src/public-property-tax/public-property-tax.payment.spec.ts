@@ -55,10 +55,9 @@ describe("public property tax payment rules", () => {
     const hasPublishedDemand = true
     const outstanding = 450
     const successPaymentCount = 1
-    const alreadyPaid =
-      hasPublishedDemand
-        ? outstanding <= 0
-        : successPaymentCount > 0
+    const alreadyPaid = hasPublishedDemand
+      ? outstanding <= 0
+      : successPaymentCount > 0
     expect(alreadyPaid).toBe(false)
   })
 
@@ -74,11 +73,13 @@ describe("public property tax payment rules", () => {
     }).toThrow(BadRequestException)
   })
 
-  it("DTO requires 10-digit mobile pattern in class metadata", () => {
+  it("DTO requires 10-digit mobile and a payer email", () => {
     const dto = new CreatePublicPropertyTaxPaymentDto()
     dto.surveyId = "clxxxxxxxxxxxxxxxxxxxxxxxx"
     dto.payerMobile = "9876543210"
+    dto.payerEmail = "payer@example.com"
     expect(dto.payerMobile).toMatch(/^\d{10}$/)
+    expect(dto.payerEmail).toContain("@")
   })
 })
 

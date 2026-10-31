@@ -1,6 +1,12 @@
+import {
+  gatewayTokenFailureMessage,
+  newCitizenMerchTxnId,
+} from "../payments.service"
 import { atomAesDecrypt, atomAesEncrypt } from "./atom-aes"
 import {
+  AtomAuthValidationError,
   AtomNdpsProvider,
+  assertAipayAuthPayload,
   buildAipayAuthPayload,
   buildAtomRefundPayload,
   buildAtomStatusPayload,
@@ -12,11 +18,18 @@ const NOW = new Date("2024-01-15T19:00:00.000Z")
 const paymentInput = {
   merchTxnId: "CHH-1",
   amount: 1500.5,
-  customerName: "Owner",
+  customerName: "Owner With A Very Long Name That Exceeds Forty Five",
   customerEmail: "payer@example.com",
   customerMobile: "9876543210",
   returnUrl: "https://www.example.com/api/v1/payments/gateway/return",
   callbackUrl: "https://www.example.com/api/v1/payments/gateway/callback",
+}
+
+const validConfig = {
+  merchId: "317157",
+  password: "txn-pass",
+  product: "NAGAR",
+  subChannel: "UP",
 }
 
 describe("formatAtomMerchTxnDate", () => {
@@ -25,27 +38,182 @@ describe("formatAtomMerchTxnDate", () => {
   })
 })
 
+describe("newCitizenMerchTxnId", () => {
+  it("produces unique ids within Atom length limits", () => {
+    const a = newCitizenMerchTxnId(1_700_000_000_000, "aaaaaaaa")
+    const b = newCitizenMerchTxnId(1_700_000_000_001, "bbbbbbbb")
+    expect(a).not.toBe(b)
+    expect(a.length).toBeLessThanOrEqual(50)
+    expect(b).toMatch(/^CHH-\d+-[0-9a-f]{8}$/i)
+  })
+})
+
 describe("buildAipayAuthPayload", () => {
-  it("sends product NAGAR, UPI subchannel UP, and a numeric amount", () => {
-    const body = buildAipayAuthPayload(
-      paymentInput,
-      {
-        merchId: "317157",
-        password: "txn-pass",
-        product: "NAGAR",
-        subChannel: "UP",
-      },
-      NOW
-    )
+  it("sends product NAGAR, UPI subchannel UP, empty UDFs, and a numeric amount", () => {
+    const body = buildAipayAuthPayload(paymentInput, validConfig, NOW)
     const pay = body.payInstrument.payDetails
     expect(pay.amount).toBe(1500.5)
     expect(typeof pay.amount).toBe("number")
     expect(pay.product).toBe("NAGAR")
+    expect(pay.txnCurrency).toBe("INR")
     expect(pay).not.toHaveProperty("custAccNo")
-    expect(body.payInstrument.payModeSpecificData).toEqual({ subChannel: "UP" })
+    expect(body.payInstrument.headDetails).toEqual({
+      version: "OTSv1.1",
+      api: "AUTH",
+      platform: "FLASH",
+    })
+    expect(body.payInstrument.merchDetails.userId).toBe("")
     expect(body.payInstrument.merchDetails.merchTxnDate).toBe(
       "2024-01-16 00:30:00"
     )
+    expect(body.payInstrument.custDetails).toEqual({
+      custEmail: "payer@example.com",
+      custMobile: "9876543210",
+    })
+    expect(body.payInstrument.extras).toEqual({
+      udf1: "",
+      udf2: "",
+      udf3: "",
+      udf4: "",
+      udf5: "",
+    })
+    expect(JSON.stringify(body)).not.toContain("citizen.chhata.in")
+    expect(JSON.stringify(body)).not.toContain(
+      "Owner With A Very Long Name That Exceeds Forty Five"
+    )
+    expect(body.payInstrument.payModeSpecificData).toEqual({ subChannel: "UP" })
+  })
+
+  it("rounds amount to two decimal places as a number", () => {
+    const body = buildAipayAuthPayload(
+      { ...paymentInput, amount: 10.156 },
+      validConfig,
+      NOW
+    )
+    expect(body.payInstrument.payDetails.amount).toBe(10.16)
+    expect(typeof body.payInstrument.payDetails.amount).toBe("number")
+  })
+
+  it("omits payModeSpecificData when subChannel is blank", () => {
+    const body = buildAipayAuthPayload(
+      paymentInput,
+      { ...validConfig, subChannel: "" },
+      NOW
+    )
+    expect(body.payInstrument).not.toHaveProperty("payModeSpecificData")
+  })
+
+  it("rejects missing merchant credentials", () => {
+    expect(() =>
+      buildAipayAuthPayload(paymentInput, {
+        ...validConfig,
+        merchId: "",
+      })
+    ).toThrow(AtomAuthValidationError)
+    try {
+      buildAipayAuthPayload(paymentInput, { ...validConfig, password: "" })
+    } catch (error) {
+      expect(error).toBeInstanceOf(AtomAuthValidationError)
+      expect((error as AtomAuthValidationError).code).toBe("MISSING_MERCHANT")
+    }
+    expect(() =>
+      buildAipayAuthPayload(paymentInput, { ...validConfig, product: "" })
+    ).toThrow(/merchant credentials or product/i)
+  })
+
+  it("rejects missing or invalid customer email without synthesizing one", () => {
+    expect(() =>
+      buildAipayAuthPayload(
+        { ...paymentInput, customerEmail: undefined },
+        validConfig
+      )
+    ).toThrow(AtomAuthValidationError)
+    try {
+      buildAipayAuthPayload(
+        { ...paymentInput, customerEmail: "not-an-email" },
+        validConfig
+      )
+    } catch (error) {
+      expect((error as AtomAuthValidationError).code).toBe("MISSING_EMAIL")
+    }
+    expect(() =>
+      buildAipayAuthPayload(
+        { ...paymentInput, customerEmail: "a b@example.com" },
+        validConfig
+      )
+    ).toThrow(/email/i)
+  })
+
+  it("rejects missing or non-10-digit mobile", () => {
+    try {
+      buildAipayAuthPayload(
+        { ...paymentInput, customerMobile: undefined },
+        validConfig
+      )
+    } catch (error) {
+      expect((error as AtomAuthValidationError).code).toBe("MISSING_MOBILE")
+    }
+    expect(() =>
+      buildAipayAuthPayload(
+        { ...paymentInput, customerMobile: "98765" },
+        validConfig
+      )
+    ).toThrow(/10-digit/i)
+  })
+
+  it("rejects zero, negative, and non-finite amounts", () => {
+    for (const amount of [0, -1, Number.NaN]) {
+      try {
+        buildAipayAuthPayload({ ...paymentInput, amount }, validConfig)
+        throw new Error(`expected throw for amount ${amount}`)
+      } catch (error) {
+        expect(error).toBeInstanceOf(AtomAuthValidationError)
+        expect((error as AtomAuthValidationError).code).toBe("INVALID_AMOUNT")
+      }
+    }
+  })
+})
+
+describe("assertAipayAuthPayload", () => {
+  it("rejects object-shaped subChannel", () => {
+    const body = buildAipayAuthPayload(paymentInput, validConfig, NOW)
+    const broken = {
+      ...body,
+      payInstrument: {
+        ...body.payInstrument,
+        payModeSpecificData: { subChannel: { NB: true } },
+      },
+    }
+    expect(() => assertAipayAuthPayload(broken)).toThrow(
+      AtomAuthValidationError
+    )
+    try {
+      assertAipayAuthPayload(broken)
+    } catch (error) {
+      expect((error as AtomAuthValidationError).code).toBe("INVALID_PAYLOAD")
+    }
+  })
+})
+
+describe("gatewayTokenFailureMessage", () => {
+  it("maps invalid merchant and validation failures to safe copy", () => {
+    expect(
+      gatewayTokenFailureMessage({
+        responseDetails: {
+          txnStatusCode: "OTS0451",
+          txnDescription: "INVALID MERCHANT INFORMATION",
+        },
+      })
+    ).toMatch(/merchant configuration/i)
+    expect(
+      gatewayTokenFailureMessage({
+        responseDetails: {
+          txnStatusCode: "OTS0600",
+          txnDescription: "VALIDATION FAILED",
+        },
+      })
+    ).toMatch(/rejected the request/i)
+    expect(gatewayTokenFailureMessage({})).toMatch(/checkout token/i)
   })
 })
 
@@ -90,12 +258,13 @@ describe("AtomNdpsProvider auth config", () => {
     }
   })
 
-  it("does not default the product to NSE", () => {
+  it("rejects auth when product is missing instead of defaulting to NSE", () => {
     delete process.env.ATOM_PRODUCT
     delete process.env.ProductID
     const provider = new AtomNdpsProvider()
-    const body = provider.authRequestBody(paymentInput, NOW)
-    expect(body.payInstrument.payDetails.product).toBe("")
+    expect(() => provider.authRequestBody(paymentInput, NOW)).toThrow(
+      AtomAuthValidationError
+    )
   })
 
   it("sends ProductID when it is set, including when ATOM_PRODUCT is NSE", () => {
@@ -134,11 +303,59 @@ describe("AtomNdpsProvider auth config", () => {
       const init = call?.[1] as RequestInit
       const params = new URLSearchParams(String(init.body))
       const plain = atomAesDecrypt(params.get("encData") ?? "", reqIv, reqIv)
-      expect(JSON.parse(plain).payInstrument.merchDetails.password).toBe(
-        "txn-pass"
-      )
+      const parsed = JSON.parse(plain)
+      expect(parsed.payInstrument.merchDetails.password).toBe("txn-pass")
+      expect(parsed.payInstrument.extras.udf1).toBe("")
       expect(String(init.body)).not.toContain(reqIv)
       expect(String(init.body)).not.toContain("txn-pass")
+    } finally {
+      fetchMock.mockRestore()
+    }
+  })
+
+  it("returns atomTokenId on OTS0000 and omits it on OTS0600", async () => {
+    const reqIv = "A4476C2062FFA58980DC8F79EB6A799E"
+    const resIv = "75AEF0FA1B94B3C10D4F5B268F757F11"
+    process.env.ATOM_AES_REQUEST_IV = reqIv
+    process.env.ATOM_AES_RESPONSE_IV = resIv
+    process.env.ATOM_AUTH_URL = "https://payment1.atomtech.in/ots/aipay/auth"
+
+    const successPlain = JSON.stringify({
+      atomTokenId: "15000000033303",
+      responseDetails: {
+        txnMessage: "SUCCESS",
+        txnStatusCode: "OTS0000",
+        txnDescription: "ATOM TOKEN ID HAS BEEN GENERATED SUCCESSFULLY",
+      },
+    })
+    const failPlain = JSON.stringify({
+      responseDetails: {
+        txnMessage: "FAILED",
+        txnStatusCode: "OTS0600",
+        txnDescription: "TOKEN GENERATION FAILED",
+      },
+    })
+
+    const fetchMock = jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          `merchId=317157&encData=${atomAesEncrypt(successPlain, resIv, resIv)}`,
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          `merchId=317157&encData=${atomAesEncrypt(failPlain, resIv, resIv)}`,
+      } as Response)
+
+    try {
+      const provider = new AtomNdpsProvider()
+      const ok = await provider.createPayment(paymentInput)
+      expect(ok.atomTokenId).toBe("15000000033303")
+      const fail = await provider.createPayment(paymentInput)
+      expect(fail.atomTokenId).toBeUndefined()
+      expect(fail.redirectUrl).toBeUndefined()
     } finally {
       fetchMock.mockRestore()
     }

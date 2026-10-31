@@ -52,7 +52,7 @@ export function fetchPublicPropertyDues(surveyId: string) {
 export function createPublicPropertyTaxPayment(input: {
   surveyId: string
   payerMobile: string
-  payerEmail?: string
+  payerEmail: string
 }) {
   return publicApiPost<PublicPropertyTaxPaymentCreateResult>(
     "/api/v1/public/property-tax/payments",

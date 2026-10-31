@@ -21,12 +21,12 @@ import {
   TaxSummaryCard,
 } from "@/components/propertytax/tax-summary-card"
 import { openAtomAipayCheckout } from "@/lib/atom-checkout"
-import { isHouseTaxPayable } from "@/lib/property-tax-format"
-import { citizenPayErrorMessage } from "@/lib/property-tax-pay-errors"
 import {
   createPublicPropertyTaxPayment,
   fetchPublicPropertyDues,
 } from "@/lib/property-tax-api"
+import { isHouseTaxPayable } from "@/lib/property-tax-format"
+import { citizenPayErrorMessage } from "@/lib/property-tax-pay-errors"
 import { PublicApiError } from "@/lib/public-api"
 
 export default function PropertyTaxPayPage() {
@@ -51,7 +51,7 @@ export default function PropertyTaxPayPage() {
       createPublicPropertyTaxPayment({
         surveyId: id,
         payerMobile: mobile,
-        payerEmail: email.trim() || undefined,
+        payerEmail: email.trim(),
       }),
     onSuccess: async (data) => {
       try {
@@ -99,8 +99,8 @@ export default function PropertyTaxPayPage() {
       setFieldError("Enter a valid 10-digit mobile number.")
       return
     }
-    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setFieldError("Enter a valid email address or leave it blank.")
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setFieldError("Enter a valid email address.")
       return
     }
     if (!payable || payMutation.isPending || submittedRef.current) return
@@ -174,11 +174,10 @@ export default function PropertyTaxPayPage() {
             {!payable ? (
               <div
                 role="alert"
-                className={`rounded-xl border px-6 py-6 text-sm shadow-sm ${
-                  alreadyPaid
+                className={`rounded-xl border px-6 py-6 text-sm shadow-sm ${alreadyPaid
                     ? "border-emerald-200 bg-emerald-50 text-emerald-950"
                     : "border-amber-200 bg-amber-50 text-amber-950"
-                }`}
+                  }`}
               >
                 {alreadyPaid ? (
                   <>
@@ -219,8 +218,8 @@ export default function PropertyTaxPayPage() {
                   Payer details
                 </h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Enter a mobile number for payment confirmation. Email is
-                  optional.
+                  Enter a mobile number and email for payment confirmation.
+                  Both are required by the payment gateway.
                 </p>
 
                 <div className="border-gov-saffron/20 bg-gov-orange-light mt-5 flex items-start gap-3 rounded-xl border px-4 py-3 text-sm text-slate-800">
@@ -266,15 +265,17 @@ export default function PropertyTaxPayPage() {
                       className="mb-2 flex items-center gap-2 text-xs font-bold tracking-wider text-slate-700 uppercase"
                     >
                       <Mail className="text-gov-saffron h-3.5 w-3.5" />
-                      Email (optional)
+                      Email (required)
                     </label>
                     <input
                       id="payer-email"
                       type="email"
                       autoComplete="email"
+                      required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="name@example.com"
+                      aria-invalid={Boolean(fieldError)}
                       className="focus:border-gov-saffron focus:ring-gov-saffron/15 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-800 placeholder-slate-400 shadow-inner transition-all duration-200 focus:bg-white focus:ring-4 focus:outline-none"
                     />
                   </div>

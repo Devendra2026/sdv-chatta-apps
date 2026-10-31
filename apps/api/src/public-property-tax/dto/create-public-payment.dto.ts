@@ -1,6 +1,5 @@
 import {
   IsEmail,
-  IsOptional,
   IsString,
   Matches,
   MaxLength,
@@ -17,8 +16,7 @@ export class CreatePublicPropertyTaxPaymentDto {
   @Matches(/^\d{10}$/, { message: "payerMobile must be exactly 10 digits" })
   payerMobile!: string
 
-  @IsOptional()
   @IsEmail()
-  @MaxLength(200)
-  payerEmail?: string
+  @MaxLength(100)
+  payerEmail!: string
 }
