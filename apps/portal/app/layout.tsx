@@ -1,4 +1,5 @@
-import { Geist, Geist_Mono, Noto_Sans_Devanagari } from "next/font/google"
+import { Geist, Geist_Mono } from "next/font/google"
+import localFont from "next/font/local"
 import { Toaster } from "@workspace/ui/components/sonner"
 import { TooltipProvider } from "@workspace/ui/components/tooltip"
 
@@ -9,10 +10,13 @@ import { cn } from "@workspace/ui/lib/utils"
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
 const fontMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
-const notoDevanagari = Noto_Sans_Devanagari({
-  subsets: ["devanagari"],
+const notoDevanagari = localFont({
+  src: "../fonts/NotoSansDevanagari-Variable.ttf",
+  weight: "100 900",
+  display: "swap",
+  preload: false,
+  adjustFontFallback: false,
   variable: "--font-deva",
-  weight: ["400", "500", "600", "700"],
 })
 
 export const metadata = {

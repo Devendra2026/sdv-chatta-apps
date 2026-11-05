@@ -1817,6 +1817,204 @@
       "lastAccessed": "2026-10-31T08:27:46.756Z",
       "accessCount": 0,
       "expiresAt": "2026-11-30T08:27:46.756Z"
+    },
+    "cmd-1793845549671": {
+      "key": "cmd-1793845549671",
+      "value": "{\"command\":\"if (Test-Path \\\"c:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\\apps\\\\portal\\\\public\\\") { Get-ChildItem \\\"c:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\\apps\\\\portal\\\\public\\\" -Recurse | Select-Object -First 20 FullName } else { Write-Output \\\"portal/public missing\\\" }; if (Test-Path \\\"c:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\\apps\\\\web\\\\public\\\") { Get-ChildItem \\\"c:\\\\sdv-books\\\\client-project\\\\sdv-chatta-apps\\\\apps\\\\web\\\\public\\\" -Recurse | Select-Object -First 10 FullName } else { Write-Output \\\"web/public missing\\\" }\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:25:49.671Z",
+      "lastAccessed": "2026-11-05T02:25:49.671Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:25:49.671Z"
+    },
+    "cmd-1793845826255": {
+      "key": "cmd-1793845826255",
+      "value": "{\"command\":\"Get-Item \\\"apps\\\\api\\\\src\\\\assets\\\\fonts\\\\*\\\" | Select-Object Name, Length\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:30:26.255Z",
+      "lastAccessed": "2026-11-05T02:30:26.255Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:30:26.255Z"
+    },
+    "cmd-1793846632674": {
+      "key": "cmd-1793846632674",
+      "value": "{\"command\":\"New-Item -ItemType Directory -Force -Path \\\"apps\\\\portal\\\\fonts\\\" | Out-Null; Copy-Item \\\"apps\\\\api\\\\src\\\\assets\\\\fonts\\\\NotoSansDevanagari-Variable.ttf\\\" \\\"apps\\\\portal\\\\fonts\\\\NotoSansDevanagari-Variable.ttf\\\"; Copy-Item \\\"apps\\\\api\\\\src\\\\assets\\\\fonts\\\\OFL.txt\\\" \\\"apps\\\\portal\\\\fonts\\\\OFL.txt\\\"; Get-Item \\\"apps\\\\portal\\\\fonts\\\\*\\\" | Select-Object Name, Length\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:43:52.674Z",
+      "lastAccessed": "2026-11-05T02:43:52.674Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:43:52.674Z"
+    },
+    "cmd-1793846655336": {
+      "key": "cmd-1793846655336",
+      "value": "{\"command\":\"if (Test-Path \\\"node_modules\\\") { \\\"node_modules=present\\\" } else { \\\"node_modules=missing\\\" }; if ($env:DATABASE_URL) { \\\"DATABASE_URL=set\\\" } else { \\\"DATABASE_URL=unset\\\" }; if (Test-Path \\\"apps\\\\api\\\\.env\\\") { \\\"api_env=present\\\" } else { \\\"api_env=missing\\\" }\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:44:15.336Z",
+      "lastAccessed": "2026-11-05T02:44:15.336Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:44:15.336Z"
+    },
+    "cmd-1793846663367": {
+      "key": "cmd-1793846663367",
+      "value": "{\"command\":\"pnpm install --frozen-lockfile\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:44:23.367Z",
+      "lastAccessed": "2026-11-05T02:44:23.367Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:44:23.367Z"
+    },
+    "cmd-1793846706783": {
+      "key": "cmd-1793846706783",
+      "value": "{\"command\":\"pnpm --filter web build\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:45:06.783Z",
+      "lastAccessed": "2026-11-05T02:45:06.783Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:45:06.783Z"
+    },
+    "cmd-1793846710914": {
+      "key": "cmd-1793846710914",
+      "value": "{\"command\":\"pnpm --filter api build\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:45:10.914Z",
+      "lastAccessed": "2026-11-05T02:45:10.914Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:45:10.914Z"
+    },
+    "cmd-1793846718457": {
+      "key": "cmd-1793846718457",
+      "value": "{\"command\":\"pnpm --filter portal build\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:45:18.457Z",
+      "lastAccessed": "2026-11-05T02:45:18.457Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:45:18.457Z"
+    },
+    "cmd-1793846738027": {
+      "key": "cmd-1793846738027",
+      "value": "{\"command\":\"Get-Command docker -ErrorAction SilentlyContinue | Select-Object Source; @(\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:45:38.027Z",
+      "lastAccessed": "2026-11-05T02:45:38.027Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:45:38.027Z"
+    },
+    "cmd-1793846757904": {
+      "key": "cmd-1793846757904",
+      "value": "{\"command\":\"Start-Process \\\"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\\\"; $deadline = (Get-Date).AddMinutes(3); do { Start-Sleep -Seconds 5; docker info --format \\\"{{.ServerVersion}}\\\" 2>$null; if ($LASTEXITCODE -eq 0) { \\\"docker=ready\\\"; break } } while ((Get-Date) -lt $deadline); if ($LASTEXITCODE -ne 0) { \\\"docker=unavailable\\\" }\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:45:57.904Z",
+      "lastAccessed": "2026-11-05T02:45:57.904Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:45:57.904Z"
+    },
+    "cmd-1793846813677": {
+      "key": "cmd-1793846813677",
+      "value": "{\"command\":\"Copy-Item -Force .env.production.example .env; docker compose -f docker-compose.prod.yml --env-file .env.production.example config --quiet; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; docker compose -f docker-compose.prod.yml --env-file .env.production.example config --services\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:46:53.677Z",
+      "lastAccessed": "2026-11-05T02:46:53.677Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:46:53.677Z"
+    },
+    "cmd-1793846822453": {
+      "key": "cmd-1793846822453",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml --env-file .env.production.example build --no-cache\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:47:02.453Z",
+      "lastAccessed": "2026-11-05T02:47:02.453Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:47:02.453Z"
+    },
+    "cmd-1793847129784": {
+      "key": "cmd-1793847129784",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml --env-file .env.production.example build --no-cache api\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:52:09.784Z",
+      "lastAccessed": "2026-11-05T02:52:09.784Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:52:09.784Z"
+    },
+    "cmd-1793847376176": {
+      "key": "cmd-1793847376176",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml --env-file .env.production.example build --no-cache portal\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:56:16.176Z",
+      "lastAccessed": "2026-11-05T02:56:16.176Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:56:16.176Z"
+    },
+    "cmd-1793847518355": {
+      "key": "cmd-1793847518355",
+      "value": "{\"command\":\"docker compose -f docker-compose.prod.yml --env-file .env.production.example build --no-cache web\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T02:58:38.355Z",
+      "lastAccessed": "2026-11-05T02:58:38.355Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T02:58:38.355Z"
+    },
+    "cmd-1793847688186": {
+      "key": "cmd-1793847688186",
+      "value": "{\"command\":\"docker image ls --format \\\"{{.Repository}}:{{.Tag}} {{.ID}} {{.Size}}\\\" | Select-String \\\"sdv-chatta-apps\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T03:01:28.186Z",
+      "lastAccessed": "2026-11-05T03:01:28.186Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T03:01:28.186Z"
+    },
+    "cmd-1793847701989": {
+      "key": "cmd-1793847701989",
+      "value": "{\"command\":\"docker rm -f chhata-portal-smoke chhata-web-smoke 2>$null | Out-Null\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T03:01:41.989Z",
+      "lastAccessed": "2026-11-05T03:01:41.989Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T03:01:41.989Z"
+    },
+    "cmd-1793847717726": {
+      "key": "cmd-1793847717726",
+      "value": "{\"command\":\"Start-Sleep -Seconds 3\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T03:01:57.726Z",
+      "lastAccessed": "2026-11-05T03:01:57.726Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T03:01:57.726Z"
+    },
+    "cmd-1793847730731": {
+      "key": "cmd-1793847730731",
+      "value": "{\"command\":\"$html = (Invoke-WebRequest -Uri \\\"http://127.0.0.1:3000/login\\\" -UseBasicParsing).Content\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T03:02:10.731Z",
+      "lastAccessed": "2026-11-05T03:02:10.731Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T03:02:10.731Z"
+    },
+    "cmd-1793847740842": {
+      "key": "cmd-1793847740842",
+      "value": "{\"command\":\"$css = (Invoke-WebRequest -Uri \\\"http://127.0.0.1:3000/_next/static/chunks/2jcr0xaee4mpg.css\\\" -UseBasicParsing).Content\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T03:02:20.842Z",
+      "lastAccessed": "2026-11-05T03:02:20.842Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T03:02:20.842Z"
+    },
+    "cmd-1793847750842": {
+      "key": "cmd-1793847750842",
+      "value": "{\"command\":\"$r = Invoke-WebRequest -Uri \\\"http://127.0.0.1:3000/_next/static/media/NotoSansDevanagari_Variable.2v79-73oxz1ue.ttf\\\" -UseBasicParsing -Method Head\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T03:02:30.842Z",
+      "lastAccessed": "2026-11-05T03:02:30.842Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T03:02:30.842Z"
+    },
+    "cmd-1793847796210": {
+      "key": "cmd-1793847796210",
+      "value": "{\"command\":\"docker rm -f chhata-portal-smoke chhata-web-smoke | Out-Null\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-05T03:03:16.210Z",
+      "lastAccessed": "2026-11-05T03:03:16.210Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-05T03:03:16.210Z"
     }
   },
   "version": "3.0.0"
