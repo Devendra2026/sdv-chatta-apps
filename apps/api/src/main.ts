@@ -15,6 +15,7 @@ import { OriginValidationMiddleware } from "./common/origin-validation.middlewar
 import { RateLimitMiddleware } from "./common/rate-limit.middleware"
 import { pingRedis, redisUnreachableMessage } from "./common/redis.client"
 import { RequestLoggingInterceptor } from "./common/request-logging.interceptor"
+import { describeAtomRuntimeConfig } from "./config/atom-env"
 import { assertRequiredEnv } from "./config/validate-env"
 import {
   API_BUILD_ID_HEADER,
@@ -105,6 +106,8 @@ async function bootstrap() {
   if (!redisOk) {
     throw new Error(redisUnreachableMessage())
   }
+
+  bootstrapLogger.log(`Atom config: ${describeAtomRuntimeConfig(process.env)}`)
 
   const verifiedRoutes = await verifyCriticalRoutes(app)
   markRoutesVerified(verifiedRoutes)
