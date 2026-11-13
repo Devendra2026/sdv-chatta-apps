@@ -114,6 +114,35 @@ export function resolveAtomProduct(env: NodeJS.ProcessEnv): string {
 }
 
 /**
+ * Non-secret Atom settings for one startup log line, so ops can see which
+ * product code and subChannel the live AUTH uses (both decide which payment
+ * modes Atom's checkout shows). Never add passwords, keys, or merchant IDs.
+ */
+export function describeAtomRuntimeConfig(env: NodeJS.ProcessEnv): string {
+  const productSource = env.ProductID?.trim()
+    ? "ProductID"
+    : env.ATOM_PRODUCT?.trim()
+      ? "ATOM_PRODUCT"
+      : "missing"
+  const host = (url: string | undefined) => {
+    try {
+      return url?.trim() ? new URL(url.trim()).host : "unset"
+    } catch {
+      return "invalid"
+    }
+  }
+  return [
+    `provider=${env.PAYMENT_PROVIDER?.trim() || "unset"}`,
+    `product=${resolveAtomProduct(env) || "missing"} (from ${productSource})`,
+    `subChannel=${resolveAtomSubChannel(env) || "none (all enabled modes)"}`,
+    `custAccNo=${resolveAtomCustAccNo(env) ? "set" : "missing"}`,
+    `authHost=${host(env.ATOM_AUTH_URL || env.ATOM_BASE_URL)}`,
+    `checkoutCdnHost=${host(env.ATOM_CHECKOUT_CDN)}`,
+    `checkoutEnv=${env.ATOM_CHECKOUT_ENV?.trim() || "unset"}`,
+  ].join(" ")
+}
+
+/**
  * payDetails.custAccNo on AUTH.
  * Required by the merchant AUTH sample shape. Use the NTT-issued account
  * string — never the kit sample 213232323 unless that is the live value.

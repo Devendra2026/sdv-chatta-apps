@@ -2060,6 +2060,222 @@
       "lastAccessed": "2026-11-13T08:40:12.457Z",
       "accessCount": 0,
       "expiresAt": "2026-12-13T08:40:12.457Z"
+    },
+    "cmd-1794563551868": {
+      "key": "cmd-1794563551868",
+      "value": "{\"command\":\"wc -l apps/web/lib/atom-checkout.ts apps/api/src/payments/providers/atom-ndps.provider.ts apps/api/src/config/atom-env.ts apps/web/next.config.ts && cat apps/web/lib/atom-checkout.ts apps/web/next.config.ts\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:52:31.868Z",
+      "lastAccessed": "2026-11-13T09:52:31.868Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:52:31.868Z"
+    },
+    "cmd-1794563679405": {
+      "key": "cmd-1794563679405",
+      "value": "{\"command\":\"cat apps/api/src/config/atom-env.ts && grep -rniE \\\"content-security|frame-ancestors|X-Frame|helmet|frame-src\\\" --include=*.ts --include=*.tsx --include=*.js --include=*.conf --include=*.yml --include=*.mjs . 2>/dev/null | grep -v node_modules | grep -v \\\"\\\\.next\\\" | head -30; ls; ls deploy* nginx* infra* 2>/dev/null\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:54:39.405Z",
+      "lastAccessed": "2026-11-13T09:54:39.405Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:54:39.405Z"
+    },
+    "cmd-1794563691474": {
+      "key": "cmd-1794563691474",
+      "value": "{\"command\":\"sed -n 1,90p apps/api/src/config/atom-env.ts; git ls-files | grep -iE \\\"nginx|caddy|\\\\.conf$|deploy|Dockerfile|proxy\\\\.ts|middleware\\\\.ts\\\" | grep -v node_modules\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:54:51.474Z",
+      "lastAccessed": "2026-11-13T09:54:51.474Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:54:51.474Z"
+    },
+    "cmd-1794563697571": {
+      "key": "cmd-1794563697571",
+      "value": "{\"command\":\"grep -nE \\\"cdnUrl|env:|\\\\\\\"uat\\\\\\\"|'uat'|prod|atomtech|payModeSpecificData|subChannel|headDetails|merchDetails|payDetails|custDetails|extras|version|platform|merchTxnDate|atomTokenId|returnUrl|custAccNo|totalAmount|amount\\\" apps/api/src/payments/providers/atom-ndps.provider.ts | head -120\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:54:57.571Z",
+      "lastAccessed": "2026-11-13T09:54:57.571Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:54:57.571Z"
+    },
+    "cmd-1794563703261": {
+      "key": "cmd-1794563703261",
+      "value": "{\"command\":\"sed -n 575,800p apps/api/src/payments/providers/atom-ndps.provider.ts\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:55:03.261Z",
+      "lastAccessed": "2026-11-13T09:55:03.261Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:55:03.261Z"
+    },
+    "cmd-1794563721393": {
+      "key": "cmd-1794563721393",
+      "value": "{\"command\":\"sed -n 230,320p apps/api/src/public-property-tax/public-property-tax.service.ts; sed -n 80,110p .env.production.example; sed -n 20,30p apps/api/src/config/validate-env.ts; sed -n 200,240p apps/api/src/config/validate-env.ts; ls -la .env* apps/api/.env* apps/web/.env* 2>/dev/null\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:55:21.393Z",
+      "lastAccessed": "2026-11-13T09:55:21.393Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:55:21.393Z"
+    },
+    "cmd-1794563734015": {
+      "key": "cmd-1794563734015",
+      "value": "{\"command\":\"sed -n 50,120p docker-compose.prod.yml; grep -n \\\"ProductID\\\\|ATOM_PRODUCT\\\\|CUST_ACC\\\" turbo.json docker-compose.prod.yml docker/*.Dockerfile; git log --oneline -15; head -c 3000 .cursor/debug-5916dd.log | sed 's/\\\"password\\\":\\\"[^\\\"]*\\\"/\\\"password\\\":\\\"X\\\"/g'\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:55:34.015Z",
+      "lastAccessed": "2026-11-13T09:55:34.015Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:55:34.015Z"
+    },
+    "cmd-1794563748762": {
+      "key": "cmd-1794563748762",
+      "value": "{\"command\":\"grep -E \\\"^(NODE_ENV|PAYMENT_PROVIDER|ATOM_BASE_URL|ATOM_AUTH_URL|ATOM_CHECKOUT_CDN|ATOM_CHECKOUT_ENV|ATOM_SUB_CHANNEL|ATOM_PRODUCT|ProductID)=\\\" apps/api/.env; grep -E \\\"^ATOM_(MERCH_ID|CUST_ACC_NO)=\\\" apps/api/.env | sed -E 's/=(.{0,3}).*/=\\\\1***(set)/'; echo ---; curl -sSI https://npchhata.com/ | head -30; echo ---; curl -sSI https://www.npchhata.com/ | grep -iE \\\"^(HTTP|content-security|x-frame|permissions-policy|cross-origin|referrer)\\\"; echo ---; curl -sSI https://psa.atomtech.in/staticdata/ots/js/atomcheckout.js | head -12\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:55:48.762Z",
+      "lastAccessed": "2026-11-13T09:55:48.762Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:55:48.762Z"
+    },
+    "cmd-1794563762192": {
+      "key": "cmd-1794563762192",
+      "value": "{\"command\":\"D=\\\"C:/Users/sikar/AppData/Local/Temp/claude/c0dfbc8e09ebfa4f/017e6970-a827-4ed7-a237-97d59024876f/scratchpad/atomjs\\\"; mkdir -p \\\"$D\\\" && curl -sS https://psa.atomtech.in/staticdata/ots/js/atomcheckout.js -o \\\"$D/prod.js\\\" && curl -sS https://pgtest.atomtech.in/staticdata/ots/js/atomcheckout.js -o \\\"$D/uat.js\\\"; wc -c \\\"$D\\\"/*.js; grep -oE \\\"https?://[a-zA-Z0-9./_?=-]+\\\" \\\"$D/prod.js\\\" | sort -u; echo ---; grep -oE \\\"(prod|uat|env)[^;]{0,120}\\\" \\\"$D/prod.js\\\" | head -30\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:56:02.192Z",
+      "lastAccessed": "2026-11-13T09:56:02.192Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:56:02.192Z"
+    },
+    "cmd-1794563770276": {
+      "key": "cmd-1794563770276",
+      "value": "{\"command\":\"D=\\\"C:/Users/sikar/AppData/Local/Temp/claude/c0dfbc8e09ebfa4f/017e6970-a827-4ed7-a237-97d59024876f/scratchpad/atomjs\\\"; node -e '\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:56:10.276Z",
+      "lastAccessed": "2026-11-13T09:56:10.276Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:56:10.276Z"
+    },
+    "cmd-1794563781616": {
+      "key": "cmd-1794563781616",
+      "value": "{\"command\":\"D=\\\"C:/Users/sikar/AppData/Local/Temp/claude/c0dfbc8e09ebfa4f/017e6970-a827-4ed7-a237-97d59024876f/scratchpad/atomjs\\\"; node -e '\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:56:21.616Z",
+      "lastAccessed": "2026-11-13T09:56:21.616Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:56:21.616Z"
+    },
+    "cmd-1794563816036": {
+      "key": "cmd-1794563816036",
+      "value": "{\"command\":\"cd /c/sdv-books/client-project/sdv-chatta-apps/apps/api && cat package.json | grep -E '\\\"test' ; timeout 300 npx jest src/payments src/config src/public-property-tax 2>&1 | tail -25\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:56:56.036Z",
+      "lastAccessed": "2026-11-13T09:56:56.036Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:56:56.036Z"
+    },
+    "cmd-1794563821350": {
+      "key": "cmd-1794563821350",
+      "value": "{\"command\":\"cd /c/sdv-books/client-project/sdv-chatta-apps && grep -n -iE \\\"subChannel|payModeSpecificData|auth\\\" docs/payment-api-guides/get_api_specification.md | head -40\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:57:01.350Z",
+      "lastAccessed": "2026-11-13T09:57:01.350Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:57:01.350Z"
+    },
+    "cmd-1794563830072": {
+      "key": "cmd-1794563830072",
+      "value": "{\"command\":\"grep -n -iE \\\"logger|console\\\\.|subChannel|productSource\\\" apps/api/src/config/validate-env.ts apps/api/src/main.ts | head; sed -n 1,80p apps/api/src/payments/providers/atom-diagnostics.ts | grep -nE \\\"subChannel|product|export\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:57:10.072Z",
+      "lastAccessed": "2026-11-13T09:57:10.072Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:57:10.072Z"
+    },
+    "cmd-1794563837339": {
+      "key": "cmd-1794563837339",
+      "value": "{\"command\":\"sed -n 1,50p apps/api/src/payments/providers/atom-diagnostics.ts; grep -n \\\"product\\\\b\\\\|product:\\\" apps/api/src/payments/providers/atom-diagnostics.ts | head; sed -n 105,135p apps/api/src/main.ts\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:57:17.339Z",
+      "lastAccessed": "2026-11-13T09:57:17.339Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:57:17.339Z"
+    },
+    "cmd-1794563855478": {
+      "key": "cmd-1794563855478",
+      "value": "{\"command\":\"sed -n 1,60p apps/api/src/main.ts | grep -nE \\\"import|runtime|bootstrapLogger\\\" ; ls apps/api/src/config/*.spec.ts\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:57:35.478Z",
+      "lastAccessed": "2026-11-13T09:57:35.478Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:57:35.478Z"
+    },
+    "cmd-1794563902118": {
+      "key": "cmd-1794563902118",
+      "value": "{\"command\":\"cd /c/sdv-books/client-project/sdv-chatta-apps/apps/api && timeout 300 npx jest src/payments src/config src/public-property-tax 2>&1 | tail -5 && npx tsc --noEmit -p tsconfig.json 2>&1 | tail -5; echo tsc_exit=$?\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:58:22.118Z",
+      "lastAccessed": "2026-11-13T09:58:22.118Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:58:22.118Z"
+    },
+    "cmd-1794563931454": {
+      "key": "cmd-1794563931454",
+      "value": "{\"command\":\"npx tsc --noEmit -p tsconfig.json 2>&1 | grep -cE \\\"src/(main|config/atom-env)\\\" ; git stash -q && npx tsc --noEmit -p tsconfig.json 2>&1 | grep -c \\\"error TS\\\"; git stash pop -q && npx tsc --noEmit -p tsconfig.json 2>&1 | grep -c \\\"error TS\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T09:58:51.454Z",
+      "lastAccessed": "2026-11-13T09:58:51.454Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T09:58:51.454Z"
+    },
+    "cmd-1794564178093": {
+      "key": "cmd-1794564178093",
+      "value": "{\"command\":\"curl -s https://www.npchhata.com/api/v1/health; echo; curl -s https://www.npchhata.com/api/v1/health/ready | head -c 1500\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T10:02:58.093Z",
+      "lastAccessed": "2026-11-13T10:02:58.093Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T10:02:58.093Z"
+    },
+    "cmd-1794564192596": {
+      "key": "cmd-1794564192596",
+      "value": "{\"command\":\"cd /c/sdv-books/client-project/sdv-chatta-apps && git log --oneline -S \\\"must be UP in production\\\" -- apps/api/src/config/validate-env.ts; git log --oneline -S 'ATOM_SUB_CHANNEL=UP' ; git status --short; git log origin/main --oneline -1 2>/dev/null\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T10:03:12.596Z",
+      "lastAccessed": "2026-11-13T10:03:12.596Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T10:03:12.596Z"
+    },
+    "cmd-1794564198442": {
+      "key": "cmd-1794564198442",
+      "value": "{\"command\":\"git show 8b750da --stat | head -30; git show 87617c6 -- apps/api/src/config/validate-env.ts | grep -n \\\"UP\\\" | head; git show 8b750da -- apps/api/src/config/validate-env.ts .env.production.example | grep -nE \\\"^[-+].*(UP|SUB_CHANNEL|PRODUCT)\\\" | head -20\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T10:03:18.442Z",
+      "lastAccessed": "2026-11-13T10:03:18.442Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T10:03:18.442Z"
+    },
+    "cmd-1794564209106": {
+      "key": "cmd-1794564209106",
+      "value": "{\"command\":\"git show 8b750da -- apps/api/src/config/atom-env.ts | grep -nE \\\"^[-+]\\\" | head -50\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T10:03:29.106Z",
+      "lastAccessed": "2026-11-13T10:03:29.106Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T10:03:29.106Z"
+    },
+    "cmd-1794564317596": {
+      "key": "cmd-1794564317596",
+      "value": "{\"command\":\"git checkout -b fix/atom-blank-checkout-diagnostics && git add -A && git status --short && git commit -q -F - <<'EOF'\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T10:05:17.596Z",
+      "lastAccessed": "2026-11-13T10:05:17.596Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T10:05:17.596Z"
+    },
+    "cmd-1794564354358": {
+      "key": "cmd-1794564354358",
+      "value": "{\"command\":\"git status --short | head; gh pr list --head fix/atom-blank-checkout-diagnostics --json url; git ls-remote --heads origin main | head -1; ls .github/pull_request_template.md .github/PULL_REQUEST_TEMPLATE* 2>/dev/null; git push -u origin fix/atom-blank-checkout-diagnostics 2>&1 | tail -2\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T10:05:54.358Z",
+      "lastAccessed": "2026-11-13T10:05:54.358Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T10:05:54.358Z"
     }
   },
   "version": "3.0.0"
