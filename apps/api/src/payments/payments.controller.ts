@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-  Res,
-} from "@nestjs/common"
+import { Body, Controller, Get, Param, Post, Query, Res } from "@nestjs/common"
 import { PaymentMode, PaymentStatus } from "@prisma/client"
 import { Type } from "class-transformer"
 import {
@@ -223,10 +215,7 @@ export class PaymentsController {
 
   @Get(":id/receipt")
   @RequirePermission("payment:read")
-  async staffReceipt(
-    @Param("id") id: string,
-    @CurrentUser() user: AuthUser
-  ) {
+  async staffReceipt(@Param("id") id: string, @CurrentUser() user: AuthUser) {
     const data = await this.paymentsService.getStaffReceipt(id, user)
     return { success: true, data }
   }
@@ -243,10 +232,7 @@ export class PaymentsController {
       user
     )
     res.setHeader("Content-Type", "application/pdf")
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${filename}"`
-    )
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`)
     res.setHeader("Content-Length", String(buffer.length))
     res.send(buffer)
   }
