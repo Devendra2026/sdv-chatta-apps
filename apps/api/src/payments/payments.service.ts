@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common"
 import { PaymentMode, PaymentStatus, Prisma } from "@prisma/client"
@@ -30,6 +31,7 @@ import {
   shouldReprocessProcessedCallback,
   toClientGatewayResult,
 } from "./payments.safety"
+import { buildGatewayDiagnosticEvent } from "./providers/atom-diagnostics"
 import {
   AtomAuthValidationError,
   AtomNdpsProvider,
@@ -169,6 +171,7 @@ function citizenReturnRedirectUrl(merchTxnId: string | undefined) {
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name)
   private provider: PaymentGatewayProvider
 
   constructor(
@@ -1099,6 +1102,18 @@ export class PaymentsService {
       },
     })
 
+    this.logger.warn(
+      buildGatewayDiagnosticEvent({
+        event: "atom.callback.rejected",
+        merchTxnId: context.merchTxnId,
+        atomTxnId: context.atomTxnId,
+        endpoint: "gateway/callback",
+        gatewayStatusCode: context.code,
+        failureReason: reason,
+        paymentStatus: "REJECTED",
+      })
+    )
+
     return {
       rejected: true,
       reason,
@@ -1348,6 +1363,21 @@ export class PaymentsService {
         },
       })
     }
+
+    this.logger.log(
+      buildGatewayDiagnosticEvent({
+        event: "atom.callback.processed",
+        merchTxnId,
+        atomTxnId: atomTxnId ?? result.payment.atomTxnId ?? undefined,
+        merchId: process.env.ATOM_MERCH_ID?.trim() || undefined,
+        amount: gatewayAmount ?? Number(payment.amount),
+        currency: "INR",
+        endpoint: "gateway/callback",
+        gatewayStatusCode: statusCode,
+        paymentStatus: result.payment.status,
+        correlationId: idempotencyKey,
+      })
+    )
 
     return {
       duplicate: false,

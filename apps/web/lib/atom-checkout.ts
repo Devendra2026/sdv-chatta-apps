@@ -45,8 +45,9 @@ function loadScript(src: string): Promise<void> {
 }
 
 /**
- * Opens Atom AIPay widget (card / UPI / net banking).
- * Requires PAYMENT_PROVIDER=atom and a valid atomTokenId from auth API.
+ * Opens Atom AIPay widget with merchant-enabled instruments.
+ * Modes are controlled by Atom MID config and optional server ATOM_SUB_CHANNEL
+ * (empty AUTH = all enabled modes). Requires PAYMENT_PROVIDER=atom and atomTokenId.
  */
 export async function openAtomAipayCheckout(
   checkout: PublicPropertyTaxAipayCheckout
@@ -55,7 +56,7 @@ export async function openAtomAipayCheckout(
   if (!window.AtomPaynetz) {
     throw new Error("Atom checkout library did not initialize")
   }
-  // Opens modal / payment page with card, UPI, and other instruments.
+  // Opens modal / payment page; instruments come from Atom for this MID/token.
   new window.AtomPaynetz(
     {
       atomTokenId: checkout.atomTokenId,

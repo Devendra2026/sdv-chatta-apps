@@ -47,6 +47,12 @@ describe("newCitizenMerchTxnId", () => {
     expect(a.length).toBeLessThanOrEqual(50)
     expect(b).toMatch(/^CHH-\d+-[0-9a-f]{8}$/i)
   })
+
+  it("repeats only when the clock and suffix are the same", () => {
+    const id = newCitizenMerchTxnId(1_700_000_000_000, "aaaaaaaa")
+    expect(newCitizenMerchTxnId(1_700_000_000_000, "aaaaaaaa")).toBe(id)
+    expect(newCitizenMerchTxnId(1_700_000_000_000, "bbbbbbbb")).not.toBe(id)
+  })
 })
 
 describe("buildAipayAuthPayload", () => {
@@ -116,6 +122,107 @@ describe("buildAipayAuthPayload", () => {
       NOW
     )
     expect(body.payInstrument).not.toHaveProperty("payModeSpecificData")
+  })
+
+  it("builds the Chhata production AUTH shape without sample credentials", () => {
+    const body = buildAipayAuthPayload(
+      {
+        ...paymentInput,
+        amount: 5,
+        merchTxnId: "CHH-1700000000000-a1b2c3d4",
+      },
+      {
+        merchId: "858781",
+        password: "txn-pass",
+        product: "NAGAR",
+        custAccNo: "cust-acc",
+        subChannel: "",
+      },
+      NOW
+    )
+    expect(body).toEqual({
+      payInstrument: {
+        headDetails: {
+          version: "OTSv1.1",
+          api: "AUTH",
+          platform: "FLASH",
+        },
+        merchDetails: {
+          merchId: "858781",
+          userId: "",
+          password: "txn-pass",
+          merchTxnId: "CHH-1700000000000-a1b2c3d4",
+          merchTxnDate: "2024-01-16 00:30:00",
+        },
+        payDetails: {
+          amount: "5.00",
+          product: "NAGAR",
+          custAccNo: "cust-acc",
+          txnCurrency: "INR",
+        },
+        custDetails: {
+          custEmail: "payer@example.com",
+          custMobile: "9876543210",
+        },
+        extras: {
+          udf1: "",
+          udf2: "",
+          udf3: "",
+          udf4: "",
+          udf5: "",
+        },
+      },
+    })
+    expect(body.payInstrument).not.toHaveProperty("payModeSpecificData")
+    const serialized = JSON.stringify(body)
+    expect(serialized).not.toContain("8952")
+    expect(serialized).not.toContain("317157")
+    expect(serialized).not.toContain("NSE")
+    expect(serialized).not.toContain("Test@123")
+  })
+
+  it("rejects a numeric amount and an amount that is not two decimal places", () => {
+    const body = buildAipayAuthPayload(
+      paymentInput,
+      { ...validConfig, subChannel: "" },
+      NOW
+    )
+    const numeric = {
+      ...body,
+      payInstrument: {
+        ...body.payInstrument,
+        payDetails: { ...body.payInstrument.payDetails, amount: 5 },
+      },
+    }
+    expect(() => assertAipayAuthPayload(numeric)).toThrow(
+      AtomAuthValidationError
+    )
+    const short = {
+      ...body,
+      payInstrument: {
+        ...body.payInstrument,
+        payDetails: { ...body.payInstrument.payDetails, amount: "5" },
+      },
+    }
+    expect(() => assertAipayAuthPayload(short)).toThrow(/payDetails/i)
+  })
+
+  it("rejects amounts with more than 10 digits before the decimal", () => {
+    expect(() =>
+      buildAipayAuthPayload(
+        { ...paymentInput, amount: 10_000_000_000 },
+        validConfig
+      )
+    ).toThrow(AtomAuthValidationError)
+  })
+
+  it("rejects a mobile number that includes a country code", () => {
+    expect(() =>
+      buildAipayAuthPayload(
+        { ...paymentInput, customerMobile: "919876543210" },
+        validConfig
+      )
+    ).toThrow(/10-digit/i)
   })
 
   it("rejects missing merchant credentials", () => {
@@ -305,13 +412,13 @@ describe("AtomNdpsProvider auth config", () => {
     expect(body.payInstrument.payDetails.product).toBe("NAGAR")
   })
 
-  it("uses UPI subchannel UP in production when it is unset", () => {
+  it("omits payModeSpecificData in production when subchannel is unset", () => {
     process.env.NODE_ENV = "production"
     process.env.PAYMENT_PROVIDER = "atom"
     delete process.env.ATOM_SUB_CHANNEL
     const provider = new AtomNdpsProvider()
     const body = provider.authRequestBody(paymentInput, NOW)
-    expect(body.payInstrument.payModeSpecificData).toEqual({ subChannel: "UP" })
+    expect(body.payInstrument).not.toHaveProperty("payModeSpecificData")
   })
 
   it("encrypts the auth request with the request IV as PBKDF2 key and salt", async () => {
@@ -459,6 +566,40 @@ describe("AtomNdpsProvider auth config", () => {
     const provider = new AtomNdpsProvider()
     const encData = atomAesEncrypt("{}", reqKey, reqKey)
     expect(() => provider.decryptPayload(encData)).toThrow(/required/)
+  })
+
+  it("propagates Atom AUTH network timeouts", async () => {
+    process.env.ATOM_AES_REQUEST_IV = "A4476C2062FFA58980DC8F79EB6A799E"
+    process.env.ATOM_AES_RESPONSE_IV = "75AEF0FA1B94B3C10D4F5B268F757F11"
+    process.env.ATOM_AUTH_URL = "https://payment1.atomtech.in/ots/aipay/auth"
+    const fetchMock = jest
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("ATOM_AUTH_TIMEOUT"))
+    try {
+      await expect(
+        new AtomNdpsProvider().createPayment(paymentInput)
+      ).rejects.toThrow(/ATOM_AUTH_TIMEOUT/)
+    } finally {
+      fetchMock.mockRestore()
+    }
+  })
+
+  it("returns no token for malformed AUTH response bodies", async () => {
+    process.env.ATOM_AES_REQUEST_IV = "A4476C2062FFA58980DC8F79EB6A799E"
+    process.env.ATOM_AES_RESPONSE_IV = "75AEF0FA1B94B3C10D4F5B268F757F11"
+    process.env.ATOM_AUTH_URL = "https://payment1.atomtech.in/ots/aipay/auth"
+    const fetchMock = jest.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => "not-json-and-not-encdata",
+    } as Response)
+    try {
+      const result = await new AtomNdpsProvider().createPayment(paymentInput)
+      expect(result.atomTokenId).toBeUndefined()
+      expect(result.merchId).toBe("317157")
+    } finally {
+      fetchMock.mockRestore()
+    }
   })
 })
 

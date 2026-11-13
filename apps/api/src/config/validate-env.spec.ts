@@ -130,7 +130,7 @@ describe("assertRequiredEnv", () => {
     expect(() =>
       assertRequiredEnv({ env, includeSeedAdmin: true })
     ).not.toThrow()
-    expect(env.ATOM_SUB_CHANNEL).toBe("UP")
+    expect(env.ATOM_SUB_CHANNEL).toBe("")
     expect(env.ATOM_REFUND_URL).toBe(
       "https://payment.atomtech.in/ots/payment/refund"
     )
@@ -284,12 +284,33 @@ describe("assertRequiredEnv", () => {
     expect(thrown).not.toContain(badKey)
   })
 
-  it("requires UPI subchannel and the production auth URL", () => {
+  it("accepts Chhata production MID 858781 format", () => {
+    expect(() =>
+      assertRequiredEnv({
+        env: { ...baseProdEnv, ATOM_MERCH_ID: "858781" },
+        includeSeedAdmin: true,
+      })
+    ).not.toThrow()
+  })
+
+  it("allows empty or known subchannels and requires the production auth URL", () => {
+    expect(() =>
+      assertRequiredEnv({
+        env: { ...baseProdEnv, ATOM_SUB_CHANNEL: "" },
+        includeSeedAdmin: true,
+      })
+    ).not.toThrow()
     expect(() =>
       assertRequiredEnv({
         env: { ...baseProdEnv, ATOM_SUB_CHANNEL: "NB" },
+        includeSeedAdmin: true,
       })
-    ).toThrow(/ATOM_SUB_CHANNEL must be UP/)
+    ).not.toThrow()
+    expect(() =>
+      assertRequiredEnv({
+        env: { ...baseProdEnv, ATOM_SUB_CHANNEL: "ZZ" },
+      })
+    ).toThrow(/ATOM_SUB_CHANNEL must be empty/)
     expect(() =>
       assertRequiredEnv({
         env: {

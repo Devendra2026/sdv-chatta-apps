@@ -2015,6 +2015,51 @@
       "lastAccessed": "2026-11-05T03:03:16.210Z",
       "accessCount": 0,
       "expiresAt": "2026-12-05T03:03:16.210Z"
+    },
+    "cmd-1794557587662": {
+      "key": "cmd-1794557587662",
+      "value": "{\"command\":\"pnpm exec jest --runInBand src/config/validate-env.spec.ts src/payments/providers/atom-auth-payload.spec.ts src/payments/atom-aes.spec.ts src/payments/providers/atom-hmac.spec.ts src/payments/providers/atom-diagnostics.spec.ts src/payments/payments.safety.spec.ts src/payments/payments.idempotency.spec.ts src/payments/payments.callback.spec.ts --no-coverage\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T08:13:07.662Z",
+      "lastAccessed": "2026-11-13T08:13:07.662Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T08:13:07.662Z"
+    },
+    "cmd-1794557622870": {
+      "key": "cmd-1794557622870",
+      "value": "{\"command\":\"pnpm exec eslint --max-warnings 0 src/config/validate-env.ts src/config/atom-env.ts src/config/validate-env.spec.ts src/payments/providers/atom-ndps.provider.ts src/payments/providers/atom-diagnostics.ts src/payments/providers/atom-diagnostics.spec.ts src/payments/providers/atom-auth-payload.spec.ts src/payments/payments.safety.ts src/payments/payments.safety.spec.ts src/payments/payments.service.ts src/payments/payments.callback.spec.ts src/payments/atom-aes.spec.ts\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T08:13:42.870Z",
+      "lastAccessed": "2026-11-13T08:13:42.870Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T08:13:42.870Z"
+    },
+    "cmd-1794558211377": {
+      "key": "cmd-1794558211377",
+      "value": "{\"command\":\"pnpm exec jest --runInBand src/payments/payments.callback.spec.ts --no-coverage; pnpm exec eslint --max-warnings 0 src/payments/payments.callback.spec.ts\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T08:23:31.377Z",
+      "lastAccessed": "2026-11-13T08:23:31.377Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T08:23:31.377Z"
+    },
+    "cmd-1794559193345": {
+      "key": "cmd-1794559193345",
+      "value": "{\"command\":\"pnpm --filter api exec jest src/payments/providers/atom-auth-payload.spec.ts src/payments/atom-aes.spec.ts src/payments/payments.callback.spec.ts src/payments/payments.safety.spec.ts src/payments/providers/atom-hmac.spec.ts src/payments/providers/atom-diagnostics.spec.ts src/config/validate-env.spec.ts --no-coverage\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T08:39:53.345Z",
+      "lastAccessed": "2026-11-13T08:39:53.345Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T08:39:53.345Z"
+    },
+    "cmd-1794559212457": {
+      "key": "cmd-1794559212457",
+      "value": "{\"command\":\"pnpm --filter api exec eslint src/payments/providers/atom-auth-payload.spec.ts --max-warnings 0\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-11-13T08:40:12.457Z",
+      "lastAccessed": "2026-11-13T08:40:12.457Z",
+      "accessCount": 0,
+      "expiresAt": "2026-12-13T08:40:12.457Z"
     }
   },
   "version": "3.0.0"

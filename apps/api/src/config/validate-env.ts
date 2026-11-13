@@ -1,8 +1,9 @@
 import { resolveSeedAdminConfig } from "../db/seed-admin-config"
 import {
+  ATOM_SUB_CHANNEL_VALUES,
   atomAesMaterialErrors,
+  isAtomSubChannelValue,
   PROD_ATOM_REFUND_URL,
-  PROD_ATOM_SUB_CHANNEL,
   resolveAtomCustAccNo,
   resolveAtomProduct,
   resolveAtomRefundUrl,
@@ -205,9 +206,9 @@ function collectProductionErrors(env: NodeJS.ProcessEnv): string[] {
 
     const subChannel = resolveAtomSubChannel(env)
     env.ATOM_SUB_CHANNEL = subChannel
-    if (subChannel !== PROD_ATOM_SUB_CHANNEL) {
+    if (subChannel && !isAtomSubChannelValue(subChannel)) {
       errors.push(
-        "ATOM_SUB_CHANNEL must be UP in production (UPI-only checkout)"
+        `ATOM_SUB_CHANNEL must be empty (all merchant-enabled modes) or one of: ${ATOM_SUB_CHANNEL_VALUES.join(", ")}`
       )
     }
     env.ATOM_REFUND_URL = resolveAtomRefundUrl(env, env.ATOM_BASE_URL ?? "")

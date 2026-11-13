@@ -12,7 +12,30 @@
 export const PROD_ATOM_REFUND_URL =
   "https://payment.atomtech.in/ots/payment/refund"
 
-export const PROD_ATOM_SUB_CHANNEL = "UP"
+/**
+ * Atom AUTH `payModeSpecificData.subChannel` values (vendor API table).
+ * Empty / unset means omit payModeSpecificData so all merchant-enabled modes appear.
+ */
+export const ATOM_SUB_CHANNEL_VALUES = [
+  "NB",
+  "CC",
+  "DC",
+  "MW",
+  "PP",
+  "PW",
+  "EM",
+  "NR",
+  "BQ",
+  "UP",
+] as const
+
+export type AtomSubChannelValue = (typeof ATOM_SUB_CHANNEL_VALUES)[number]
+
+export function isAtomSubChannelValue(
+  value: string
+): value is AtomSubChannelValue {
+  return (ATOM_SUB_CHANNEL_VALUES as readonly string[]).includes(value)
+}
 
 const AES_HEX_32 = /^[0-9A-Fa-f]{32}$/
 
@@ -99,14 +122,12 @@ export function resolveAtomCustAccNo(env: NodeJS.ProcessEnv): string {
   return env.ATOM_CUST_ACC_NO?.trim() || ""
 }
 
-/** UPI-only checkout in production. An explicit value is never overwritten. */
+/**
+ * Optional AUTH channel filter. Empty = all merchant-enabled modes.
+ * An explicit value (e.g. UP, NB) restricts checkout to that instrument only.
+ */
 export function resolveAtomSubChannel(env: NodeJS.ProcessEnv): string {
-  const configured = env.ATOM_SUB_CHANNEL?.trim() ?? ""
-  if (configured) return configured
-  if (env.NODE_ENV === "production" && isAtomPaymentProvider(env)) {
-    return PROD_ATOM_SUB_CHANNEL
-  }
-  return ""
+  return env.ATOM_SUB_CHANNEL?.trim() ?? ""
 }
 
 /**

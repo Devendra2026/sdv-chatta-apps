@@ -91,4 +91,23 @@ describe("redactSensitivePaymentPayload", () => {
     expect(redacted.payInstrument.payModeSpecificData.cardDetails).toBeUndefined()
     expect(redacted.merchTxnId).toBe("CHH-1")
   })
+
+  it("drops secrets and masks contact fields", () => {
+    const redacted = redactSensitivePaymentPayload({
+      password: "txn-pass",
+      encData: "ABCDEF",
+      signature: "hmac",
+      atomTokenId: "tok-secret",
+      custEmail: "payer@example.com",
+      custMobile: "9876543210",
+      merchTxnId: "CHH-2",
+    }) as Record<string, unknown>
+    expect(redacted.password).toBeUndefined()
+    expect(redacted.encData).toBeUndefined()
+    expect(redacted.signature).toBeUndefined()
+    expect(redacted.atomTokenId).toBeUndefined()
+    expect(redacted.custEmail).toBe("p***r@example.com")
+    expect(redacted.custMobile).toBe("******3210")
+    expect(redacted.merchTxnId).toBe("CHH-2")
+  })
 })

@@ -62,6 +62,36 @@ describe("extractAtomTxnFields", () => {
       redirectUrl: "https://example.test/pay",
     })
   })
+
+  it("reads totalAmount when amount is absent (callback HMAC shape)", () => {
+    const fields = extractAtomTxnFields({
+      payInstrument: {
+        merchDetails: { merchTxnId: "CHH-3" },
+        payDetails: { atomTxnId: "ATM-3", totalAmount: 552.39 },
+        responseDetails: { statusCode: "OTS0000", message: "SUCCESS" },
+      },
+    })
+    expect(fields.gatewayAmount).toBe(552.39)
+    expect(fields.merchTxnId).toBe("CHH-3")
+  })
+
+  it("prefers amount when amount and totalAmount agree", () => {
+    const fields = extractAtomTxnFields({
+      payInstrument: {
+        payDetails: { amount: "100.00", totalAmount: 100 },
+      },
+    })
+    expect(fields.gatewayAmount).toBe(100)
+  })
+
+  it("leaves gatewayAmount undefined when amount and totalAmount disagree", () => {
+    const fields = extractAtomTxnFields({
+      payInstrument: {
+        payDetails: { amount: "100.00", totalAmount: 101 },
+      },
+    })
+    expect(fields.gatewayAmount).toBeUndefined()
+  })
 })
 
 describe("AtomNdpsProvider decryptPayload + nested SUCCESS", () => {

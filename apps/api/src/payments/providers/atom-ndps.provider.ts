@@ -1,3 +1,4 @@
+import { Logger } from "@nestjs/common"
 import { createHash } from "node:crypto"
 
 import {
@@ -9,6 +10,10 @@ import {
 } from "../../config/atom-env"
 import { isAtomRefundSuccess } from "../payments.safety"
 import { atomAesDecrypt, atomAesEncrypt } from "./atom-aes"
+import {
+  buildAuthRequestDiagnostic,
+  buildGatewayDiagnosticEvent,
+} from "./atom-diagnostics"
 import {
   assertAtomCallbackSignatureIfConfigured,
   AtomCallbackParseError,
@@ -64,10 +69,23 @@ export function extractAtomTxnFields(decoded: unknown): {
   const responseDetails = asObject(instrument?.responseDetails)
 
   const amountRaw = pickString(payDetails?.amount, root?.amount)
-  const gatewayAmount =
+  const totalAmountRaw = pickString(payDetails?.totalAmount, root?.totalAmount)
+  const amountNum =
     amountRaw !== undefined && Number.isFinite(Number(amountRaw))
       ? Number(amountRaw)
       : undefined
+  const totalAmountNum =
+    totalAmountRaw !== undefined && Number.isFinite(Number(totalAmountRaw))
+      ? Number(totalAmountRaw)
+      : undefined
+  let gatewayAmount: number | undefined
+  if (amountNum !== undefined && totalAmountNum !== undefined) {
+    // Prefer amount; fail closed when both are present but disagree beyond 1 paise.
+    gatewayAmount =
+      Math.abs(amountNum - totalAmountNum) <= 0.01 ? amountNum : undefined
+  } else {
+    gatewayAmount = amountNum ?? totalAmountNum
+  }
 
   return {
     merchTxnId: pickString(
@@ -558,6 +576,7 @@ export function buildAtomRefundPayload(input: {
  */
 export class AtomNdpsProvider implements PaymentGatewayProvider {
   readonly name = "atom-ndps"
+  private readonly logger = new Logger(AtomNdpsProvider.name)
 
   private baseUrl =
     process.env.ATOM_BASE_URL ?? "https://paynetzuat.atomtech.in"
@@ -658,29 +677,97 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
   }
 
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
+    const started = Date.now()
     const body = this.authRequestBody(input)
     assertAipayAuthPayload(body)
+    const authDiagnostic = buildAuthRequestDiagnostic(body, true)
     const encData = this.encryptRequest(JSON.stringify(body))
 
-    // AIPay auth — returns atomTokenId for atomcheckout.js (card / UPI / NB).
+    // AIPay auth — returns atomTokenId for atomcheckout.js (merchant-enabled modes).
     const authUrl =
       process.env.ATOM_AUTH_URL?.trim() ||
       `${this.baseUrl.replace(/\/$/, "")}/ots/aipay/auth`
 
-    const response = await fetch(authUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        encData,
-        merchId: this.merchId,
-      }).toString(),
-    })
+    let response: Response
+    try {
+      response = await fetch(authUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          encData,
+          merchId: this.merchId,
+        }).toString(),
+      })
+    } catch (error) {
+      this.logger.error(
+        buildGatewayDiagnosticEvent({
+          event: "atom.auth.network_error",
+          merchTxnId: input.merchTxnId,
+          merchId: this.merchId,
+          amount: input.amount,
+          currency: "INR",
+          endpoint: "aipay/auth",
+          tokenGenerated: false,
+          durationMs: Date.now() - started,
+          failureReason:
+            error instanceof Error ? error.message : "AUTH network error",
+          authDiagnostic,
+        })
+      )
+      throw error
+    }
 
     const rawText = await response.text()
-    const decoded = this.decodeAipayAuthResponse(rawText)
+    let decoded: unknown
+    try {
+      decoded = this.decodeAipayAuthResponse(rawText)
+    } catch (error) {
+      this.logger.error(
+        buildGatewayDiagnosticEvent({
+          event: "atom.auth.decode_error",
+          merchTxnId: input.merchTxnId,
+          merchId: this.merchId,
+          amount: input.amount,
+          currency: "INR",
+          endpoint: "aipay/auth",
+          httpStatus: response.status,
+          tokenGenerated: false,
+          durationMs: Date.now() - started,
+          failureReason:
+            error instanceof Error ? error.message : "AUTH decode failed",
+          authDiagnostic,
+        })
+      )
+      throw error
+    }
     const token = this.extractAtomTokenId(decoded)
+    const decodedFields = extractAtomTxnFields(decoded ?? {})
+
+    const httpStatus =
+      typeof response.status === "number"
+        ? response.status
+        : response.ok
+          ? 200
+          : 0
+    this.logger.log(
+      buildGatewayDiagnosticEvent({
+        event: token ? "atom.auth.success" : "atom.auth.token_failed",
+        merchTxnId: input.merchTxnId,
+        merchId: this.merchId,
+        amount: input.amount,
+        currency: "INR",
+        endpoint: "aipay/auth",
+        httpStatus,
+        gatewayStatusCode: decodedFields.statusCode,
+        gatewayMessage: decodedFields.message,
+        tokenGenerated: Boolean(token),
+        durationMs: Date.now() - started,
+        failureReason: token ? undefined : "ATOM_TOKEN_MISSING",
+        authDiagnostic,
+      })
+    )
 
     if (!token) {
       return {
@@ -789,6 +876,7 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
   }
 
   async requery(input: RequeryInput): Promise<RequeryResult> {
+    const started = Date.now()
     const payload = buildAtomStatusPayload({
       merchId: this.merchId,
       merchTxnId: input.merchTxnId,
@@ -805,13 +893,32 @@ export class AtomNdpsProvider implements PaymentGatewayProvider {
     const raw: unknown = tryParseJson(rawText) ?? rawText
     const decoded = this.decodeMaybeEncrypted(raw)
     const fields = extractAtomTxnFields(decoded)
+    const success =
+      fields.statusCode === "OTS0000" ||
+      fields.statusCode === "SUCCESS" ||
+      fields.message === "SUCCESS"
+
+    this.logger.log(
+      buildGatewayDiagnosticEvent({
+        event: "atom.requery",
+        merchTxnId: input.merchTxnId,
+        atomTxnId: fields.atomTxnId,
+        merchId: this.merchId,
+        amount: input.amount,
+        currency: "INR",
+        endpoint: "ots/v2/payment/status",
+        httpStatus: response.status,
+        gatewayStatusCode: fields.statusCode,
+        gatewayMessage: fields.message,
+        paymentStatus: success ? "SUCCESS" : fields.statusCode,
+        durationMs: Date.now() - started,
+        failureReason: success ? undefined : fields.statusCode,
+      })
+    )
 
     return {
       statusCode: fields.statusCode,
-      success:
-        fields.statusCode === "OTS0000" ||
-        fields.statusCode === "SUCCESS" ||
-        fields.message === "SUCCESS",
+      success,
       atomTxnId: fields.atomTxnId,
       raw: decoded,
     }

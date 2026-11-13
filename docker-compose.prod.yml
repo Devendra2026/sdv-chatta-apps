@@ -76,7 +76,8 @@ services:
     #   ATOM_REQ_HASH_KEY, ATOM_RESP_HASH_KEY,
     #   ATOM_PRODUCT or ProductID, ATOM_BASE_URL, ATOM_AUTH_URL,
     #   ATOM_CHECKOUT_CDN, ATOM_CHECKOUT_ENV
-    # Applied when unset in production: ATOM_SUB_CHANNEL=UP,
+    # Leave ATOM_SUB_CHANNEL empty for all merchant-enabled modes
+    # (set UP/NB/CC/DC/EM only to restrict). Applied when unset:
     # ATOM_REFUND_URL=https://payment.atomtech.in/ots/payment/refund
     # Optional, only if NTT issued them separately: ATOM_AES_REQUEST_KEY,
     # ATOM_AES_RESPONSE_KEY. ATOM_API_SECRET_KEY is not part of this protocol.
